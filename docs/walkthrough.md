@@ -18,3 +18,10 @@
 - Gemini REST API クライアント (GeminiAiProvider) & 15秒タイムアウト制御
 - 外部依存のない完全ローカル Mock プロバイダー (MockAiProvider)
 - GitHub Actions CI パイプライン (.github/workflows/ci.yml)
+
+### Phase 4: Markdown生成 & リッチプレビュー & Vault保存
+- **Live Markdown Editor**: リッチ表示、スプリット編集（双方向同期）、生Markdownの 3 モード切替
+- **ワンクリックセクションコピー**: 「エージェント逆質問のみ」「アピールポイントのみ」「Markdown全文」の即時コピー
+- **Obsidian / Logseq Vault 保存**: File System Access API / UTF-8 Blob によるダイレクト書き出し
+- **ファイル名サニタイザー & Frontmatter パーサー**: 禁止文字の除去および YAML メタデータの安全な更新
+- **自動テスト**: 8 テストファイル / 22 テスト全件合格（100% Passed）

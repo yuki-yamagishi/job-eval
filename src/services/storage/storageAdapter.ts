@@ -9,7 +9,7 @@ const STORAGE_KEYS = {
 };
 
 /**
- * Web LocalStorage implementation of StorageAdapter
+ * Web LocalStorage implementation of StorageAdapter with File System Access API
  */
 export class LocalStorageAdapter implements StorageAdapter {
   async loadProfile(): Promise<UserProfile> {
@@ -75,9 +75,50 @@ export class LocalStorageAdapter implements StorageAdapter {
     localStorage.setItem(STORAGE_KEYS.JOBS, JSON.stringify(filtered));
   }
 
+  /**
+   * Export Markdown file to Obsidian Vault or Local Folder
+   * Uses File System Access API if available, falls back to Blob download
+   */
   async exportMarkdownFile(filename: string, content: string): Promise<boolean> {
     try {
-      // Browser blob download
+      // 1. Try File System Access API (allows user to select Obsidian Vault folder directly)
+      const windowWithFSA = window as unknown as {
+        showSaveFilePicker?: (options: {
+          suggestedName?: string;
+          types?: { description: string; accept: Record<string, string[]> }[];
+        }) => Promise<{
+          createWritable: () => Promise<{
+            write: (data: string) => Promise<void>;
+            close: () => Promise<void>;
+          }>;
+        }>;
+      };
+
+      if (typeof windowWithFSA.showSaveFilePicker === "function") {
+        try {
+          const fileHandle = await windowWithFSA.showSaveFilePicker({
+            suggestedName: filename,
+            types: [
+              {
+                description: "Markdown Document (*.md)",
+                accept: { "text/markdown": [".md"] },
+              },
+            ],
+          });
+          const writableStream = await fileHandle.createWritable();
+          await writableStream.write(content);
+          await writableStream.close();
+          return true;
+        } catch (pickerErr: unknown) {
+          if (pickerErr instanceof Error && pickerErr.name === "AbortError") {
+            // User cancelled file picker
+            return false;
+          }
+          console.warn("File Picker failed, falling back to Blob download", pickerErr);
+        }
+      }
+
+      // 2. Standard UTF-8 Blob Download fallback
       const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");

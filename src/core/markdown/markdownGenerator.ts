@@ -18,11 +18,28 @@ export interface MarkdownGenerationInput {
   selectionProcess?: string;
 }
 
+export interface ParsedJobMarkdown {
+  frontmatterRaw: string;
+  metadata: Partial<JobMetadata>;
+  body: string;
+}
+
 /**
  * Generate formatted Markdown matching Requirement.md Section 5
  */
 export function generateJobMarkdown(input: MarkdownGenerationInput): string {
-  const { metadata, scoreBreakdown, positives, concerns, agentQuestions, appealPoints, mustRequirements, wantRequirements, jobDescription, selectionProcess } = input;
+  const {
+    metadata,
+    scoreBreakdown,
+    positives,
+    concerns,
+    agentQuestions,
+    appealPoints,
+    mustRequirements,
+    wantRequirements,
+    jobDescription,
+    selectionProcess,
+  } = input;
 
   const tagsFormatted = metadata.tags.map((t) => `  - ${t}`).join("\n");
   const positivesFormatted = positives.map((p) => `- ${p}`).join("\n");
@@ -39,7 +56,7 @@ company: ${metadata.company}
 title: ${metadata.title}
 agent_source: ${metadata.agentSource}
 ${metadata.url ? `url: ${metadata.url}\n` : ""}date_analyzed: ${metadata.dateAnalyzed}
-${metadata.salaryMin ? `salary_min: ${metadata.salaryMin}\n` : ""}${metadata.salaryMax ? `salary_max: ${metadata.salaryMax}\n` : ""}match_score: ${metadata.matchScore}
+${metadata.salaryMin !== undefined ? `salary_min: ${metadata.salaryMin}\n` : ""}${metadata.salaryMax !== undefined ? `salary_max: ${metadata.salaryMax}\n` : ""}match_score: ${metadata.matchScore}
 judgment: "${metadata.judgment}"
 status: "${metadata.status}"
 tags:
@@ -94,13 +111,100 @@ ${descriptionFormatted}
 }
 
 /**
+ * Sanitize filename to prevent invalid OS filesystem characters
+ * Windows/Mac/Linux forbidden: / \ : * ? " < > |
+ */
+export function sanitizeFilename(name: string): string {
+  if (!name) return "untitled";
+  return name
+    .replace(/[/\\?%*:|"<>]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * Generate standard export filename
  * Format: YYYY-MM-DD_[company]_[title].md
  */
-export function getStandardMarkdownFilename(metadata: JobMetadata): string {
-  const sanitize = (str: string) => str.replace(/[/\\?%*:|"<>]/g, "_").trim();
+export function getStandardMarkdownFilename(metadata: Partial<JobMetadata>): string {
   const date = metadata.dateAnalyzed || new Date().toISOString().split("T")[0];
-  const company = sanitize(metadata.company || "Company");
-  const title = sanitize(metadata.title || "Job");
+  const company = sanitizeFilename(metadata.company || "Company");
+  const title = sanitizeFilename(metadata.title || "Job");
   return `${date}_${company}_${title}.md`;
+}
+
+/**
+ * Parse Markdown file into Frontmatter and Body
+ */
+export function parseJobMarkdown(markdown: string): ParsedJobMarkdown {
+  const frontmatterMatch = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+
+  if (!frontmatterMatch) {
+    return {
+      frontmatterRaw: "",
+      metadata: {},
+      body: markdown,
+    };
+  }
+
+  const frontmatterRaw = frontmatterMatch[1];
+  const body = frontmatterMatch[2];
+  const metadata: Partial<JobMetadata> = {};
+
+  // Simple key-value parser for basic YAML fields
+  const lines = frontmatterRaw.split(/\r?\n/);
+  let isParsingTags = false;
+  const tags: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("tags:")) {
+      isParsingTags = true;
+      continue;
+    }
+
+    if (isParsingTags) {
+      if (trimmed.startsWith("- ")) {
+        tags.push(trimmed.slice(2).trim());
+        continue;
+      } else if (trimmed && !trimmed.startsWith("#")) {
+        isParsingTags = false;
+      }
+    }
+
+    const kvMatch = line.match(/^([a-zA-Z_0-9]+):\s*(.*)$/);
+    if (kvMatch) {
+      const key = kvMatch[1].trim();
+      let val = kvMatch[2].trim().replace(/^["']|["']$/g, "");
+
+      if (key === "company") metadata.company = val;
+      if (key === "title") metadata.title = val;
+      if (key === "id") metadata.id = val;
+      if (key === "match_score") metadata.matchScore = Number(val) || 0;
+      if (key === "salary_min") metadata.salaryMin = Number(val) || undefined;
+      if (key === "salary_max") metadata.salaryMax = Number(val) || undefined;
+      if (key === "date_analyzed") metadata.dateAnalyzed = val;
+    }
+  }
+
+  if (tags.length > 0) {
+    metadata.tags = tags;
+  }
+
+  return {
+    frontmatterRaw,
+    metadata,
+    body,
+  };
+}
+
+/**
+ * Update Markdown content while preserving or updating Frontmatter
+ */
+export function updateJobMarkdownBody(originalMarkdown: string, newBody: string): string {
+  const parsed = parseJobMarkdown(originalMarkdown);
+  if (!parsed.frontmatterRaw) {
+    return newBody;
+  }
+  return `---\n${parsed.frontmatterRaw}\n---\n\n${newBody.trim()}\n`;
 }

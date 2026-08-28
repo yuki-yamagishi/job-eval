@@ -13,6 +13,7 @@ src/
   ├── core/               # Pure business logic (UI independent, 100% unit-testable)
   │   ├── scoring/        # Multi-axis job suitability scoring engine (40/30/20/10%)
   │   ├── markdown/       # Markdown & Frontmatter template generator and parser
+  │   ├── prompt/         # System & User prompt builders & JSON schemas
   │   └── constants/      # Defaults (defaultProfile, defaultRules)
   ├── services/           # External & persistence adapters
   │   ├── storage/        # StorageAdapter (Dual: Tauri FS / Browser LocalStorage)
@@ -42,7 +43,18 @@ tests/                    # Automated Test Harness
 
 ---
 
-## 2. Development & Verification Commands
+## 2. Standard Pre-Phase Verification & Planning Protocol
+
+Before starting each phase, follow this 2-artifact separation:
+
+1. **Pre-Phase Verification (`pre_phase_verification.md`)**:
+   - Perform and record the 4-axis assessment (1. Technical Bottlenecks, 2. UX & Edge Cases, 3. Persistence & Formats, 4. Test Autonomy).
+2. **Implementation Plan (`implementation_plan.md`)**:
+   - Keep this document concise, clear, and focused exclusively on the technical changes, components to build/modify, and verification steps. Do not clutter it with preliminary discussions.
+
+---
+
+## 3. Development & Verification Commands
 
 Antigravity Agents should use the following commands to test and verify changes:
 
@@ -56,11 +68,10 @@ Antigravity Agents should use the following commands to test and verify changes:
 
 ---
 
-## 3. Key Design Rules for Agents
+## 4. Key Design Rules for Agents
 
 1. **Pure Core Logic**: Never import React or UI components into `src/core/`. Core logic must remain 100% unit-testable without DOM dependencies.
 2. **Dual-Storage Compatibility**: All persistence must go through `StorageAdapter`. It automatically uses Tauri's FS plugin when running in desktop mode and falls back to Web `localStorage` during development/browser preview.
 3. **Pluggable AI Provider**: Use `AiProvider` interface. Offline tests and preview use `MockAiProvider` so tests never fail without API keys.
 4. **Type Safety**: Avoid `any`. Always use types defined in `src/types/`.
-5. **Dark Mode & Aesthetics**: Use Tailwind tokens defined in `src/index.css`. Maintain sleek, dark-mode-first glassmorphism aesthetics.
-6. **Always Verify**: After making edits, always run `npm run check` to ensure zero type errors, 100% passing tests, and successful build output.
+5. **Always Verify & Commit**: After completing a phase, run `npm run check`, commit with conventional prefixes (`feat:`, `ci:`, `fix:`, etc.), and push to remote.
