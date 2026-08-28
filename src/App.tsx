@@ -16,7 +16,7 @@ export function App() {
 
   // Custom Hooks for persistence
   const { profile } = useProfile();
-  const { jobs, saveJob, exportMarkdown } = useJobs();
+  const { jobs, saveJob, updateJobStatus, deleteJob, exportMarkdown } = useJobs();
 
   const handleAnalyze = async (text: string, source: AgentSource) => {
     setIsAnalyzing(true);
@@ -32,10 +32,14 @@ export function App() {
     }
   };
 
-  const handleSaveMarkdown = async () => {
+  const handleSaveMarkdown = async (editedContent?: string) => {
     if (analysisResult) {
-      await saveJob(analysisResult);
-      await exportMarkdown(analysisResult);
+      const targetResult = editedContent
+        ? { ...analysisResult, markdownContent: editedContent }
+        : analysisResult;
+
+      await saveJob(targetResult);
+      await exportMarkdown(targetResult);
       alert("求人Markdownドキュメントをローカルへ保存・ダウンロードしました！");
     }
   };
@@ -71,7 +75,14 @@ export function App() {
           </div>
         )}
 
-        {activeTab === "dashboard" && <JobDashboard savedJobs={jobs} />}
+        {activeTab === "dashboard" && (
+          <JobDashboard
+            savedJobs={jobs}
+            onUpdateStatus={updateJobStatus}
+            onDeleteJob={deleteJob}
+            onExportJob={exportMarkdown}
+          />
+        )}
 
         {activeTab === "profile" && <ProfileSettingsView />}
       </main>

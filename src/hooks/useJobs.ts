@@ -1,29 +1,26 @@
 import { useState, useEffect, useCallback } from "react";
-import { JobAnalysisResult } from "@/types/job";
+import { JobAnalysisResult, JobStatus } from "@/types/job";
 import { storageAdapter } from "@/services/storage/storageAdapter";
-import { getStandardMarkdownFilename } from "@/core/markdown/markdownGenerator";
+import { getStandardMarkdownFilename, parseJobMarkdown } from "@/core/markdown/markdownGenerator";
 
 export function useJobs() {
   const [jobs, setJobs] = useState<JobAnalysisResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchJobs = async () => {
-      try {
-        const data = await storageAdapter.loadJobs();
-        if (isMounted) setJobs(data);
-      } catch (err) {
-        console.error("Failed to load saved jobs", err);
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
-    fetchJobs();
-    return () => {
-      isMounted = false;
-    };
+  const fetchJobs = useCallback(async () => {
+    try {
+      const data = await storageAdapter.loadJobs();
+      setJobs(data);
+    } catch (err) {
+      console.error("Failed to load saved jobs", err);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
 
   const saveJob = useCallback(async (job: JobAnalysisResult) => {
     await storageAdapter.saveJob(job);
@@ -35,6 +32,37 @@ export function useJobs() {
         return copy;
       }
       return [job, ...prev];
+    });
+  }, []);
+
+  const updateJobStatus = useCallback(async (id: string, newStatus: JobStatus) => {
+    setJobs((prev) => {
+      const target = prev.find((j) => j.metadata.id === id);
+      if (!target) return prev;
+
+      const updatedMetadata = { ...target.metadata, status: newStatus };
+      
+      // Update status in markdown Frontmatter
+      let updatedMarkdown = target.markdownContent;
+      const parsed = parseJobMarkdown(target.markdownContent);
+      if (parsed.frontmatterRaw) {
+        const updatedFrontmatter = parsed.frontmatterRaw.replace(
+          /status:\s*"?[^"\n\r]*"?/,
+          `status: "${newStatus}"`
+        );
+        updatedMarkdown = `---\n${updatedFrontmatter}\n---\n\n${parsed.body.trim()}\n`;
+      }
+
+      const updatedJob: JobAnalysisResult = {
+        ...target,
+        metadata: updatedMetadata,
+        markdownContent: updatedMarkdown,
+      };
+
+      // Persist to storage
+      storageAdapter.saveJob(updatedJob);
+
+      return prev.map((j) => (j.metadata.id === id ? updatedJob : j));
     });
   }, []);
 
@@ -51,7 +79,9 @@ export function useJobs() {
   return {
     jobs,
     isLoading,
+    fetchJobs,
     saveJob,
+    updateJobStatus,
     deleteJob,
     exportMarkdown,
   };

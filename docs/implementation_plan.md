@@ -1,45 +1,43 @@
-# Phase 4: Markdown生成 & リッチプレビュー & Vault保存 計画
+# Phase 5: 求人管理ダッシュボード & 複数比較 & 総合テスト 計画
 
-要件定義書（Requirement.md）の Phase 4 に基づき、AI解析結果からの標準Markdown生成、react-markdown によるリッチプレビュー表示、双方向編集エディタ、および Obsidian 等の Vault へのローカル保存機能を実装します。
+要件定義書（Requirement.md）の Phase 5 に基づき、保存済み求人ドキュメントの一覧テーブル・選考ステータス追跡・キーワード検索・フィルタリング、および複数求人の横並び比較マトリクスビューを実装し、全機能の総合テストを実施します。
 
 ---
 
 ## 提案する変更点 (Proposed Changes)
 
-### 1. Markdown 生成 & パーサーエンジンの強化
-#### [MODIFY] `src/core/markdown/markdownGenerator.ts`
-- YAML Frontmatter と本文のパース・再構築関数（`parseJobMarkdown`, `updateJobMarkdown`）。
-- OS 禁止文字のサニタイズ処理。
+### 1. 求人管理フックの拡張
+#### [MODIFY] `src/hooks/useJobs.ts`
+- ステータス変更関数（`updateJobStatus(id, status)`）。
+- 求人削除機能、フィルタリング・ソートヘルパー。
 
 ---
 
-### 2. プレビューペイン & エディタの高度化
-#### [MODIFY] `src/components/pane/PreviewPane.tsx`
-- 「リッチ表示」「スプリット編集」「生Markdown表示」の切り替え。
-- 「逆質問のみコピー」「アピールポイントのみコピー」「全文コピー」のワンクリックボタン。
-- ファイル名プレビューと Obsidian / ローカルフォルダ保存ボタン。
+### 2. 求人ダッシュボード UI の本格実装
+#### [MODIFY] `src/components/dashboard/JobDashboard.tsx`
+- **求人一覧テーブル / カードビュー切り替え (FR-501)**: 企業名、職種、スコア、年収レンジ、ソース、ステータス、解析日の表示。
+- **選考ステータス追跡 (FR-502)**: 「未検討」「応募検討中」「応募済」「書類通過」「一次面接」「最終面接」「内定」「辞退」「見送り」のドロップダウン更新。
+- **リアルタイム検索 & 絞り込み**: 企業名・職種・タグのインクリメンタル検索、判定ランク（S/A/B/C）やステータスでのフィルター。
+- **複数求人比較マトリクス (FR-503)**: チェックボックスで 2〜3 件を選択し、スコア内訳・年収・勤務形態・必須要件・アピール点を横並びで比較するモーダル/ビュー。
 
 ---
 
-### 3. ストレージアダプターの強化
-#### [MODIFY] `src/services/storage/storageAdapter.ts`
-- Web File System Access API / Blob ダウンロードによるファイル書き出し処理。
+### 3. 微小なファイル整理
+#### [DELETE] `src/services/aiService.ts`
+- サブフォルダ `src/services/ai/aiService.ts` への完全移行による重複ラッパーの削除。
 
 ---
 
-### 4. テストハーネスの追加
-#### [MODIFY] `tests/core/markdownGenerator.test.ts`
-- 禁止文字サニタイズ、Frontmatter パース＆更新の単体テスト。
-
-#### [NEW] `tests/features/PreviewPane.test.tsx`
-- プレビュー表示・モード切り替え・コピー・保存操作の UI テスト。
+### 4. テストハーネスの拡充
+#### [NEW] `tests/features/JobDashboard.test.tsx`
+- 求人一覧表示、ステータス変更、検索フィルタ、比較マトリクス表示の UI 自動テスト。
 
 ---
 
 ## 検証計画 (Verification Plan)
 
 ### 自動テスト
-- `npm run check` (tsc + vitest + vite build) による一括検証。
+- `npm run check` (tsc + vitest --coverage + vite build) による一括検証。
 
 ### コミット & プッシュ
-- 接頭辞 `feat(phase4): ...` を付与してコミットおよびプッシュを実施。
+- 接頭辞 `feat(phase5): ...` を付与してコミットおよびプッシュを実施。
