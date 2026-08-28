@@ -1,0 +1,10 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Explicitly ensure markdown and text files are treated as UTF-8
+*.md text eol=lf working-tree-encoding=UTF-8
+*.json text eol=lf working-tree-encoding=UTF-8
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.html text eol=lf
