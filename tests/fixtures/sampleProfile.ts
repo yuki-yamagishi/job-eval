@@ -23,7 +23,7 @@ export const TEST_MOCK_PROFILE: UserProfile = {
     ngConditions: ["客先常駐", "みなし残業45時間超過"],
   },
   apiSettings: {
-    geminiApiKey: "test-api-key-12345",
+    geminiApiKey: "",
     geminiModel: "gemini-1.5-flash",
   },
   updatedAt: "2026-08-28T00:00:00.000Z",

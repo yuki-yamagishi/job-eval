@@ -18,11 +18,19 @@ describe("LocalStorageAdapter", () => {
   });
 
   it("saves and loads updated profile correctly", async () => {
-    await adapter.saveProfile(TEST_MOCK_PROFILE);
+    const updatedProfile = {
+      ...TEST_MOCK_PROFILE,
+      name: "更新後ユーザー",
+      apiSettings: {
+        ...TEST_MOCK_PROFILE.apiSettings,
+        geminiApiKey: "custom-api-key-9999",
+      },
+    };
+    await adapter.saveProfile(updatedProfile);
     const loaded = await adapter.loadProfile();
     expect(loaded.id).toBe(TEST_MOCK_PROFILE.id);
-    expect(loaded.name).toBe("テストユーザー");
-    expect(loaded.apiSettings.geminiApiKey).toBe("test-api-key-12345");
+    expect(loaded.name).toBe("更新後ユーザー");
+    expect(loaded.apiSettings.geminiApiKey).toBe("custom-api-key-9999");
   });
 
   it("resets profile back to default", async () => {

@@ -1,13 +1,15 @@
 import React, { useState } from "react";
-import { Clipboard, Sparkles, AlertCircle, ArrowRight, Zap, RefreshCw } from "lucide-react";
+import { Clipboard, Sparkles, ArrowRight, Zap, RefreshCw, Key, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { AgentSource } from "@/types/job";
 
 interface InputPaneProps {
   onAnalyze: (text: string, source: AgentSource) => void;
   isAnalyzing: boolean;
+  hasApiKey?: boolean;
 }
 
 const SOURCES: AgentSource[] = [
@@ -41,7 +43,7 @@ const SAMPLE_JOB_TEXT = `【求人概要】
 ・マイクロサービスアーキテクチャの設計・移行実績
 ・オープンソースへのコントリビューション経験`;
 
-export const InputPane: React.FC<InputPaneProps> = ({ onAnalyze, isAnalyzing }) => {
+export const InputPane: React.FC<InputPaneProps> = ({ onAnalyze, isAnalyzing, hasApiKey = false }) => {
   const [jobText, setJobText] = useState("");
   const [selectedSource, setSelectedSource] = useState<AgentSource>("レバテックキャリア");
   const [clipboardStatus, setClipboardStatus] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export const InputPane: React.FC<InputPaneProps> = ({ onAnalyze, isAnalyzing }) 
           setTimeout(() => setClipboardStatus(null), 3000);
         }
       }
-    } catch (err) {
+    } catch {
       setClipboardStatus("ペーストアクセス許可が拒否されました");
       setTimeout(() => setClipboardStatus(null), 3000);
     }
@@ -75,11 +77,22 @@ export const InputPane: React.FC<InputPaneProps> = ({ onAnalyze, isAnalyzing }) 
       <Card className="border-indigo-500/20 bg-gradient-to-b from-slate-900/90 to-slate-950/90">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base text-indigo-200">
+            <CardTitle className="text-base text-indigo-200 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-indigo-400" />
               求人テキスト取り込み
             </CardTitle>
             <div className="flex items-center gap-2">
+              {hasApiKey ? (
+                <Badge variant="rankA" className="text-[10px] px-2 py-0.5 flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  Gemini API 有効
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[10px] px-2 py-0.5 flex items-center gap-1 text-slate-400">
+                  <Key className="h-3 w-3" />
+                  Mock モード
+                </Badge>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -87,7 +100,7 @@ export const InputPane: React.FC<InputPaneProps> = ({ onAnalyze, isAnalyzing }) 
                 className="h-8 text-xs border-indigo-500/30 hover:bg-indigo-500/10 text-indigo-300"
               >
                 <Clipboard className="h-3.5 w-3.5 mr-1" />
-                クリップボードから貼付
+                貼付
               </Button>
               <Button
                 variant="ghost"
@@ -95,7 +108,7 @@ export const InputPane: React.FC<InputPaneProps> = ({ onAnalyze, isAnalyzing }) 
                 onClick={handleLoadSample}
                 className="h-8 text-xs text-slate-400 hover:text-slate-200"
               >
-                サンプルデータ
+                サンプル
               </Button>
             </div>
           </div>
@@ -114,7 +127,7 @@ export const InputPane: React.FC<InputPaneProps> = ({ onAnalyze, isAnalyzing }) 
           {/* Source Selection */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-400 block">
-              エージェント / ソース種別
+              エージェント / ソース種別 (FR-103)
             </label>
             <div className="flex flex-wrap gap-1.5">
               {SOURCES.map((source) => (
@@ -137,7 +150,7 @@ export const InputPane: React.FC<InputPaneProps> = ({ onAnalyze, isAnalyzing }) 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-400">
-                求人本文テキスト
+                求人本文テキスト (FR-102)
               </label>
               <span className="text-[11px] text-slate-500 font-mono">
                 {jobText.length} 文字
@@ -153,8 +166,8 @@ export const InputPane: React.FC<InputPaneProps> = ({ onAnalyze, isAnalyzing }) 
         </CardContent>
         <CardFooter className="pt-2 flex justify-between items-center">
           <div className="text-xs text-slate-500 flex items-center gap-1">
-            <AlertCircle className="h-3.5 w-3.5 text-slate-400" />
-            完全ローカル処理。外部サーバーへ個人情報は送信されません。
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+            完全ローカルファースト処理
           </div>
           <Button
             onClick={() => onAnalyze(jobText, selectedSource)}
@@ -164,7 +177,7 @@ export const InputPane: React.FC<InputPaneProps> = ({ onAnalyze, isAnalyzing }) 
             {isAnalyzing ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin text-white" />
-                AI解析・スコアリング中...
+                AI解析中...
               </>
             ) : (
               <>
