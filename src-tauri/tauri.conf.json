@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "JobEval-MD",
+  "productName": "JobEval",
   "version": "0.1.0",
   "identifier": "com.jobeval.app",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "JobEval-MD (AI Job Evaluation & Markdown Manager)",
+        "title": "JobEval (AI求人評価 & Markdownドキュメント管理)",
         "width": 1280,
         "height": 800,
         "resizable": true,

@@ -16,8 +16,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-white tracking-wide text-base">JobEval-MD</span>
-            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-semibold">
+            <span className="font-bold text-white tracking-wide text-base">JobEval</span>
+            <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-mono px-1.5 py-0.5 rounded border border-indigo-500/30">
               v1.0 Local
             </span>
           </div>

@@ -1,12 +1,12 @@
-# Walkthrough - JobEval-MD 実装成果レポート
+# 実装成果レポート (JobEval 開発ログ)
 
-JobEval-MD の全 5 フェーズ（Phase 1 〜 Phase 5）の自律実装および全機能の総合テスト・ビルド検証が完了いたしました。
+JobEval の全 5 フェーズ（Phase 1 〜 Phase 5）の自律実装および全機能の総合テスト・ビルド検証が完了いたしました。
 
 ---
 
 ## 完了フェーズ一覧
 
-### Phase 1: プロジェクト基盤構築 (Setup & Scaffold)
+### Phase 1: プロジェクト基盤構築
 - Tauri v2 + React 18 (TypeScript) + Vite + Tailwind CSS のスキャフォールディング
 - ダークモード対応 2 ペイン画面レイアウト (Header, InputPane, PreviewPane)
 - shadcn/ui スタイルの UI コンポーネント群 (Button, Card, Input, Textarea, Badge, Tabs)
@@ -41,7 +41,7 @@ JobEval-MD の全 5 フェーズ（Phase 1 〜 Phase 5）の自律実装およ�
 ## 総合品質ゲート検証結果 (`npm run check`)
 
 ```text
-> job-eval-md@0.1.0 check
+> job-eval@0.1.0 check
 > tsc --noEmit && vitest run --coverage && vite build
 
  ✓ tests/core/markdownGenerator.test.ts (4 tests)
@@ -54,14 +54,9 @@ JobEval-MD の全 5 フェーズ（Phase 1 〜 Phase 5）の自律実装およ�
  ✓ tests/features/PreviewPane.test.tsx (5 tests)
  ✓ tests/core/pipelineIntegration.test.ts (2 tests)
 
- Test Files  9 passed (9)
-      Tests  27 passed (27)
-   Coverage  82.11% (Core Logic: 93%〜100%)
-
-vite v5.4.21 building for production...
-✓ 1839 modules transformed.
-dist/index.html                   1.03 kB
-dist/assets/index-DUZ31vpm.css   32.41 kB
-dist/assets/index-CI9pXMRy.js   407.40 kB
-✓ built in 3.97s
+ テストファイル数: 9 passed (9)
+ テストケース総数: 27 passed (27)
+ テストカバレッジ: 82.11% (コアビジネスロジック層: 93%〜100%)
+ TypeScript 型エラー: 0 件
+ Vite 本番バンドルビルド: 成功
 ```

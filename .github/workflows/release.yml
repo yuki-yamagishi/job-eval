@@ -36,7 +36,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'JobEval-MD ${{ github.ref_name }}'
-          releaseBody: 'Automated release binary for JobEval-MD Desktop App.'
+          releaseName: 'JobEval ${{ github.ref_name }}'
+          releaseBody: 'JobEval デスクトップアプリの自動ビルドバイナリです。'
           releaseDraft: false
           prerelease: false

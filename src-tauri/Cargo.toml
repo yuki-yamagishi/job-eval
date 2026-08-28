@@ -1,5 +1,5 @@
 [package]
-name = "job-eval-md"
+name = "job-eval"
 version = "0.1.0"
 description = "AI Job Evaluation & Markdown Manager Desktop App"
 authors = ["JobEval Team"]
