@@ -1,0 +1,53 @@
+export type WorkStylePreference = "フルリモート" | "ハイブリッド" | "出社可";
+
+export type RoleLevelPreference = 
+  | "テックリード / リードエンジニア"
+  | "クラウドアーキテクト"
+  | "シニアエンジニア"
+  | "フルスタックエンジニア"
+  | "エンジニアリングマネージャー"
+  | "スペシャリスト / 専門職";
+
+export interface SkillItem {
+  id: string;
+  name: string;
+  category: "language" | "cloud" | "framework" | "database" | "devops" | "other";
+  yearsOfExperience?: number;
+  level?: "expert" | "advanced" | "intermediate" | "beginner";
+}
+
+export interface CertificationItem {
+  id: string;
+  name: string;
+  issuer: string;
+  yearAcquired?: number;
+}
+
+export interface ConditionMatrix {
+  targetSalaryMin: number; // 万円 (e.g. 800)
+  targetSalaryMax: number; // 万円 (e.g. 1200)
+  preferredWorkStyle: WorkStylePreference;
+  preferredLocation: string; // e.g. "東京都内 / フルリモート"
+  maxCommuteMinutes?: number; // 許容通勤時間 (分)
+  preferredRoles: RoleLevelPreference[];
+  ngConditions: string[]; // e.g. ["常駐・SESメイン", "みなし残業45h超過", "レガシー技術固定"]
+}
+
+export interface ApiSettings {
+  geminiApiKey: string;
+  geminiModel: "gemini-1.5-flash" | "gemini-1.5-pro" | "gemini-2.0-flash";
+  customInstructions?: string;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  title: string;
+  yearsOfExperience: number;
+  summary: string;
+  skills: SkillItem[];
+  certifications: CertificationItem[];
+  conditions: ConditionMatrix;
+  apiSettings: ApiSettings;
+  updatedAt: string;
+}
