@@ -64,7 +64,8 @@ tests/                    # 自動テストハーネス
 
 | コマンド | 目的・実行内容 |
 | :--- | :--- |
-| `npm run check` | **ワンショット総合品質ゲート**: `tsc --noEmit`（型検査）+ `vitest run --coverage`（全単体テスト & カバレッジ）+ `vite build`（プロダクションビルド）を一括実行 |
+| `npm run check` | **ワンショット総合品質 & セキュリティゲート**: シークレット・個人情報スキャン (`security-check`) + `tsc --noEmit`（型検査）+ `vitest run --coverage`（全単体テスト & カバレッジ）+ `vite build`（プロダクションビルド）を一括実行 |
+| `npm run security-check` | API キーやシークレットの誤混入を自動スキャン |
 | `npm run test:run` | 全単体テストを 1 回実行 |
 | `npm run test:coverage` | 単体テストを実行し、V8 カバレッジレポートを出力 |
 | `npm run test` | テストをウォッチモードで実行 |

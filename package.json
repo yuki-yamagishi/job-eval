@@ -10,7 +10,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "check": "tsc --noEmit && vitest run --coverage && vite build",
+    "security-check": "node scripts/securityCheck.js",
+    "check": "node scripts/securityCheck.js && tsc --noEmit && vitest run --coverage && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },
