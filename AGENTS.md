@@ -34,6 +34,10 @@ src/
   │   ├── profile.ts
   │   └── storage.ts
   └── lib/                # Utility helpers (cn, formatters)
+docs/                     # Single Source of Truth for Architecture & Reports
+  ├── pre_phase_verification.md   # 4-Axis Pre-Phase Assessment
+  ├── implementation_plan.md      # Concise Phase-by-Phase Technical Plans
+  └── walkthrough.md              # Milestone Completion Reports
 tests/                    # Automated Test Harness
   ├── fixtures/           # Sample jobs (Leverages, Bizreach, Doda, NG), profiles
   ├── core/               # Tests for core scoring & markdown generators & pipeline integration
@@ -45,12 +49,12 @@ tests/                    # Automated Test Harness
 
 ## 2. Standard Pre-Phase Verification & Planning Protocol
 
-Before starting each phase, follow this 2-artifact separation:
+Before starting each phase, follow this 2-artifact separation in `docs/`:
 
-1. **Pre-Phase Verification (`pre_phase_verification.md`)**:
+1. **Pre-Phase Verification (`docs/pre_phase_verification.md`)**:
    - Perform and record the 4-axis assessment (1. Technical Bottlenecks, 2. UX & Edge Cases, 3. Persistence & Formats, 4. Test Autonomy).
-2. **Implementation Plan (`implementation_plan.md`)**:
-   - Keep this document concise, clear, and focused exclusively on the technical changes, components to build/modify, and verification steps. Do not clutter it with preliminary discussions.
+2. **Implementation Plan (`docs/implementation_plan.md`)**:
+   - Keep this document concise, clear, and focused exclusively on technical changes, components to build/modify, and verification steps.
 
 ---
 
@@ -60,8 +64,9 @@ Antigravity Agents should use the following commands to test and verify changes:
 
 | Command | Purpose |
 | :--- | :--- |
-| `npm run check` | **One-shot Full Verification**: Runs `tsc --noEmit` + `vitest run` + `vite build` |
+| `npm run check` | **One-shot Full Verification**: Runs `tsc --noEmit` + `vitest run --coverage` + `vite build` |
 | `npm run test:run` | Run all unit tests with Vitest once |
+| `npm run test:coverage` | Run unit tests and generate v8 coverage report |
 | `npm run test` | Run tests in watch mode |
 | `npm run dev` | Start Vite local development server on port 1420 |
 | `npm run build` | Compile TypeScript and bundle frontend for production |
@@ -74,4 +79,4 @@ Antigravity Agents should use the following commands to test and verify changes:
 2. **Dual-Storage Compatibility**: All persistence must go through `StorageAdapter`. It automatically uses Tauri's FS plugin when running in desktop mode and falls back to Web `localStorage` during development/browser preview.
 3. **Pluggable AI Provider**: Use `AiProvider` interface. Offline tests and preview use `MockAiProvider` so tests never fail without API keys.
 4. **Type Safety**: Avoid `any`. Always use types defined in `src/types/`.
-5. **Always Verify & Commit**: After completing a phase, run `npm run check`, commit with conventional prefixes (`feat:`, `ci:`, `fix:`, etc.), and push to remote.
+5. **Always Verify & Commit**: After completing a phase, run `npm run check`, commit with conventional prefixes (`feat:`, `ci:`, `chore:`, `docs:`), and push to remote.
