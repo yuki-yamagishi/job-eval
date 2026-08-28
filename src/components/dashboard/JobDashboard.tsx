@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { JobAnalysisResult, JobStatus, JudgmentRank } from "@/types/job";
 import { formatSalary } from "@/lib/utils";
+import { useJobComparison } from "@/hooks/useJobComparison";
 
 interface JobDashboardProps {
   savedJobs: JobAnalysisResult[];
@@ -48,8 +49,16 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
   const [rankFilter, setRankFilter] = useState<string>("all");
   const [viewLayout, setViewLayout] = useState<"table" | "grid">("table");
   const [sortBy, setSortBy] = useState<"score" | "date" | "salary">("date");
-  const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
-  const [isCompareOpen, setIsCompareOpen] = useState(false);
+
+  // Comparison hook
+  const {
+    selectedJobIds,
+    selectedJobs,
+    isCompareOpen,
+    setIsCompareOpen,
+    toggleSelectJob,
+    canCompare,
+  } = useJobComparison(savedJobs, 3);
 
   // Filter and sort jobs
   const filteredJobs = useMemo(() => {
@@ -79,24 +88,6 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
       });
   }, [savedJobs, searchQuery, statusFilter, rankFilter, sortBy]);
 
-  // Selection for comparison (max 3)
-  const handleToggleSelect = (id: string) => {
-    setSelectedJobIds((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((item) => item !== id);
-      }
-      if (prev.length >= 3) {
-        alert("比較できる求人は最大3件までです。");
-        return prev;
-      }
-      return [...prev, id];
-    });
-  };
-
-  const selectedJobs = useMemo(() => {
-    return savedJobs.filter((j) => selectedJobIds.includes(j.metadata.id));
-  }, [savedJobs, selectedJobIds]);
-
   const getRankBadgeVariant = (judgment?: JudgmentRank) => {
     if (!judgment) return "secondary";
     if (judgment.startsWith("S")) return "rankS";
@@ -121,7 +112,7 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
 
         <div className="flex items-center gap-2">
           {/* Comparison trigger button */}
-          {selectedJobIds.length >= 2 && (
+          {canCompare && (
             <Button
               size="sm"
               onClick={() => setIsCompareOpen(true)}
@@ -260,7 +251,7 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => handleToggleSelect(job.metadata.id)}
+                        onChange={() => toggleSelectJob(job.metadata.id)}
                         className="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
                         title="比較対象に選択 (最大3件)"
                       />
@@ -389,7 +380,7 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => handleToggleSelect(job.metadata.id)}
+                        onChange={() => toggleSelectJob(job.metadata.id)}
                         className="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
                       />
                       <Badge variant={getRankBadgeVariant(job.metadata.judgment)}>
