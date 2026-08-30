@@ -54,7 +54,6 @@ export async function fetchAvailableGeminiModels(
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": apiKey.trim(),
       },
     };
     if (controller?.signal && typeof controller.signal === "object") {
@@ -122,7 +121,6 @@ export async function testGeminiConnection(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": apiKey.trim(),
       },
       body: JSON.stringify(requestBody),
     };
@@ -136,7 +134,7 @@ export async function testGeminiConnection(
     if (response.ok) {
       return { 
         ok: true, 
-        message: `Gemini API (${sanitizedModel}) への疎通・認証に成功しました！正常に通信可能です。` 
+        message: `Gemini API (${sanitizedModel}) への疎通・認証に成功しました！正常に応答が得られました。` 
       };
     }
 
@@ -212,7 +210,6 @@ export class GeminiAiProvider implements AiProvider {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
         },
         body: JSON.stringify(requestBody),
       };
