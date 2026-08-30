@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PreviewPane } from "@/components/pane/PreviewPane";
 import { JobAnalysisResult } from "@/types/job";
 
@@ -120,7 +120,9 @@ describe("PreviewPane Component", () => {
     fireEvent.change(textarea, { target: { value: "AWSの実務経験が3年あります。" } });
 
     const submitBtn = screen.getByText("🚀 フィードバックを反映して再評価");
-    fireEvent.click(submitBtn);
+    await waitFor(async () => {
+      fireEvent.click(submitBtn);
+    });
 
     expect(handleReEvaluate).toHaveBeenCalledWith("AWSの実務経験が3年あります。");
   });
@@ -155,7 +157,9 @@ describe("PreviewPane Component", () => {
     );
 
     const generateBtn = screen.getByText(/キャリア展望をAI生成/);
-    fireEvent.click(generateBtn);
+    await waitFor(async () => {
+      fireEvent.click(generateBtn);
+    });
 
     expect(handleGenerate).toHaveBeenCalledWith(mockResult);
   });

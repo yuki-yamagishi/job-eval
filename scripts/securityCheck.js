@@ -10,12 +10,22 @@ const rootDir = path.resolve(__dirname, "..");
 const SECRET_PATTERNS = [
   { name: "Google API Key (AIza...)", regex: /AIzaSy[A-Za-z0-9_-]{35}/ },
   { name: "Google Cloud / Gemini API Token (AQ...)", regex: /AQ\.[A-Za-z0-9_-]{30,}/ },
-  { name: "OpenAI Secret Key", regex: /sk-[A-Za-z0-9]{32,}/ },
+  { name: "Google Service Account Private Key", regex: /"private_key":\s*"-----BEGIN/ },
+  { name: "OpenAI Secret Key", regex: /sk-[A-Za-z0-9_-]{32,}/ },
   { name: "Anthropic API Key", regex: /sk-ant-api[A-Za-z0-9_-]{32,}/ },
-  { name: "GitHub Personal Access Token", regex: /ghp_[A-Za-z0-9]{36}/ },
+  { name: "GitHub Personal Access Token", regex: /gh[pousr]_[A-Za-z0-9]{36,}/ },
   { name: "AWS Access Key ID", regex: /(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}/ },
-  { name: "Private Key", regex: /-----BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY-----/ },
+  { name: "Private Key", regex: /-----BEGIN (RSA|EC|OPENSSH|PGP|DSA)?\s*PRIVATE KEY-----/ },
 ];
+
+const FORBIDDEN_FILENAMES = new Set([
+  ".env",
+  ".env.local",
+  ".env.production",
+  ".env.development",
+  "id_rsa",
+  "id_ed25519",
+]);
 
 const IGNORED_DIRS = new Set([
   "node_modules",
@@ -55,15 +65,20 @@ function scanDirectory(dirPath) {
         scanDirectory(fullPath);
       }
     } else if (entry.isFile()) {
-      const ext = path.extname(entry.name).toLowerCase();
-      if (IGNORED_EXTENSIONS.has(ext)) continue;
+      const relativePath = path.relative(rootDir, fullPath);
+
+      if (FORBIDDEN_FILENAMES.has(entry.name.toLowerCase())) {
+        console.error(`❌ [CRITICAL SECURITY ALERT] Forbidden credential file staged:`);
+        console.error(`   👉 File: ${relativePath}`);
+        console.error(`   👉 Action: Remove from repository and add to .gitignore immediately.`);
+        hasError = true;
+      }
 
       // Skip this security script itself so pattern strings aren't falsely detected
       if (fullPath === __filename) continue;
 
       try {
         const content = fs.readFileSync(fullPath, "utf-8");
-        const relativePath = path.relative(rootDir, fullPath);
         const lines = content.split(/\r?\n/);
         scannedFileCount++;
 
