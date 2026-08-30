@@ -21,7 +21,12 @@ import {
   ShieldAlert,
   Layers,
   RotateCw,
-  Sliders
+  Sliders,
+  RefreshCw,
+  History,
+  Loader2,
+  ArrowUpRight,
+  ArrowDownRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -39,6 +44,7 @@ interface PreviewPaneProps {
   userProfile?: UserProfile;
   onSaveMarkdown?: (markdownContent: string) => void;
   onReEvaluate?: (feedback: string) => Promise<void>;
+  onReEvaluateWithProfile?: () => Promise<void>;
   onGenerateCareerTrajectory?: (job: JobAnalysisResult) => Promise<void>;
 }
 
@@ -51,6 +57,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
   userProfile,
   onSaveMarkdown,
   onReEvaluate,
+  onReEvaluateWithProfile,
   onGenerateCareerTrajectory,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>("rich");
@@ -58,7 +65,9 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [userFeedbackText, setUserFeedbackText] = useState("");
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isGeneratingTrajectory, setIsGeneratingTrajectory] = useState(false);
+  const [isProfileReEvaluating, setIsProfileReEvaluating] = useState(false);
 
   const [selectedLens, setSelectedLens] = useState<ScoringPresetKey | "current">("current");
 
@@ -234,11 +243,40 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
             全文コピー
           </Button>
 
+          {/* Re-evaluate with latest profile button */}
+          {onReEvaluateWithProfile && (
+            <Button
+              size="sm"
+              disabled={isProfileReEvaluating || isAnalyzing || isReEvaluating}
+              onClick={async () => {
+                setIsProfileReEvaluating(true);
+                try {
+                  await onReEvaluateWithProfile();
+                  showCopyToast("最新プロファイルでのAI再評価が完了しました！");
+                } catch (err: unknown) {
+                  const msg = err instanceof Error ? err.message : String(err);
+                  alert(`再評価に失敗しました: ${msg}`);
+                } finally {
+                  setIsProfileReEvaluating(false);
+                }
+              }}
+              className="h-8 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md font-semibold"
+              title="求人票元データと最新のプロファイル設定を用いて再評価"
+            >
+              {isProfileReEvaluating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1 text-emerald-200" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5 mr-1" />
+              )}
+              最新プロファイルで再評価
+            </Button>
+          )}
+
           {/* Save to Vault / Local Button */}
           <Button
             size="sm"
             onClick={handleSave}
-            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white shadow-md font-semibold"
+            className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white shadow-md font-semibold"
           >
             <Download className="h-3.5 w-3.5 mr-1" />
             Obsidian/Vault保存
@@ -325,8 +363,27 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-slate-400 font-medium">
-                      {selectedLens === "current" ? "総合適合スコア" : "シミュレーションスコア"}
+                    <div className="text-xs text-slate-400 font-medium flex items-center justify-end gap-1.5">
+                      <span>{selectedLens === "current" ? "総合適合スコア" : "シミュレーションスコア"}</span>
+                      {/* Score diff badge from previous evaluation */}
+                      {analysisResult.evaluationHistory && analysisResult.evaluationHistory.length > 0 && selectedLens === "current" && (() => {
+                        const prevScore = analysisResult.evaluationHistory[0].score;
+                        const delta = displayScore - prevScore;
+                        if (delta === 0) return null;
+                        return (
+                          <span
+                            className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full flex items-center gap-0.5 ${
+                              delta > 0
+                                ? "bg-emerald-950 text-emerald-300 border border-emerald-700/60"
+                                : "bg-rose-950 text-rose-300 border border-rose-700/60"
+                            }`}
+                            title={`前回評価 (${prevScore}点) からの変動`}
+                          >
+                            {delta > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                            {delta > 0 ? `+${delta}` : delta}pt (前回{prevScore}点)
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="text-3xl font-extrabold text-indigo-400 font-mono tracking-tight">
                       {displayScore}
@@ -385,6 +442,78 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                 )}
               </CardContent>
             </Card>
+
+            {/* Evaluation History Timeline Card (if history exists) */}
+            {analysisResult.evaluationHistory && analysisResult.evaluationHistory.length > 0 && (
+              <Card className="border-emerald-500/20 bg-slate-900/60 shadow-md">
+                <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
+                  <CardTitle className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                    <History className="h-3.5 w-3.5 text-emerald-400" />
+                    📜 適合度評価・再評価履歴タイムライン ({analysisResult.evaluationHistory.length}件の記録)
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+                    className="h-6 text-[11px] text-emerald-400 hover:text-white"
+                  >
+                    {isHistoryOpen ? "閉じる" : "履歴を展開"}
+                  </Button>
+                </CardHeader>
+                {isHistoryOpen && (
+                  <CardContent className="p-3 pt-0 space-y-2">
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {analysisResult.evaluationHistory.map((hist, idx) => {
+                        const reasonLabel = hist.triggerReason === "profile_update"
+                          ? "プロファイル更新"
+                          : hist.triggerReason === "user_feedback"
+                          ? "フィードバック"
+                          : hist.triggerReason === "initial"
+                          ? "初回評価"
+                          : "再評価";
+
+                        return (
+                          <div
+                            key={hist.id || idx}
+                            className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-xs space-y-1.5"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="bg-emerald-950/60 text-emerald-300 border-emerald-700/60 text-[10px] px-1.5 py-0">
+                                  {reasonLabel}
+                                </Badge>
+                                <span className="font-mono text-slate-400 text-[11px]">
+                                  {hist.date ? hist.date.split("T")[0] : "日付なし"}
+                                </span>
+                                {hist.summaryNote && (
+                                  <span className="text-slate-300 text-[11px] truncate max-w-[200px]">
+                                    ({hist.summaryNote})
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 font-mono">
+                                <Badge variant={getRankBadgeVariant(hist.judgment)} className="text-[10px] px-1.5 py-0">
+                                  {hist.judgment ? hist.judgment.split(" ")[0] : "B"}
+                                </Badge>
+                                <span className="font-bold text-emerald-400">
+                                  {hist.score}点
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1 text-[10px] text-slate-400 pt-1 border-t border-slate-800/60">
+                              <span>スキル: <strong className="text-slate-200">{hist.scoreBreakdown?.skillMatchRatio ?? "-"}%</strong></span>
+                              <span>条件: <strong className="text-slate-200">{hist.scoreBreakdown?.conditionMatchRatio ?? "-"}%</strong></span>
+                              <span>成長: <strong className="text-slate-200">{hist.scoreBreakdown?.careerGrowthRatio ?? "-"}%</strong></span>
+                              <span>環境: <strong className="text-slate-200">{hist.scoreBreakdown?.environmentRiskRatio ?? "-"}%</strong></span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            )}
 
             {/* AI Feedback & Re-evaluation Card */}
             <Card className="border-indigo-500/30 bg-slate-900/60 shadow-md">

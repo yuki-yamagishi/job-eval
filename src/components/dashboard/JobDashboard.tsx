@@ -11,7 +11,11 @@ import {
   CheckCircle2, 
   Upload,
   Eye,
-  GraduationCap
+  GraduationCap,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
+  History
 } from "lucide-react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +26,7 @@ import { UserProfile, ScoringPresetKey, SCORING_PRESETS, DEFAULT_SCORING_WEIGHTS
 import { recalculateScoreWithWeights } from "@/core/scoring/scoringEngine";
 import { formatSalary } from "@/lib/utils";
 import { useJobComparison } from "@/hooks/useJobComparison";
+import { BatchReEvaluationProgress } from "@/hooks/useJobs";
 
 interface JobDashboardProps {
   savedJobs: JobAnalysisResult[];
@@ -31,6 +36,12 @@ interface JobDashboardProps {
   onExportJob?: (job: JobAnalysisResult) => void;
   onSelectJobForPreview?: (job: JobAnalysisResult) => void;
   onImportMarkdown?: (markdownContent: string) => Promise<void>;
+  onReEvaluateJob?: (jobId: string) => Promise<JobAnalysisResult | void>;
+  onReEvaluateBatchJobs?: (
+    jobIds: string[],
+    onProgress?: (progress: BatchReEvaluationProgress) => void,
+    shouldCancel?: () => boolean
+  ) => Promise<{ completed: JobAnalysisResult[]; failed: string[] }>;
 }
 
 const STATUS_LIST: JobStatus[] = [
@@ -53,6 +64,8 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
   onExportJob,
   onSelectJobForPreview,
   onImportMarkdown,
+  onReEvaluateJob,
+  onReEvaluateBatchJobs,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -63,7 +76,17 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
   const [sortBy, setSortBy] = useState<"score" | "date" | "salary">("date");
   const [importStatus, setImportStatus] = useState<string | null>(null);
 
-  // Comparison hook
+  // Individual re-evaluation loading state per job ID
+  const [evaluatingJobId, setEvaluatingJobId] = useState<string | null>(null);
+
+  // Batch re-evaluation modal states
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<BatchReEvaluationProgress | null>(null);
+  const [isBatchRunning, setIsBatchRunning] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const cancelRef = useRef(false);
+
+  // Comparison & Selection hook (max 5 selections for safe batch re-eval, 3 for comparison matrix)
   const {
     selectedJobIds,
     selectedJobs,
@@ -71,13 +94,51 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
     setIsCompareOpen,
     toggleSelectJob,
     canCompare,
-  } = useJobComparison(savedJobs, 3);
+  } = useJobComparison(savedJobs, 5);
 
   // Dynamic lens weights
   const profileWeights = userProfile?.conditions?.scoringWeights || DEFAULT_SCORING_WEIGHTS;
   const activeWeights = selectedLens === "current"
     ? profileWeights
     : SCORING_PRESETS[selectedLens]?.weights || profileWeights;
+
+  const handleSingleReEvaluate = async (job: JobAnalysisResult) => {
+    if (!onReEvaluateJob) return;
+    setEvaluatingJobId(job.metadata.id);
+    try {
+      await onReEvaluateJob(job.metadata.id);
+      setImportStatus(`「${job.metadata.company}」の最新プロファイル再評価が完了しました！`);
+      setTimeout(() => setImportStatus(null), 3500);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`AI再評価に失敗しました: ${msg}`);
+    } finally {
+      setEvaluatingJobId(null);
+    }
+  };
+
+  const handleExecuteBatch = async () => {
+    if (!onReEvaluateBatchJobs || selectedJobIds.length === 0) return;
+    setIsBatchRunning(true);
+    setIsCancelling(false);
+    cancelRef.current = false;
+
+    try {
+      const result = await onReEvaluateBatchJobs(
+        selectedJobIds,
+        (progress) => setBatchProgress(progress),
+        () => cancelRef.current
+      );
+      if (result.completed.length > 0) {
+        setImportStatus(`${result.completed.length} 件の求人のAI再評価が完了しました！`);
+        setTimeout(() => setImportStatus(null), 4000);
+      }
+    } catch (err) {
+      console.error("Batch re-evaluation failed", err);
+    } finally {
+      setIsBatchRunning(false);
+    }
+  };
 
   // Filter and sort jobs
   const filteredJobs = useMemo(() => {
@@ -186,6 +247,23 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
             </Button>
           )}
 
+          {/* Batch Re-evaluate Trigger Button */}
+          {selectedJobIds.length > 0 && onReEvaluateBatchJobs && (
+            <Button
+              size="sm"
+              onClick={() => {
+                setIsBatchModalOpen(true);
+                setIsBatchRunning(false);
+                setBatchProgress(null);
+                cancelRef.current = false;
+              }}
+              className="h-9 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold shadow-lg shadow-emerald-500/20 animate-in fade-in"
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              選択求人を再評価 ({selectedJobIds.length}件)
+            </Button>
+          )}
+
           {/* Comparison trigger button */}
           {canCompare && (
             <Button
@@ -194,7 +272,7 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
               className="h-9 text-xs bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold shadow-lg shadow-purple-500/20 animate-in fade-in"
             >
               <Columns className="h-3.5 w-3.5 mr-1.5" />
-              選択求人を比較 ({selectedJobIds.length}件)
+              選択求人を比較 ({Math.min(selectedJobIds.length, 3)}件)
             </Button>
           )}
 
@@ -459,6 +537,32 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                     {/* Actions */}
                     <td className="p-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
+                        {job.evaluationHistory && job.evaluationHistory.length > 0 && (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/40 flex items-center gap-1 font-mono mr-1"
+                            title={`評価履歴: ${job.evaluationHistory.length}回`}
+                          >
+                            <History className="h-3 w-3" />
+                            {job.evaluationHistory.length}
+                          </span>
+                        )}
+                        {onReEvaluateJob && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={evaluatingJobId === job.metadata.id}
+                            onClick={() => handleSingleReEvaluate(job)}
+                            className="h-7 px-2 text-[11px] text-emerald-300 hover:text-white hover:bg-emerald-950/60"
+                            title="最新プロファイルでAI再評価"
+                          >
+                            {evaluatingJobId === job.metadata.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1 text-emerald-400" />
+                            ) : (
+                              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            再評価
+                          </Button>
+                        )}
                         {onSelectJobForPreview && (
                           <Button
                             variant="ghost"
@@ -521,23 +625,47 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                         checked={isSelected}
                         onChange={() => toggleSelectJob(job.metadata.id)}
                         className="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
-                        title="比較対象に選択"
+                        title="比較・再評価対象に選択"
                       />
                       <Badge variant={getRankBadgeVariant(job.effectiveJudgment)}>
                         {job.effectiveJudgment.split(" ")[0]}
                       </Badge>
+                      {job.evaluationHistory && job.evaluationHistory.length > 0 && (
+                        <span className="text-[10px] px-1 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800/60 font-mono">
+                          📜 {job.evaluationHistory.length}
+                        </span>
+                      )}
                     </div>
-                    {onSelectJobForPreview && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onSelectJobForPreview(job)}
-                        className="h-6 px-1.5 text-[11px] text-indigo-300 hover:text-white"
-                      >
-                        <Eye className="h-3 w-3 mr-1" />
-                        再表示
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {onReEvaluateJob && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={evaluatingJobId === job.metadata.id}
+                          onClick={() => handleSingleReEvaluate(job)}
+                          className="h-6 px-1.5 text-[11px] text-emerald-300 hover:text-white"
+                          title="最新プロファイルでAI再評価"
+                        >
+                          {evaluatingJobId === job.metadata.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin text-emerald-400" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3 mr-0.5" />
+                          )}
+                          再評価
+                        </Button>
+                      )}
+                      {onSelectJobForPreview && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onSelectJobForPreview(job)}
+                          className="h-6 px-1.5 text-[11px] text-indigo-300 hover:text-white"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          再表示
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <div>
@@ -605,17 +733,186 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
         </div>
       )}
 
-      {/* Comparison Matrix Modal (FR-503) */}
+      {/* Batch Re-evaluation Modal */}
+      {isBatchModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <RefreshCw className={`h-5 w-5 ${isBatchRunning ? "animate-spin" : ""}`} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    選択求人の一括AI再評価
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    最新のプロファイル条件に基づき、1求人1リクエストで順次高精度に再評価します（最大5件）
+                  </p>
+                </div>
+              </div>
+              {!isBatchRunning && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsBatchModalOpen(false)}
+                  className="h-8 w-8 text-slate-400 hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            {/* Content Body */}
+            <div className="p-6 space-y-4 text-xs">
+              {/* Target Jobs List */}
+              <div className="space-y-2">
+                <span className="font-semibold text-slate-300 block">
+                  再評価対象の求人 ({selectedJobs.length}件):
+                </span>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {selectedJobs.map((job, idx) => {
+                    const isCompleted = batchProgress?.completedJobs.some((j) => j.metadata.id === job.metadata.id);
+                    const isFailed = batchProgress?.failedJobIds.includes(job.metadata.id);
+                    const isCurrent = isBatchRunning && batchProgress?.currentJobId === job.metadata.id;
+
+                    return (
+                      <div
+                        key={job.metadata.id}
+                        className={`p-2.5 rounded-lg border flex items-center justify-between transition-all ${
+                          isCompleted
+                            ? "bg-emerald-950/30 border-emerald-700/60 text-emerald-200"
+                            : isFailed
+                            ? "bg-rose-950/30 border-rose-700/60 text-rose-200"
+                            : isCurrent
+                            ? "bg-indigo-950/50 border-indigo-500/80 text-white shadow-sm"
+                            : "bg-slate-950/50 border-slate-800/80 text-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="font-mono text-slate-500 text-[11px] w-4">{idx + 1}.</span>
+                          <span className="font-bold truncate">{job.metadata.company}</span>
+                          <span className="text-slate-400 truncate text-[11px]">({job.metadata.title})</span>
+                        </div>
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          {isCompleted ? (
+                            <span className="text-emerald-400 flex items-center gap-1 font-semibold text-[11px]">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              完了
+                            </span>
+                          ) : isFailed ? (
+                            <span className="text-rose-400 flex items-center gap-1 font-semibold text-[11px]">
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              失敗
+                            </span>
+                          ) : isCurrent ? (
+                            <span className="text-indigo-400 flex items-center gap-1 font-semibold text-[11px]">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              解析中...
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 text-[11px]">待機中</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Progress Bar (when running or finished) */}
+              {batchProgress && (
+                <div className="space-y-1.5 bg-slate-950 p-3 rounded-lg border border-slate-800">
+                  <div className="flex justify-between text-slate-400 text-[11px]">
+                    <span>進捗状況</span>
+                    <span className="font-mono font-bold text-indigo-400">
+                      {batchProgress.completedJobs.length} / {batchProgress.total} 完了
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full transition-all duration-300"
+                      style={{
+                        width: `${Math.round((batchProgress.completedJobs.length / batchProgress.total) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Safety notice */}
+              <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80 text-slate-400 text-[11px] space-y-1">
+                <p className="flex items-center gap-1 text-slate-300 font-semibold">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-indigo-400" />
+                  独立実行 & 自動スナップショット
+                </p>
+                <p>
+                  各求人の元の募集要項テキストと最新の求職者プロファイルを用いて1件ずつ独立解析します。過去の評価内容は履歴として自動保存され、いつでも見返すことができます。
+                </p>
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="p-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between">
+              {isBatchRunning ? (
+                <>
+                  <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+                    {isCancelling ? "現在処理中の求人完了後に中止します..." : "順次再評価を実行中..."}
+                  </span>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={isCancelling}
+                    onClick={() => {
+                      setIsCancelling(true);
+                      cancelRef.current = true;
+                    }}
+                    className="text-xs"
+                  >
+                    処理を中止
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsBatchModalOpen(false)}
+                    className="text-xs"
+                  >
+                    閉じる
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleExecuteBatch}
+                    className="text-xs bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold shadow-lg shadow-emerald-500/20"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                    再評価を開始 ({selectedJobs.length}件)
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comparison Modal (FR-503) */}
       {isCompareOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-6xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-6xl h-[85vh] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
             {/* Modal Header */}
             <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
               <div className="flex items-center gap-2">
                 <Columns className="h-5 w-5 text-indigo-400" />
                 <h3 className="text-base font-bold text-white">
-                  複数求人の比較マトリクス (FR-503) - {selectedJobs.length}件を比較中
+                  複数求人の比較マトリクス (FR-503)
                 </h3>
+                <Badge variant="secondary" className="text-xs ml-2">
+                  {selectedJobs.length} 件選択中
+                </Badge>
               </div>
               <Button
                 variant="ghost"

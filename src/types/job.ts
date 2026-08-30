@@ -43,6 +43,25 @@ export interface FeedbackItem {
   newScore: number;
 }
 
+export type EvaluationTriggerReason = "initial" | "profile_update" | "user_feedback" | "manual_re_eval";
+
+export interface EvaluationHistoryItem {
+  id: string;
+  date: string; // ISO 8601 string
+  triggerReason: EvaluationTriggerReason;
+  score: number;
+  judgment: JudgmentRank;
+  scoreBreakdown: {
+    skillMatchRatio: number;
+    conditionMatchRatio: number;
+    careerGrowthRatio: number;
+    environmentRiskRatio: number;
+  };
+  positives: string[];
+  concerns: string[];
+  summaryNote?: string;
+}
+
 export interface CareerTrajectory {
   acquiredSkills: string[];          // 2〜3年で身につく市場価値の高いスキル
   nextCareerOptions: string[];       // 次の転職で狙えるポジション・キャリアパス
@@ -55,6 +74,7 @@ export interface JobAnalysisResult {
   metadata: JobMetadata;
   originalJobText?: string;
   feedbackHistory?: FeedbackItem[];
+  evaluationHistory?: EvaluationHistoryItem[];
   scoreBreakdown: {
     skillMatchRatio: number;
     conditionMatchRatio: number;

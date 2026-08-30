@@ -31,7 +31,9 @@ export function App() {
     importJobFromMarkdown, 
     deleteJob, 
     exportMarkdown, 
-    recalculateAllJobsWithWeights 
+    recalculateAllJobsWithWeights,
+    reEvaluateJob,
+    reEvaluateBatchJobs
   } = useJobs();
 
   const handleAnalyze = async (text: string, source: AgentSource) => {
@@ -48,6 +50,12 @@ export function App() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleReEvaluateWithProfile = async () => {
+    if (!analysisResult) return;
+    const updated = await reEvaluateJob(analysisResult.metadata.id, profile, "profile_update");
+    setAnalysisResult(updated);
   };
 
   const handleReEvaluate = async (userFeedback: string) => {
@@ -79,6 +87,7 @@ export function App() {
         appealPoints: job.appealPoints,
         qualificationAdvice: job.qualificationAdvice,
         careerTrajectory: trajectory,
+        evaluationHistory: job.evaluationHistory,
         mustRequirements: job.jobDetails.mustRequirements,
         wantRequirements: job.jobDetails.wantRequirements,
         jobDescription: job.jobDetails.jobDescription,
@@ -157,6 +166,7 @@ export function App() {
                 userProfile={profile}
                 onSaveMarkdown={handleSaveMarkdown}
                 onReEvaluate={handleReEvaluate}
+                onReEvaluateWithProfile={handleReEvaluateWithProfile}
                 onGenerateCareerTrajectory={handleGenerateCareerTrajectory}
               />
             </div>
@@ -172,6 +182,10 @@ export function App() {
             onExportJob={exportMarkdown}
             onSelectJobForPreview={handleSelectJobForPreview}
             onImportMarkdown={handleImportMarkdown}
+            onReEvaluateJob={(id) => reEvaluateJob(id, profile, "profile_update")}
+            onReEvaluateBatchJobs={(ids, onProg, shouldCancel) =>
+              reEvaluateBatchJobs(ids, profile, onProg, "profile_update", shouldCancel)
+            }
           />
         )}
 

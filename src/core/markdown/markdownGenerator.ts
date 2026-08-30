@@ -1,4 +1,4 @@
-import { JobMetadata, CareerTrajectory } from "@/types/job";
+import { JobMetadata, CareerTrajectory, EvaluationHistoryItem } from "@/types/job";
 
 export interface MarkdownGenerationInput {
   metadata: JobMetadata;
@@ -18,6 +18,7 @@ export interface MarkdownGenerationInput {
     advice: string;
   };
   careerTrajectory?: CareerTrajectory;
+  evaluationHistory?: EvaluationHistoryItem[];
   mustRequirements: string[];
   wantRequirements: string[];
   jobDescription: string[];
@@ -93,6 +94,29 @@ ${ct.careerRisksOrLockin ? `- **キャリア上の留意点・リスク**: ${ct.
 `;
   }
 
+  let evaluationHistorySection = "";
+  if (input.evaluationHistory && input.evaluationHistory.length > 0) {
+    const historyList = input.evaluationHistory
+      .map((h) => {
+        const reasonText = h.triggerReason === "profile_update"
+          ? "プロファイル更新"
+          : h.triggerReason === "user_feedback"
+          ? "ユーザーフィードバック"
+          : h.triggerReason === "initial"
+          ? "初回評価"
+          : "再評価";
+        const note = h.summaryNote ? ` - *${h.summaryNote}*` : "";
+        return `- **${h.date.split("T")[0]} (${reasonText})**: 総合 **${h.score}点 (${h.judgment})** [スキル: ${h.scoreBreakdown.skillMatchRatio}% / 条件: ${h.scoreBreakdown.conditionMatchRatio}% / 成長: ${h.scoreBreakdown.careerGrowthRatio}% / 環境: ${h.scoreBreakdown.environmentRiskRatio}%]${note}`;
+      })
+      .join("\n");
+
+    evaluationHistorySection = `
+
+## 📜 適合度評価・再評価履歴 (Evaluation History)
+${historyList}
+`;
+  }
+
   return `---
 id: ${metadata.id}
 company: ${metadata.company}
@@ -120,7 +144,7 @@ ${positivesFormatted}
 
 ### ⚠️ 懸念点・確認事項
 ${concernsFormatted}
-${qualificationSection}${careerTrajectorySection}
+${qualificationSection}${careerTrajectorySection}${evaluationHistorySection}
 ---
 
 ## 💬 エージェントへの逆質問・確認事項
@@ -318,6 +342,47 @@ export function parseJobMarkdownToJobResult(markdown: string): import("@/types/j
     };
   }
 
+  const historyLines = extractSectionList(/^##+\s+.*(適合度評価.*履歴|Evaluation History)/i);
+  const evaluationHistory: import("@/types/job").EvaluationHistoryItem[] = [];
+  for (const hLine of historyLines) {
+    const dateMatch = hLine.match(/\*\*(\d{4}-\d{2}-\d{2})\s*\(([^)]+)\)\*\*/);
+    const scoreMatch = hLine.match(/総合\s*\*\*(\d+)点/);
+    if (dateMatch && scoreMatch) {
+      const hDate = dateMatch[1];
+      const hReasonRaw = dateMatch[2];
+      const hScore = Number(scoreMatch[1]) || 75;
+
+      const rankMatch = hLine.match(/総合\s*\*\*\d+点(?:\s*\((.*?)\))?\*\*/);
+      const hJudgmentRaw = rankMatch && rankMatch[1]
+        ? rankMatch[1]
+        : (hScore >= 90 ? "S (即応募推奨)" : hScore >= 80 ? "A (即応募推奨)" : hScore >= 65 ? "B (要確認・検討)" : "C (見送り推奨)");
+
+      const triggerReason = hReasonRaw.includes("プロファイル")
+        ? "profile_update"
+        : hReasonRaw.includes("フィードバック")
+        ? "user_feedback"
+        : hReasonRaw.includes("初回")
+        ? "initial"
+        : "manual_re_eval";
+
+      evaluationHistory.push({
+        id: `eval-${hDate.replace(/-/g, "")}-${Math.floor(100 + Math.random() * 900)}`,
+        date: `${hDate}T00:00:00.000Z`,
+        triggerReason,
+        score: hScore,
+        judgment: hJudgmentRaw as import("@/types/job").JudgmentRank,
+        scoreBreakdown: {
+          skillMatchRatio: 75,
+          conditionMatchRatio: 75,
+          careerGrowthRatio: 75,
+          environmentRiskRatio: 75,
+        },
+        positives: [],
+        concerns: [],
+      });
+    }
+  }
+
   const fullMetadata: import("@/types/job").JobMetadata = {
     id,
     company,
@@ -345,6 +410,7 @@ export function parseJobMarkdownToJobResult(markdown: string): import("@/types/j
     agentQuestions: agentQuestions.length > 0 ? agentQuestions : [],
     appealPoints: appealPoints.length > 0 ? appealPoints : [],
     careerTrajectory,
+    evaluationHistory: evaluationHistory.length > 0 ? evaluationHistory : undefined,
     jobDetails: {
       mustRequirements,
       wantRequirements,

@@ -215,4 +215,63 @@ describe("PreviewPane Component", () => {
 
     expect(screen.getByText("89")).toBeDefined();
   });
+
+  it("renders re-evaluate with profile button and triggers callback", async () => {
+    const handleReEvalProfile = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PreviewPane
+        analysisResult={mockResult}
+        isAnalyzing={false}
+        onReEvaluateWithProfile={handleReEvalProfile}
+      />
+    );
+
+    const reEvalBtn = screen.getByText("最新プロファイルで再評価");
+    expect(reEvalBtn).toBeDefined();
+
+    fireEvent.click(reEvalBtn);
+    expect(handleReEvalProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders evaluation history timeline and score diff badge when evaluationHistory exists", () => {
+    const resultWithHistory: JobAnalysisResult = {
+      ...mockResult,
+      metadata: {
+        ...mockResult.metadata,
+        matchScore: 90,
+      },
+      evaluationHistory: [
+        {
+          id: "eval-001",
+          date: "2026-08-20T10:00:00.000Z",
+          triggerReason: "profile_update",
+          score: 75,
+          judgment: "B (要確認・検討)",
+          scoreBreakdown: {
+            skillMatchRatio: 70,
+            conditionMatchRatio: 75,
+            careerGrowthRatio: 80,
+            environmentRiskRatio: 75,
+          },
+          positives: ["クラウド案件"],
+          concerns: ["資格未取得"],
+          summaryNote: "Azureスキル追加前の評価",
+        },
+      ],
+    };
+
+    render(<PreviewPane analysisResult={resultWithHistory} isAnalyzing={false} />);
+
+    // Score diff badge (+15pt ↗ 前回75点)
+    expect(screen.getByText(/\+15pt \(前回75点\)/)).toBeDefined();
+
+    // History Timeline Accordion Trigger
+    const historyBtn = screen.getByText("履歴を展開");
+    expect(historyBtn).toBeDefined();
+
+    // Open History Accordion
+    fireEvent.click(historyBtn);
+    expect(screen.getByText(/Azureスキル追加前の評価/)).toBeDefined();
+    expect(screen.getByText("75点")).toBeDefined();
+  });
 });
