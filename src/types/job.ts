@@ -32,11 +32,21 @@ export interface JobMetadata {
   matchScore: number;
   judgment: JudgmentRank;
   status: JobStatus;
+  rejectReason?: string;
   tags: string[];
+}
+
+export interface FeedbackItem {
+  date: string;
+  feedback: string;
+  previousScore: number;
+  newScore: number;
 }
 
 export interface JobAnalysisResult {
   metadata: JobMetadata;
+  originalJobText?: string;
+  feedbackHistory?: FeedbackItem[];
   scoreBreakdown: {
     skillMatchRatio: number;
     conditionMatchRatio: number;

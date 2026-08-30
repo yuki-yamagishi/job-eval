@@ -49,6 +49,17 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
           <span>求人ドキュメント一覧</span>
         </button>
         <button
+          onClick={() => setActiveTab("roadmap")}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-md font-medium transition-all ${
+            activeTab === "roadmap"
+              ? "bg-indigo-600 text-white shadow-sm font-semibold"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <span className="text-sm">🗺️</span>
+          <span>転職ロードマップ</span>
+        </button>
+        <button
           onClick={() => setActiveTab("profile")}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-md font-medium transition-all ${
             activeTab === "profile"

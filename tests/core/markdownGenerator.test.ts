@@ -4,6 +4,7 @@ import {
   getStandardMarkdownFilename,
   sanitizeFilename,
   parseJobMarkdown,
+  parseJobMarkdownToJobResult,
   updateJobMarkdownBody,
 } from "@/core/markdown/markdownGenerator";
 import { JobMetadata } from "@/types/job";
@@ -99,5 +100,50 @@ title: バックエンド
     expect(updated).toContain("company: 株式会社サンプル");
     expect(updated).toContain("新本文メモ追記");
     expect(updated).not.toContain("旧本文");
+  });
+
+  it("restores complete JobAnalysisResult from imported Markdown", () => {
+    const sampleMd = `---
+company: 株式会社インポートAI
+title: シニアアーキテクト
+match_score: 95
+salary_min: 1000
+salary_max: 1500
+tags:
+  - AWS
+  - Rust
+---
+
+## 📊 AI適合度判定サマリー
+
+### 🎯 適合ポイント (強み・推奨理由)
+- 先進的なRustアーキテクチャの導入
+- フルリモートワーク対応
+
+### ⚠️ 懸念点・確認事項
+- チーム立ち上げ期の負荷確認
+
+### 💬 エージェントへの逆質問・確認事項
+- アーキテクチャの選定裁量
+
+### 📝 応募時アピールポイント案
+- 大規模分散基盤の設計実績
+
+## 📋 求人詳細情報
+### 必須要件 (Must)
+- Rust実務経験 3年以上
+`;
+
+    const result = parseJobMarkdownToJobResult(sampleMd);
+    expect(result.metadata.company).toBe("株式会社インポートAI");
+    expect(result.metadata.title).toBe("シニアアーキテクト");
+    expect(result.metadata.matchScore).toBe(95);
+    expect(result.metadata.judgment).toBe("S (即応募推奨)");
+    expect(result.metadata.tags).toEqual(["AWS", "Rust"]);
+    expect(result.positives.length).toBe(2);
+    expect(result.concerns.length).toBe(1);
+    expect(result.agentQuestions.length).toBe(1);
+    expect(result.appealPoints.length).toBe(1);
+    expect(result.jobDetails.mustRequirements).toContain("Rust実務経験 3年以上");
   });
 });

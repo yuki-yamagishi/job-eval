@@ -39,3 +39,30 @@ export async function analyzeJobWithProfile(
   // Fallback to local mock engine
   return mockProvider.analyzeJob(text, source, profile);
 }
+
+/**
+ * Unified AI re-evaluation service with user feedback
+ */
+export async function reEvaluateJobWithProfile(
+  previousResult: JobAnalysisResult,
+  userFeedback: string,
+  profile: UserProfile,
+  customProvider?: AiProvider
+): Promise<JobAnalysisResult> {
+  if (customProvider) {
+    return customProvider.reEvaluateJob(previousResult, userFeedback, profile);
+  }
+
+  const hasApiKey = Boolean(profile.apiSettings?.geminiApiKey?.trim());
+
+  if (hasApiKey) {
+    try {
+      return await geminiProvider.reEvaluateJob(previousResult, userFeedback, profile);
+    } catch (error) {
+      console.warn("Gemini API re-evaluation error, falling back to mock engine:", error);
+      throw error;
+    }
+  }
+
+  return mockProvider.reEvaluateJob(previousResult, userFeedback, profile);
+}

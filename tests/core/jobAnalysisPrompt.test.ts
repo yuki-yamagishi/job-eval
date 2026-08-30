@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { cleanJobText, buildJobAnalysisPrompt, GEMINI_JOB_ANALYSIS_SCHEMA } from "@/core/prompt/jobAnalysisPrompt";
+import {
+  cleanJobText,
+  buildJobAnalysisPrompt,
+  buildJobReEvaluationPrompt,
+  GEMINI_JOB_ANALYSIS_SCHEMA,
+} from "@/core/prompt/jobAnalysisPrompt";
 import { TEST_MOCK_PROFILE } from "../fixtures/sampleProfile";
 
 describe("jobAnalysisPrompt", () => {
@@ -58,5 +63,50 @@ describe("jobAnalysisPrompt", () => {
     expect(userPrompt).toContain("学習中・習得予定技術: Rust (独学・学習中)");
     expect(userPrompt).toContain("取得済み認定資格: AZ-305 (2024年取得, 発行元: Microsoft)");
     expect(userPrompt).toContain("学習中・取得目標資格: AZ-400 (現在学習中/受験予定, 目標: 2026年Q3, 発行元: Microsoft)");
+  });
+
+  it("builds re-evaluation prompt containing previous score and user feedback", () => {
+    const mockPreviousResult: import("@/types/job").JobAnalysisResult = {
+      metadata: {
+        id: "job-1",
+        company: "株式会社テスト",
+        title: "SREリード",
+        agentSource: "ビズリーチ",
+        dateAnalyzed: "2026-08-30",
+        matchScore: 78,
+        judgment: "B (要確認・検討)",
+        status: "応募検討中",
+        tags: ["SRE", "Terraform"],
+      },
+      scoreBreakdown: {
+        skillMatchRatio: 75,
+        conditionMatchRatio: 80,
+        careerGrowthRatio: 80,
+        environmentRiskRatio: 75,
+      },
+      positives: ["Terraformの知見を活かせる"],
+      concerns: ["Python実務経験の不足"],
+      agentQuestions: ["オンコールの頻度"],
+      appealPoints: ["インフラ自動化実績"],
+      jobDetails: {
+        mustRequirements: ["Python実務3年以上"],
+        wantRequirements: [],
+        jobDescription: ["全社インフラのSRE推進"],
+        location: "東京",
+        selectionProcess: "面接2回",
+      },
+      markdownContent: "# テスト",
+    };
+
+    const { systemInstruction, userPrompt } = buildJobReEvaluationPrompt(
+      mockPreviousResult,
+      "実はPythonは個人開発でFastAPIアプリを複数本運用しており、実務相当の知識があります。",
+      TEST_MOCK_PROFILE
+    );
+
+    expect(systemInstruction).toContain("再評価（フィードバック反映）の特別指示");
+    expect(userPrompt).toContain("前回のAI評価結果");
+    expect(userPrompt).toContain("総合適合スコア: 78点");
+    expect(userPrompt).toContain("実はPythonは個人開発でFastAPIアプリを複数本運用しており");
   });
 });

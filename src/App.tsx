@@ -3,8 +3,9 @@ import { Header } from "@/components/layout/Header";
 import { InputPane } from "@/components/pane/InputPane";
 import { PreviewPane } from "@/components/pane/PreviewPane";
 import { JobDashboard } from "@/components/dashboard/JobDashboard";
+import { CareerRoadmapView } from "@/features/roadmap/CareerRoadmapView";
 import { ProfileSettingsView } from "@/features/profile/ProfileSettingsView";
-import { analyzeJobWithProfile } from "@/services/ai/aiService";
+import { analyzeJobWithProfile, reEvaluateJobWithProfile } from "@/services/ai/aiService";
 import { useProfile } from "@/hooks/useProfile";
 import { useJobs } from "@/hooks/useJobs";
 import { JobAnalysisResult, AgentSource } from "@/types/job";
@@ -12,23 +13,43 @@ import { JobAnalysisResult, AgentSource } from "@/types/job";
 export function App() {
   const [activeTab, setActiveTab] = useState<string>("input");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isReEvaluating, setIsReEvaluating] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<JobAnalysisResult | null>(null);
 
   // Custom Hooks for persistence
   const { profile, saveProfile, resetToDefault, isLoading, isSaving, lastSavedTime } = useProfile();
-  const { jobs, saveJob, updateJobStatus, deleteJob, exportMarkdown } = useJobs();
+  const { jobs, saveJob, updateJobStatus, importJobFromMarkdown, deleteJob, exportMarkdown } = useJobs();
 
   const handleAnalyze = async (text: string, source: AgentSource) => {
     setIsAnalyzing(true);
     try {
       const result = await analyzeJobWithProfile(text, source, profile);
       setAnalysisResult(result);
+      // Auto-save immediately to local storage on successful analysis
+      await saveJob(result);
     } catch (error: unknown) {
       console.error("Analysis failed", error);
       const message = error instanceof Error ? error.message : "AI解析に失敗しました。";
       alert(`【エラー】${message}\nMockエンジンで再試行できます。`);
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleReEvaluate = async (userFeedback: string) => {
+    if (!analysisResult) return;
+    setIsReEvaluating(true);
+    try {
+      const updatedResult = await reEvaluateJobWithProfile(analysisResult, userFeedback, profile);
+      setAnalysisResult(updatedResult);
+      // Auto-update storage
+      await saveJob(updatedResult);
+    } catch (error: unknown) {
+      console.error("Re-evaluation failed", error);
+      const message = error instanceof Error ? error.message : "AI再評価に失敗しました。";
+      alert(`【再評価エラー】${message}`);
+    } finally {
+      setIsReEvaluating(false);
     }
   };
 
@@ -41,6 +62,22 @@ export function App() {
       await saveJob(targetResult);
       await exportMarkdown(targetResult);
       alert("求人Markdownドキュメントをローカルへ保存・ダウンロードしました！");
+    }
+  };
+
+  const handleSelectJobForPreview = (job: JobAnalysisResult) => {
+    setAnalysisResult(job);
+    setActiveTab("input");
+  };
+
+  const handleImportMarkdown = async (markdownContent: string) => {
+    try {
+      const imported = await importJobFromMarkdown(markdownContent);
+      setAnalysisResult(imported);
+      setActiveTab("input");
+    } catch (err) {
+      console.error("Failed to import markdown", err);
+      alert("Markdownファイルのインポートに失敗しました。");
     }
   };
 
@@ -69,7 +106,9 @@ export function App() {
               <PreviewPane
                 analysisResult={analysisResult}
                 isAnalyzing={isAnalyzing}
+                isReEvaluating={isReEvaluating}
                 onSaveMarkdown={handleSaveMarkdown}
+                onReEvaluate={handleReEvaluate}
               />
             </div>
           </div>
@@ -81,6 +120,17 @@ export function App() {
             onUpdateStatus={updateJobStatus}
             onDeleteJob={deleteJob}
             onExportJob={exportMarkdown}
+            onSelectJobForPreview={handleSelectJobForPreview}
+            onImportMarkdown={handleImportMarkdown}
+          />
+        )}
+
+        {activeTab === "roadmap" && (
+          <CareerRoadmapView
+            savedJobs={jobs}
+            profile={profile}
+            onSelectJobForPreview={handleSelectJobForPreview}
+            onUpdateStatus={updateJobStatus}
           />
         )}
 

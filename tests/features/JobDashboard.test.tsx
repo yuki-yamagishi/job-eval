@@ -118,7 +118,7 @@ describe("JobDashboard Component", () => {
     fireEvent.click(checkboxes[0]);
     fireEvent.click(checkboxes[1]);
 
-    const compareBtn = screen.getByText(/選択した求人を比較 \(2件\)/);
+    const compareBtn = screen.getByText(/選択.*求人を比較 \(2件\)/);
     expect(compareBtn).toBeDefined();
 
     fireEvent.click(compareBtn);
@@ -126,5 +126,15 @@ describe("JobDashboard Component", () => {
     // Modal should be visible
     expect(screen.getByText(/複数求人の比較マトリクス \(FR-503\)/)).toBeDefined();
     expect(screen.getAllByText("主なポジティブ要素").length).toBe(2);
+  });
+
+  it("calls onSelectJobForPreview when preview button is clicked", () => {
+    const handlePreview = vi.fn();
+    render(<JobDashboard savedJobs={mockJobs} onSelectJobForPreview={handlePreview} />);
+
+    const previewButtons = screen.getAllByText("再表示");
+    fireEvent.click(previewButtons[0]);
+
+    expect(handlePreview).toHaveBeenCalledWith(mockJobs[0]);
   });
 });

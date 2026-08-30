@@ -101,4 +101,27 @@ describe("PreviewPane Component", () => {
     expect(screen.getByText("🎯 AWS SAP")).toBeDefined();
     expect(screen.getByText(/AWSの実務経験を資格でアピールすることを推奨/)).toBeDefined();
   });
+
+  it("handles user feedback input and triggers onReEvaluate callback", async () => {
+    const handleReEvaluate = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PreviewPane
+        analysisResult={mockResult}
+        isAnalyzing={false}
+        onReEvaluate={handleReEvaluate}
+      />
+    );
+
+    // Open feedback form
+    const openBtn = screen.getByText("＋ フィードバックを入力");
+    fireEvent.click(openBtn);
+
+    const textarea = screen.getByPlaceholderText(/必須要件のPythonは独学/);
+    fireEvent.change(textarea, { target: { value: "AWSの実務経験が3年あります。" } });
+
+    const submitBtn = screen.getByText("🚀 フィードバックを反映して再評価");
+    fireEvent.click(submitBtn);
+
+    expect(handleReEvaluate).toHaveBeenCalledWith("AWSの実務経験が3年あります。");
+  });
 });

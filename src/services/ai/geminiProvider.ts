@@ -1,7 +1,11 @@
 import { JobAnalysisResult, AgentSource, JudgmentRank } from "@/types/job";
 import { UserProfile } from "@/types/profile";
 import { AiProvider } from "./aiProvider";
-import { buildJobAnalysisPrompt, GEMINI_JOB_ANALYSIS_SCHEMA } from "@/core/prompt/jobAnalysisPrompt";
+import {
+  buildJobAnalysisPrompt,
+  buildJobReEvaluationPrompt,
+  GEMINI_JOB_ANALYSIS_SCHEMA,
+} from "@/core/prompt/jobAnalysisPrompt";
 import { generateJobMarkdown } from "@/core/markdown/markdownGenerator";
 
 interface GeminiRawResponse {
@@ -207,16 +211,65 @@ export class GeminiAiProvider implements AiProvider {
     throw lastError || new Error("Gemini API での解析に失敗しました。");
   }
 
-  private async callGeminiModel(
-    jobText: string,
-    source: AgentSource,
-    profile: UserProfile,
-    apiKey: string,
-    model: string
+  async reEvaluateJob(
+    previousResult: JobAnalysisResult,
+    userFeedback: string,
+    profile: UserProfile
   ): Promise<JobAnalysisResult> {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const { systemInstruction, userPrompt } = buildJobAnalysisPrompt(jobText, source, profile);
+    const apiKey = profile.apiSettings?.geminiApiKey?.trim();
+    if (!apiKey) {
+      throw new Error("Gemini API キーが設定されていません。プロファイル設定画面から入力してください。");
+    }
 
+    const primaryModel = (profile.apiSettings?.geminiModel || "gemini-3.6-flash").replace(/^models\//, "").trim();
+    const candidateModels = Array.from(new Set([primaryModel, ...RECOMMENDED_MODELS]));
+    let lastError: Error | null = null;
+
+    const { systemInstruction, userPrompt } = buildJobReEvaluationPrompt(previousResult, userFeedback, profile);
+
+    for (const model of candidateModels) {
+      try {
+        const raw = await this.executeGeminiRequest(apiKey, model, systemInstruction, userPrompt);
+        const newResult = this.transformToJobAnalysisResult(raw, previousResult.metadata.agentSource);
+        
+        // Preserve original job ID, status, and append feedback history
+        const updatedHistory = [
+          ...(previousResult.feedbackHistory || []),
+          {
+            date: new Date().toISOString(),
+            feedback: userFeedback,
+            previousScore: previousResult.metadata.matchScore,
+            newScore: newResult.metadata.matchScore,
+          },
+        ];
+
+        return {
+          ...newResult,
+          metadata: {
+            ...newResult.metadata,
+            id: previousResult.metadata.id,
+            status: previousResult.metadata.status,
+            rejectReason: previousResult.metadata.rejectReason,
+          },
+          originalJobText: previousResult.originalJobText,
+          feedbackHistory: updatedHistory,
+        };
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        console.warn(`Gemini re-evaluation model ${model} failed, trying fallback...`, lastError.message);
+      }
+    }
+
+    throw lastError || new Error("Gemini API での再評価に失敗しました。");
+  }
+
+  private async executeGeminiRequest(
+    apiKey: string,
+    model: string,
+    systemInstruction: string,
+    userPrompt: string
+  ): Promise<GeminiRawResponse> {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const requestBody = {
       contents: [
         {
@@ -274,8 +327,7 @@ export class GeminiAiProvider implements AiProvider {
         throw new Error("Gemini からの応答が空でした。");
       }
 
-      const parsed: GeminiRawResponse = JSON.parse(rawText);
-      return this.transformToJobAnalysisResult(parsed, source);
+      return JSON.parse(rawText);
     } catch (err: unknown) {
       if (timeoutId) clearTimeout(timeoutId);
       if (err instanceof Error && err.name === "AbortError") {
@@ -283,6 +335,22 @@ export class GeminiAiProvider implements AiProvider {
       }
       throw err;
     }
+  }
+
+  private async callGeminiModel(
+    jobText: string,
+    source: AgentSource,
+    profile: UserProfile,
+    apiKey: string,
+    model: string
+  ): Promise<JobAnalysisResult> {
+    const { systemInstruction, userPrompt } = buildJobAnalysisPrompt(jobText, source, profile);
+    const parsed = await this.executeGeminiRequest(apiKey, model, systemInstruction, userPrompt);
+    const result = this.transformToJobAnalysisResult(parsed, source);
+    return {
+      ...result,
+      originalJobText: jobText,
+    };
   }
 
   /**

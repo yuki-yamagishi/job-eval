@@ -1,4 +1,4 @@
-import { JobAnalysisResult, AgentSource } from "@/types/job";
+import { JobAnalysisResult, AgentSource, JudgmentRank } from "@/types/job";
 import { UserProfile } from "@/types/profile";
 import { AiProvider } from "./aiProvider";
 import { calculateJobMatchScore, ScoreInput } from "@/core/scoring/scoringEngine";
@@ -122,6 +122,7 @@ export class MockAiProvider implements AiProvider {
 
     return {
       metadata,
+      originalJobText: text,
       scoreBreakdown: scoringResult.breakdown,
       positives,
       concerns,
@@ -138,6 +139,71 @@ export class MockAiProvider implements AiProvider {
         location: "東京都港区（フルリモート可）",
         selectionProcess: "書類選考 → 一次面接 → 最終面接",
       },
+      markdownContent,
+    };
+  }
+
+  async reEvaluateJob(
+    previousResult: JobAnalysisResult,
+    userFeedback: string,
+    _profile: UserProfile
+  ): Promise<JobAnalysisResult> {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    // Boost score slightly on positive feedback
+    const previousScore = previousResult.metadata.matchScore;
+    const isPositiveFeedback = userFeedback.length > 5;
+    const scoreDelta = isPositiveFeedback ? 5 : 0;
+    const newScore = Math.min(100, previousScore + scoreDelta);
+
+    const judgment: JudgmentRank = newScore >= 90 ? "S (即応募推奨)" : newScore >= 80 ? "A (即応募推奨)" : "B (要確認・検討)";
+
+    const updatedMetadata = {
+      ...previousResult.metadata,
+      matchScore: newScore,
+      judgment,
+    };
+
+    const updatedPositives = [
+      ...previousResult.positives,
+      `【フィードバック反映】${userFeedback.slice(0, 40)}... を強みとして再評価に反映。`,
+    ];
+
+    const updatedHistory = [
+      ...(previousResult.feedbackHistory || []),
+      {
+        date: new Date().toISOString(),
+        feedback: userFeedback,
+        previousScore,
+        newScore,
+      },
+    ];
+
+    const markdownContent = generateJobMarkdown({
+      metadata: updatedMetadata,
+      scoreBreakdown: {
+        ...previousResult.scoreBreakdown,
+        skillMatchRatio: Math.min(100, previousResult.scoreBreakdown.skillMatchRatio + 5),
+      },
+      positives: updatedPositives,
+      concerns: previousResult.concerns,
+      agentQuestions: previousResult.agentQuestions,
+      appealPoints: [
+        ...previousResult.appealPoints,
+        `フィードバック補足事項: ${userFeedback}`,
+      ],
+      qualificationAdvice: previousResult.qualificationAdvice,
+      mustRequirements: previousResult.jobDetails.mustRequirements,
+      wantRequirements: previousResult.jobDetails.wantRequirements,
+      jobDescription: previousResult.jobDetails.jobDescription,
+      selectionProcess: previousResult.jobDetails.selectionProcess,
+    });
+
+    return {
+      ...previousResult,
+      metadata: updatedMetadata,
+      positives: updatedPositives,
+      feedbackHistory: updatedHistory,
       markdownContent,
     };
   }

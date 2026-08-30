@@ -26,7 +26,9 @@ import { getStandardMarkdownFilename, parseJobMarkdown } from "@/core/markdown/m
 interface PreviewPaneProps {
   analysisResult: JobAnalysisResult | null;
   isAnalyzing: boolean;
+  isReEvaluating?: boolean;
   onSaveMarkdown?: (markdownContent: string) => void;
+  onReEvaluate?: (feedback: string) => Promise<void>;
 }
 
 type ViewMode = "rich" | "split" | "raw";
@@ -34,11 +36,15 @@ type ViewMode = "rich" | "split" | "raw";
 export const PreviewPane: React.FC<PreviewPaneProps> = ({
   analysisResult,
   isAnalyzing,
+  isReEvaluating = false,
   onSaveMarkdown,
+  onReEvaluate,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>("rich");
   const [editedMarkdown, setEditedMarkdown] = useState<string>("");
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  const [userFeedbackText, setUserFeedbackText] = useState("");
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
   // Sync markdown content when analysisResult changes
   useEffect(() => {
@@ -149,6 +155,10 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
               {standardFilename}
             </span>
           </div>
+          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-md font-medium">
+            <CheckCircle2 className="h-3 w-3" />
+            ローカル保存済
+          </span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -249,10 +259,10 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                   </div>
                   <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
                     <span className="text-slate-400 block text-[11px]">キャリア成長 (20%)</span>
-                    <span className="font-bold text-purple-400 font-mono text-sm">{scoreBreakdown.careerGrowthRatio}%</span>
+                    <span className="font-bold text-cyan-400 font-mono text-sm">{scoreBreakdown.careerGrowthRatio}%</span>
                   </div>
                   <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                    <span className="text-slate-400 block text-[11px]">環境リスク (10%)</span>
+                    <span className="text-slate-400 block text-[11px]">環境・リスク (10%)</span>
                     <span className="font-bold text-amber-400 font-mono text-sm">{scoreBreakdown.environmentRiskRatio}%</span>
                   </div>
                 </div>
@@ -265,6 +275,84 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                     </Badge>
                   ))}
                 </div>
+
+                {/* Feedback History If Exists */}
+                {analysisResult.feedbackHistory && analysisResult.feedbackHistory.length > 0 && (
+                  <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                    <span className="text-[11px] font-semibold text-indigo-300 flex items-center gap-1">
+                      <Sparkles className="h-3 w-3" />
+                      フィードバック反映履歴 ({analysisResult.feedbackHistory.length}件)
+                    </span>
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {analysisResult.feedbackHistory.map((fb, idx) => (
+                        <div key={idx} className="bg-slate-950/80 p-1.5 rounded text-[11px] flex items-center justify-between border border-slate-800">
+                          <span className="text-slate-300 truncate max-w-[320px]">💬 {fb.feedback}</span>
+                          <span className="text-indigo-400 font-mono font-bold shrink-0 ml-2">
+                            {fb.previousScore}点 ➔ {fb.newScore}点
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* AI Feedback & Re-evaluation Card */}
+            <Card className="border-indigo-500/30 bg-slate-900/60 shadow-md">
+              <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-semibold text-indigo-300 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+                  💡 AI評価へのフィードバック & 再評価
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsFeedbackOpen(!isFeedbackOpen)}
+                  className="h-6 text-[11px] text-indigo-400 hover:text-white"
+                >
+                  {isFeedbackOpen ? "閉じる" : "＋ フィードバックを入力"}
+                </Button>
+              </CardHeader>
+              <CardContent className="p-3 pt-0 space-y-2.5">
+                {isFeedbackOpen ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      placeholder="例: 「必須要件のPythonは独学＋個人開発で1年実績があります」「年収650万円以上であれば許容できます」「オンコール対応も可能です」"
+                      value={userFeedbackText}
+                      onChange={(e) => setUserFeedbackText(e.target.value)}
+                      className="text-xs min-h-[70px] bg-slate-950 border-slate-700"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsFeedbackOpen(false)}
+                        className="h-7 text-xs border-slate-700"
+                      >
+                        キャンセル
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={!userFeedbackText.trim() || isReEvaluating}
+                        onClick={async () => {
+                          if (onReEvaluate && userFeedbackText.trim()) {
+                            await onReEvaluate(userFeedbackText.trim());
+                            setUserFeedbackText("");
+                            setIsFeedbackOpen(false);
+                          }
+                        }}
+                        className="h-7 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium"
+                      >
+                        {isReEvaluating ? "再計算中..." : "🚀 フィードバックを反映して再評価"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400">
+                    「実はこのスキルの経験がある」「この希望条件は許容できる」などのフィードバックを入力すると、AIが適合スコアやアピールポイントを即座に再計算・更新します。
+                  </p>
+                )}
               </CardContent>
             </Card>
 

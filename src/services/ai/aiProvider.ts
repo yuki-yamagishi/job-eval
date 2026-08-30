@@ -8,4 +8,9 @@ export interface AiProvider {
     source: AgentSource,
     profile: UserProfile
   ): Promise<JobAnalysisResult>;
+  reEvaluateJob(
+    previousResult: JobAnalysisResult,
+    userFeedback: string,
+    profile: UserProfile
+  ): Promise<JobAnalysisResult>;
 }

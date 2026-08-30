@@ -208,3 +208,45 @@ export const GEMINI_JOB_ANALYSIS_SCHEMA = {
     "job_description",
   ],
 };
+
+/**
+ * Build a re-evaluation prompt incorporating user feedback on previous AI analysis
+ */
+export function buildJobReEvaluationPrompt(
+  previousResult: import("@/types/job").JobAnalysisResult,
+  userFeedback: string,
+  profile: UserProfile
+): { systemInstruction: string; userPrompt: string } {
+  const base = buildJobAnalysisPrompt(
+    previousResult.originalJobText || previousResult.jobDetails.jobDescription.join("\n"),
+    previousResult.metadata.agentSource,
+    profile
+  );
+
+  const reEvaluationInstruction = `${base.systemInstruction}
+
+【再評価（フィードバック反映）の特別指示】
+ユーザーから前回のAI判定・評価結果に対する追加情報・フィードバックが届きました。
+ユーザーのフィードバック内容（例: 記載漏れスキルの補足、年収条件の優先度変更、懸念事項の自己解決状況など）を真摯に考慮し、
+スコアの内訳（スキル合致度、条件合致度等）、判定ランク、アピールポイント、逆質問文を再計算・更新してください。`;
+
+  const reEvaluationUserPrompt = `${base.userPrompt}
+
+---
+【前回のAI評価結果】
+- 総合適合スコア: ${previousResult.metadata.matchScore}点 (${previousResult.metadata.judgment})
+- 検出された主な強み: ${previousResult.positives.join(" / ")}
+- 検出された懸念点: ${previousResult.concerns.join(" / ")}
+
+---
+【ユーザーからのフィードバック・補足情報】
+${userFeedback}
+
+---
+上記のフィードバックを反映し、修正・再計算された最新のJSONを出力してください。`;
+
+  return {
+    systemInstruction: reEvaluationInstruction,
+    userPrompt: reEvaluationUserPrompt,
+  };
+}

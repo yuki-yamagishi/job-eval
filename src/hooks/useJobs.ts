@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { JobAnalysisResult, JobStatus } from "@/types/job";
 import { storageAdapter } from "@/services/storage/storageAdapter";
-import { getStandardMarkdownFilename, parseJobMarkdown } from "@/core/markdown/markdownGenerator";
+import {
+  getStandardMarkdownFilename,
+  parseJobMarkdown,
+  parseJobMarkdownToJobResult,
+} from "@/core/markdown/markdownGenerator";
 
 export function useJobs() {
   const [jobs, setJobs] = useState<JobAnalysisResult[]>([]);
@@ -35,21 +39,35 @@ export function useJobs() {
     });
   }, []);
 
-  const updateJobStatus = useCallback(async (id: string, newStatus: JobStatus) => {
+  const updateJobStatus = useCallback(async (id: string, newStatus: JobStatus, rejectReason?: string) => {
     setJobs((prev) => {
       const target = prev.find((j) => j.metadata.id === id);
       if (!target) return prev;
 
-      const updatedMetadata = { ...target.metadata, status: newStatus };
+      const updatedMetadata = {
+        ...target.metadata,
+        status: newStatus,
+        rejectReason: rejectReason !== undefined ? rejectReason : target.metadata.rejectReason,
+      };
       
       // Update status in markdown Frontmatter
       let updatedMarkdown = target.markdownContent;
       const parsed = parseJobMarkdown(target.markdownContent);
       if (parsed.frontmatterRaw) {
-        const updatedFrontmatter = parsed.frontmatterRaw.replace(
+        let updatedFrontmatter = parsed.frontmatterRaw.replace(
           /status:\s*"?[^"\n\r]*"?/,
           `status: "${newStatus}"`
         );
+        if (rejectReason) {
+          if (/reject_reason:/.test(updatedFrontmatter)) {
+            updatedFrontmatter = updatedFrontmatter.replace(
+              /reject_reason:\s*"?[^"\n\r]*"?/,
+              `reject_reason: "${rejectReason}"`
+            );
+          } else {
+            updatedFrontmatter += `\nreject_reason: "${rejectReason}"`;
+          }
+        }
         updatedMarkdown = `---\n${updatedFrontmatter}\n---\n\n${parsed.body.trim()}\n`;
       }
 
@@ -65,6 +83,12 @@ export function useJobs() {
       return prev.map((j) => (j.metadata.id === id ? updatedJob : j));
     });
   }, []);
+
+  const importJobFromMarkdown = useCallback(async (markdownContent: string): Promise<JobAnalysisResult> => {
+    const importedResult = parseJobMarkdownToJobResult(markdownContent);
+    await saveJob(importedResult);
+    return importedResult;
+  }, [saveJob]);
 
   const deleteJob = useCallback(async (id: string) => {
     await storageAdapter.deleteJob(id);
@@ -82,6 +106,7 @@ export function useJobs() {
     fetchJobs,
     saveJob,
     updateJobStatus,
+    importJobFromMarkdown,
     deleteJob,
     exportMarkdown,
   };

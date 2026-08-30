@@ -205,6 +205,10 @@ export function parseJobMarkdown(markdown: string): ParsedJobMarkdown {
       if (key === "title") metadata.title = val;
       if (key === "id") metadata.id = val;
       if (key === "match_score") metadata.matchScore = Number(val) || 0;
+      if (key === "judgment") metadata.judgment = val as import("@/types/job").JudgmentRank;
+      if (key === "status") metadata.status = val as import("@/types/job").JobStatus;
+      if (key === "agent_source") metadata.agentSource = val as import("@/types/job").AgentSource;
+      if (key === "reject_reason") metadata.rejectReason = val;
       if (key === "salary_min") metadata.salaryMin = Number(val) || undefined;
       if (key === "salary_max") metadata.salaryMax = Number(val) || undefined;
       if (key === "date_analyzed") metadata.dateAnalyzed = val;
@@ -231,4 +235,90 @@ export function updateJobMarkdownBody(originalMarkdown: string, newBody: string)
     return newBody;
   }
   return `---\n${parsed.frontmatterRaw}\n---\n\n${newBody.trim()}\n`;
+}
+
+/**
+ * Restore a full JobAnalysisResult from imported Markdown text
+ */
+export function parseJobMarkdownToJobResult(markdown: string): import("@/types/job").JobAnalysisResult {
+  const parsed = parseJobMarkdown(markdown);
+  const meta = parsed.metadata;
+  const today = new Date().toISOString().split("T")[0];
+
+  const id = meta.id || `job-${today.replace(/-/g, "")}-${Math.floor(100 + Math.random() * 900)}`;
+  const company = meta.company || "インポート求人";
+  const title = meta.title || "エンジニア / 専門職";
+  const matchScore = meta.matchScore ?? 75;
+  const validRanks = ["S (即応募推奨)", "A (即応募推奨)", "B (要確認・検討)", "C (見送り推奨)"] as const;
+  const judgment = validRanks.find((r) => r === meta.judgment) || (matchScore >= 90 ? "S (即応募推奨)" : matchScore >= 80 ? "A (即応募推奨)" : matchScore >= 65 ? "B (要確認・検討)" : "C (見送り推奨)");
+  const status = meta.status || "未検討";
+  const agentSource = meta.agentSource || "その他";
+
+  // Helper to extract list items under a markdown header
+  const extractSectionList = (headerRegex: RegExp): string[] => {
+    const lines = parsed.body.split(/\r?\n/);
+    let inSection = false;
+    const items: string[] = [];
+
+    for (const line of lines) {
+      if (headerRegex.test(line)) {
+        inSection = true;
+        continue;
+      }
+      if (inSection) {
+        if (/^##+\s+/.test(line)) {
+          break; // Next section
+        }
+        const listMatch = line.match(/^[-*]\s+(.*)$/);
+        if (listMatch) {
+          items.push(listMatch[1].trim());
+        }
+      }
+    }
+    return items;
+  };
+
+  const positives = extractSectionList(/^##+\s+.*(適合ポイント|強み|メリット|ポジティブ)/i);
+  const concerns = extractSectionList(/^##+\s+.*(懸念点|リスク)/i);
+  const agentQuestions = extractSectionList(/^##+\s+.*(逆質問|エージェント)/i);
+  const appealPoints = extractSectionList(/^##+\s+.*(アピール|自己PR)/i);
+  const mustRequirements = extractSectionList(/^##+\s+.*(必須要件|Must)/i);
+  const wantRequirements = extractSectionList(/^##+\s+.*(歓迎要件|Want)/i);
+  const jobDescription = extractSectionList(/^##+\s+.*(業務内容|募集概要)/i);
+
+  const fullMetadata: import("@/types/job").JobMetadata = {
+    id,
+    company,
+    title,
+    agentSource: agentSource as import("@/types/job").AgentSource,
+    dateAnalyzed: meta.dateAnalyzed || today,
+    salaryMin: meta.salaryMin,
+    salaryMax: meta.salaryMax,
+    matchScore,
+    judgment,
+    status: status as import("@/types/job").JobStatus,
+    tags: meta.tags || ["インポート"],
+  };
+
+  return {
+    metadata: fullMetadata,
+    scoreBreakdown: {
+      skillMatchRatio: 75,
+      conditionMatchRatio: 75,
+      careerGrowthRatio: 75,
+      environmentRiskRatio: 75,
+    },
+    positives: positives.length > 0 ? positives : ["インポートされた求人ドキュメントです。"],
+    concerns: concerns.length > 0 ? concerns : ["詳細条件をご確認ください。"],
+    agentQuestions: agentQuestions.length > 0 ? agentQuestions : [],
+    appealPoints: appealPoints.length > 0 ? appealPoints : [],
+    jobDetails: {
+      mustRequirements,
+      wantRequirements,
+      jobDescription: jobDescription.length > 0 ? jobDescription : ["インポート本文を参照"],
+      location: "東京都",
+      selectionProcess: "書類選考 → 面接",
+    },
+    markdownContent: markdown,
+  };
 }

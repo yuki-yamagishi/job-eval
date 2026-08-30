@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { 
   FileText, 
   Search, 
@@ -9,7 +9,9 @@ import {
   Columns, 
   X, 
   CheckCircle2, 
-  AlertTriangle 
+  Upload,
+  Eye,
+  GraduationCap
 } from "lucide-react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,9 +23,11 @@ import { useJobComparison } from "@/hooks/useJobComparison";
 
 interface JobDashboardProps {
   savedJobs: JobAnalysisResult[];
-  onUpdateStatus?: (id: string, status: JobStatus) => void;
+  onUpdateStatus?: (id: string, status: JobStatus, rejectReason?: string) => void;
   onDeleteJob?: (id: string) => void;
   onExportJob?: (job: JobAnalysisResult) => void;
+  onSelectJobForPreview?: (job: JobAnalysisResult) => void;
+  onImportMarkdown?: (markdownContent: string) => Promise<void>;
 }
 
 const STATUS_LIST: JobStatus[] = [
@@ -43,12 +47,16 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
   onUpdateStatus,
   onDeleteJob,
   onExportJob,
+  onSelectJobForPreview,
+  onImportMarkdown,
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [rankFilter, setRankFilter] = useState<string>("all");
   const [viewLayout, setViewLayout] = useState<"table" | "grid">("table");
   const [sortBy, setSortBy] = useState<"score" | "date" | "salary">("date");
+  const [importStatus, setImportStatus] = useState<string | null>(null);
 
   // Comparison hook
   const {
@@ -111,6 +119,41 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Markdown Import input (hidden) */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".md,.markdown,.txt"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (file && onImportMarkdown) {
+                try {
+                  const text = await file.text();
+                  await onImportMarkdown(text);
+                  setImportStatus(`「${file.name}」を正常にインポートしました！`);
+                  setTimeout(() => setImportStatus(null), 3000);
+                } catch (err) {
+                  alert("Markdownのインポートに失敗しました。書式をご確認ください。");
+                }
+              }
+              if (e.target) e.target.value = "";
+            }}
+          />
+
+          {/* Import Button */}
+          {onImportMarkdown && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              className="h-9 text-xs border-slate-700 bg-slate-900/80 hover:bg-slate-800 text-slate-200"
+            >
+              <Upload className="h-3.5 w-3.5 mr-1.5 text-indigo-400" />
+              MDインポート
+            </Button>
+          )}
+
           {/* Comparison trigger button */}
           {canCompare && (
             <Button
@@ -119,7 +162,7 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
               className="h-9 text-xs bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold shadow-lg shadow-purple-500/20 animate-in fade-in"
             >
               <Columns className="h-3.5 w-3.5 mr-1.5" />
-              選択した求人を比較 ({selectedJobIds.length}件)
+              選択求人を比較 ({selectedJobIds.length}件)
             </Button>
           )}
 
@@ -146,6 +189,19 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Import Toast Banner */}
+      {importStatus && (
+        <div className="bg-emerald-950/80 border border-emerald-700/80 text-emerald-200 text-xs px-3.5 py-2 rounded-lg flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            <span>{importStatus}</span>
+          </div>
+          <button onClick={() => setImportStatus(null)} className="text-emerald-400 hover:text-white">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Filter & Search Bar */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-950/80 p-3 rounded-xl border border-slate-800">
@@ -332,6 +388,18 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                     {/* Actions */}
                     <td className="p-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
+                        {onSelectJobForPreview && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onSelectJobForPreview(job)}
+                            className="h-7 px-2 text-[11px] text-indigo-300 hover:text-white hover:bg-indigo-950/60"
+                            title="プレビュー画面で再表示・再評価"
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-1" />
+                            再表示
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -382,22 +450,38 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                         checked={isSelected}
                         onChange={() => toggleSelectJob(job.metadata.id)}
                         className="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
+                        title="比較対象に選択"
                       />
                       <Badge variant={getRankBadgeVariant(job.metadata.judgment)}>
-                        {job.metadata.judgment}
+                        {job.metadata.judgment.split(" ")[0]}
                       </Badge>
                     </div>
-                    <div className="text-right">
+                    {onSelectJobForPreview && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onSelectJobForPreview(job)}
+                        className="h-6 px-1.5 text-[11px] text-indigo-300 hover:text-white"
+                      >
+                        <Eye className="h-3 w-3 mr-1" />
+                        再表示
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-white truncate">
+                        {job.metadata.company}
+                      </h3>
+                      <p className="text-xs text-slate-400 truncate">{job.metadata.title}</p>
+                    </div>
+                    <div className="text-right shrink-0">
                       <span className="text-xl font-extrabold text-indigo-400 font-mono">
                         {job.metadata.matchScore}
                       </span>
-                      <span className="text-[11px] text-slate-500 ml-1">/ 100</span>
+                      <span className="text-[11px] text-slate-500 ml-1">点</span>
                     </div>
                   </div>
-                  <h3 className="text-base font-bold text-white mt-2 truncate">
-                    {job.metadata.title}
-                  </h3>
-                  <p className="text-xs text-slate-400 truncate">{job.metadata.company}</p>
                 </CardHeader>
                 <CardContent className="p-4 pt-2 text-xs space-y-2.5">
                   <div className="flex items-center justify-between text-slate-300 pt-1 border-t border-slate-800/80 font-mono">
@@ -555,15 +639,31 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                       </ul>
                     </div>
 
-                    {/* Concerns */}
+                    {/* Qualification Advice Comparison */}
+                    {job.qualificationAdvice && (
+                      <div className="space-y-1 text-xs bg-cyan-950/20 p-2.5 rounded-lg border border-cyan-500/20">
+                        <span className="font-semibold text-cyan-300 flex items-center gap-1 text-[11px]">
+                          <GraduationCap className="h-3.5 w-3.5" />
+                          推奨・必要資格
+                        </span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {job.qualificationAdvice.recommendedCertifications.map((c, i) => (
+                            <span key={i} className="text-[10px] bg-cyan-500/20 text-cyan-200 px-1.5 py-0.5 rounded border border-cyan-500/30">
+                              🎯 {c}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Must Requirements */}
                     <div className="space-y-1 text-xs">
-                      <span className="font-semibold text-amber-300 flex items-center gap-1">
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                        懸念点・確認事項
+                      <span className="font-semibold text-slate-300 block text-[11px]">
+                        必須要件 (Must)
                       </span>
-                      <ul className="list-disc list-inside text-slate-300 text-[11px] space-y-1">
-                        {job.concerns.slice(0, 2).map((c, i) => (
-                          <li key={i}>{c}</li>
+                      <ul className="list-disc list-inside text-slate-400 text-[11px] space-y-0.5">
+                        {job.jobDetails.mustRequirements.slice(0, 3).map((m, i) => (
+                          <li key={i} className="truncate">{m}</li>
                         ))}
                       </ul>
                     </div>

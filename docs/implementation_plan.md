@@ -1,79 +1,64 @@
-# Phase 6: スキル・資格ステータス管理 & 資格推薦AI & 状態同期・接続テスト 計画
+# Phase 7: 自動ローカル保存・再表示・AI再評価・ドキュメントインポート・横並び比較 & 転職ロードマップ画面 実装計画
 
-ユーザーからの追加要件（保有資格と学習中・目標資格の分離、求人に応じた必要資格・追加取得推奨資格のアドバイスAI）および、プロファイル保存時の状態同期不具合の解消、API接続テスト機能の実装を行います。
+ユーザーからの追加要望（求人の自動ローカル保存、保存済み案件のブラウザ再表示、AI評価へのフィードバック＆再評価、Markdownインポート、横並び比較サマリ、選考状況・見送り理由・資格から俯瞰する転職ロードマップ画面）を網羅的に実装します。
 
 ---
 
 ## 提案する変更点 (Proposed Changes)
 
-### 1. 型定義・デフォルトプロファイルの拡張
-#### [MODIFY] `src/types/profile.ts`
-- `CertificationItem` に `status: "acquired" | "studying" | "planned"`、`targetPeriod?: string` を追加。
-- `SkillItem` に `status: "experienced" | "learning" | "interested"` を追加。
-
+### 1. 型定義・ドメイン拡張
 #### [MODIFY] `src/types/job.ts`
-- `JobAnalysisResult` に `qualificationAdvice: { requiredCertifications: string[]; recommendedCertifications: string[]; advice: string }` を追加。
-
-#### [MODIFY] `src/core/constants/defaultProfile.ts`
-- 初期プロファイルに新ステータスを反映。
+- `JobAnalysisResult` に `feedbackHistory?: Array<{ date: string; feedback: string; scoreDelta: number }>` を追加。
+- `JobAnalysisResult` に `originalJobText?: string` を追加（再評価時の元テキスト保持）。
 
 ---
 
-### 2. コアAIプロンプト & プロバイダ & Markdown生成の拡張
+### 2. コアAIプロンプト & プロバイダ拡張
 #### [MODIFY] `src/core/prompt/jobAnalysisPrompt.ts`
-- プロンプト生成時に「取得済み資格/スキル」と「学習中・目標資格」を分けて注入。
-- AIに対し、求人票で求められる資格・実務経験不足を補うための推奨資格やアピール戦略を生成するよう指示。
-- `GEMINI_JOB_ANALYSIS_SCHEMA` に `qualification_advice` を追加。
+- `buildJobReEvaluationPrompt(previousResult, userFeedback, profile)` を新設。ユーザーのフィードバック（「実はAWS実務経験がある」「この年収条件は許容できる」など）を反映してスコア・判定・アピール点を再計算するプロンプトと JSON Schema を定義。
 
-#### [MODIFY] `src/services/ai/geminiProvider.ts`
-- `qualification_advice` のパース・マッピング処理。
-- `testGeminiConnection(apiKey, model)` 関数を追加（APIキーの疎通・有効性テスト）。
-
-#### [MODIFY] `src/services/ai/mockAiProvider.ts`
-- `qualificationAdvice` のモックデータ生成処理を追加。
-
-#### [MODIFY] `src/core/markdown/markdownGenerator.ts`
-- Frontmatter に `recommendedCertifications` を追加。
-- Markdown 本文に「### 🎯 資格・スキルギャップ補強アクション」セクションを追加。
+#### [MODIFY] `src/services/ai/aiProvider.ts`, `geminiProvider.ts`, `mockAiProvider.ts`, `aiService.ts`
+- `reEvaluateJob(previousResult, userFeedback, profile)` メソッドを追加。
 
 ---
 
-### 3. UI・状態管理の改修
-#### [MODIFY] `src/App.tsx`
-- `profile` および `saveProfile` を `ProfileSettingsView` に渡し、プロファイル保存時のグローバル同期を実現（即座に `✨ Gemini API 有効` に切り替わるよう修正）。
+### 3. 自動ローカル保存 & ドキュメントインポート
+#### [MODIFY] `src/services/storage/storageAdapter.ts`
+- `importMarkdownFile(fileContent: string): JobAnalysisResult` を実装（Markdown Frontmatter をパースして `JobAnalysisResult` に復元）。
 
-#### [MODIFY] `src/features/profile/ProfileSettingsView.tsx`
-- Props として `profile`, `saveProfile` を受け取り同期。
-- スキル設定：ステータス選択（実務経験あり / 学習中・独学）とバッジ表示。
-- 資格設定：「取得済み資格」タブと「学習中・取得目標資格」タブの切り替え登録、目標時期（例: 2026年Q3）の入力。
-- Gemini API 設定：「接続テスト」ボタンを追加（ローディング・成功・失敗エラーメッセージ表示）。
+#### [MODIFY] `src/hooks/useJobs.ts`
+- `autoSaveJob(result: JobAnalysisResult)` メソッドを追加（解析完了時に自動同期）。
+- `importJobFromMarkdown(fileContent: string)` メソッドを追加。
 
+---
+
+### 4. UI 機能の拡充
 #### [MODIFY] `src/components/pane/PreviewPane.tsx`
-- リッチプレビューに「🎯 資格・スキルギャップ補強アドバイス」カードを追加（求人必要資格、推奨取得資格、戦略アドバイスの表示）。
+- **「💡 AI提案へのフィードバック & 再評価」フォーム** を新設（フィードバック入力 ➔ ワンクリックでスコア再計算・更新）。
+- **「自動保存ステータス（✓ ローカル保存済み）」バッジ** を表示。
 
----
+#### [MODIFY] `src/components/dashboard/JobDashboard.tsx`
+- **「求人の再表示」機能**: カードまたはテーブル行をクリックすると、プレビュー画面（または詳細モーダル）で即座に再閲覧・再編集。
+- **「Markdownインポート」ボタン & ドラッグ＆ドロップ**: 外部の `.md` を即時インポート。
+- **「横並び比較サマリ」機能**: 選択した 2〜4 社の年収・スコア・勤務形態・必須/歓迎要件・資格アドバイス・アピール点をマトリクスで並べて比較。
 
-### 4. テストハーネスの更新
-#### [MODIFY] `tests/core/jobAnalysisPrompt.test.ts`
-- 資格ステータス分離プロンプトのテスト。
+#### [NEW] `src/features/roadmap/CareerRoadmapView.tsx`
+- **「転職ロードマップ」画面** を新設：
+  1. **選考パイプライン マイルストーン**: 「応募検討中 (N件)」「応募済 (N件)」「一次面接 (N件)」「最終面接 (N件)」「内定 (N件)」「見送り・辞退 (N件)」の進捗ボード・タイムライン。
+  2. **見送り・辞退分析サマリ**: 見送りにした求人の傾向（年収不適合、NG条件、スキルギャップ等）の可視化。
+  3. **資格・スキル獲得ロードマップ**: 全求人で要求・推奨された資格（AWS SAA, CKA, AZ-400 等）を目標時期・重要度順にまとめた戦略的ロードマップ。
 
-#### [MODIFY] `tests/core/markdownGenerator.test.ts`
-- 資格アドバイスセクションを含むMarkdown生成テスト。
-
-#### [MODIFY] `tests/services/geminiProvider.test.ts`
-- `qualification_advice` の変換テスト。
-
-#### [MODIFY] `tests/features/ProfileSettingsView.test.tsx`
-- 資格ステータス切り替え、API接続テストボタンのUIテスト。
+#### [MODIFY] `src/components/layout/Header.tsx`, `src/App.tsx`
+- ヘッダーに **「🗺️ ロードマップ」** タブを追加。
+- 各画面間のスムーズな連携（案件クリックでプレビューへジャンプ、解析完了時の自動ローカル保存など）を配線。
 
 ---
 
 ## 検証計画 (Verification Plan)
 
 ### 自動テスト
-- `npm.cmd run check` (シークレット検査 + tsc 型検査 + Vitest 全テスト & カバレッジ + Vite ビルド) による一括検証。
-
-### 手動検証
-- プロファイル設定画面で API キーを入力し、「接続テスト」ボタンを押下して疎通を確認。
-- プロファイルを保存し、求人入力画面上部のバッジが即座に `✨ Gemini API 有効` になることを確認。
-- 求人解析を実行し、プレビュー画面に「資格・スキルギャップ補強アドバイス」が表示され、Markdown にも反映されることを確認。
+- `tests/core/jobAnalysisPrompt.test.ts`: 再評価プロンプトの生成テスト。
+- `tests/services/storageAdapter.test.ts`: Markdown インポート＆復元パーステスト。
+- `tests/features/CareerRoadmapView.test.tsx`: ロードマップ集計・パイプライン表示テスト。
+- `tests/features/JobDashboard.test.tsx`: 再表示・比較・インポートの UI テスト。
+- `npm run check`: ワンショット総合品質 & セキュリティゲートの全件パス確認。
