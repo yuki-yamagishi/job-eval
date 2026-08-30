@@ -1,6 +1,7 @@
-# JobEval エージェント開発ガイドライン & 開発ハーネス
+# JobEval エージェント開発ガイドライン & 開発ハーネス (AGENTS.md)
 
-JobEval は、**Tauri v2 + React 18 (TypeScript) + Vite + Tailwind CSS** で構築された、AI求人適合度評価 & Markdownドキュメント管理デスクトップアプリケーションです。
+JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** で構築された、AI求人適合度評価 & Markdownドキュメント管理デスクトップアプリケーションです。
+AI エージェントと開発者は、本ドキュメントに定められた **「AIアシスト Issue & PR + ADR ハイブリッドワークフロー」** を厳格に遵守して開発を進めてください。
 
 ---
 
@@ -19,66 +20,70 @@ src/
   │   ├── storage/        # StorageAdapter (Tauri FS / ブラウザ LocalStorage デュアル対応)
   │   └── ai/             # AIプロバイダー (AiProvider: GeminiAiProvider, MockAiProvider)
   ├── hooks/              # React カスタムフック (状態管理 & ストレージ同期)
-  │   ├── useProfile.ts   # プロファイル管理フック
-  │   └── useJobs.ts      # 保存済み求人・ステータス管理フック
-  ├── features/           # 機能別 UI モジュール
-  │   ├── input/          # 求人テキスト取り込みペイン
-  │   ├── preview/        # AIスコアカード & Markdownプレビューペイン
-  │   ├── dashboard/      # 求人ドキュメント管理 & パイプライン・比較マトリクス
-  │   └── profile/        # 候補者プロファイル & 条件設定画面
+  ├── features/           # 機能別 UI モジュール (input, preview, dashboard, profile)
   ├── components/         # 共通 UI & レイアウトコンポーネント (shadcn/ui スタイル)
-  │   ├── ui/             # アトミックコンポーネント (ボタン, カード, 入力欄, バッジ, タブ等)
-  │   └── layout/         # ヘッダー, ナビゲーション
-  ├── types/              # TypeScript 型定義
-  │   ├── job.ts
-  │   ├── profile.ts
-  │   └── storage.ts
+  ├── types/              # TypeScript 型定義 (厳格な型安全性を確保)
   └── lib/                # 共通ユーティリティ (cn, フォーマッター)
 docs/                     # アーキテクチャ・設計・検証ログの唯一の正本 (Single Source of Truth)
+  ├── adr/                # Architecture Decision Records (不変の設計決定記録)
   ├── pre_phase_verification.md   # 各フェーズ開始前の4軸事前検証ログ
   ├── implementation_plan.md      # フェーズごとの簡潔な作業計画書
   └── walkthrough.md              # フェーズ完了・成果レポート
-tests/                    # 自動テストハーネス
-  ├── fixtures/           # サンプル求人票 (レバテック, ビズリーチ, doda, NG条件), テストプロファイル
-  ├── core/               # コアロジック (スコアリング, Markdown生成, 総合パイプライン) テスト
-  ├── services/           # ストレージアダプター & AIプロバイダー テスト
-  └── features/           # React UI コンポーネント テスト
+tests/                    # 自動テストハーネス (Vitest)
 ```
 
 ---
 
-## 2. 標準フェーズ事前検証 & 計画プロトコル
+## 2. AIアシスト Issue & PR + ADR ハイブリッド開発フロー
 
-各フェーズに着手する前に、必ず `docs/` 配下の 2 ドキュメント分離ルールに従ってください：
+機能追加・改修時は、コンテキストドリフトと仕様破壊を防ぐため以下の標準フローに従います：
 
-1. **事前検証ログ (`docs/pre_phase_verification.md`)**:
-   - 4つの検証軸（1. 技術的ボトルネック, 2. UX & エッジケース, 3. 永続性 & フォーマット互換性, 4. テスト自律性）を評価し記録します。
-2. **実装計画書 (`docs/implementation_plan.md`)**:
-   - 事前検証の議論は含めず、純粋な変更ファイル一覧、実装内容、検証手順のみを簡潔に記載します。
+```
+[ 1. AIアシスト Issue 起票 ] ───> [ 2. ADR 作成 (必要時) ] ───> [ 3. ブランチ & 実装 ] ───> [ 4. PR作成 & CIパス ]
+  (gh issue または URL)            (docs/adr/000X-...)           (feature/issue-X-...)        (npm run check / GitHub Actions)
+```
+
+### ① AIアシスト Issue 起票
+- ユーザーの要望に基づき、AIが「概要・要件定義・受け入れ基準（Acceptance Criteria）・技術論点」を整理した Issue を生成/起票（`gh issue create` またはワンクリックURLを提示）。
+
+### ② ADR（設計決定記録）の作成
+- スコアリング計算式や永続化フォーマット、アーキテクチャの変更を伴う場合は、必ず `docs/adr/000X-xxx.md` を作成して意思決定理由を記録。
+
+### ③ ブランチ作成 & 実装 & 自動品質検査
+- `git checkout -b feature/issue-<番号>-<概要>` でブランチを切る。
+- コアロジック（`src/core/`）から順に実装し、`npm run check` ですべての品質ゲートを通過させる。
+
+### ④ Pull Request 作成 & CI 自動検査
+- PR 本文に `Closes #<Issue番号>` を含めて PR を作成（`gh pr create` またはワンクリックURL）。
+- GitHub Actions CI で `npm run check` の自動合格を確認後、マージ。
 
 ---
 
-## 3. 開発 & 検証コマンド一覧
+## 3. コンテキストドリフト & 仕様破壊の絶対防止ルール
 
-エージェントおよび開発者は以下のコマンドを使用して変更を検証します：
+1. **既存テストの弱体化・削除の厳禁**:
+   - スコアリングロジックや Markdown パーサーの既存テストが失敗した際、**テストの期待値やアサーションを安易に書き換えて合格させてはなりません**。
+   - 仕様変更である場合は、必ずユーザーの合意と ADR の更新を行った上でテストを改定してください。
+2. **純粋なコアロジックの不可侵**:
+   - `src/core/` 内で React や UI コンポーネント、ブラウザ依存 API を絶対にインポートしないでください。
+3. **ADR の遵守義務**:
+   - 実装前に `docs/adr/` 配下のレコードを確認し、過去の設計決定（40/30/20/10% 配分等）と矛盾するコードを書いてはなりません。
+4. **ドキュメントの完全日本語標準化**:
+   - `docs/` 配下のすべての設計書・ADR・レポートは **完全日本語** で記述・更新してください。
+5. **ワンショット品質ゲートの一括パス**:
+   - コミット・PR作成前には必ず `npm run check` を実行し、全項目 PASS を確認してください。
+
+---
+
+## 4. 開発 & 検証コマンド一覧
 
 | コマンド | 目的・実行内容 |
 | :--- | :--- |
-| `npm run check` | **ワンショット総合品質 & セキュリティゲート**: シークレット・個人情報スキャン (`security-check`) + `tsc --noEmit`（型検査）+ `vitest run --coverage`（全単体テスト & カバレッジ）+ `vite build`（プロダクションビルド）を一括実行 |
+| `npm run check` | **ワンショット総合品質 & セキュリティゲート**: シークレットスキャン (`security-check`) + ドキュメント検査 (`doc-check`) + `tsc --noEmit`（型検査）+ `vitest run --coverage`（全単体テスト & カバレッジ）+ `vite build`（プロダクションビルド）を一括実行 |
 | `npm run security-check` | API キーやシークレットの誤混入を自動スキャン |
+| `npm run doc-check` | `docs/` 配下の必須ドキュメント整合性・記載充実度を自動検証 |
 | `npm run test:run` | 全単体テストを 1 回実行 |
 | `npm run test:coverage` | 単体テストを実行し、V8 カバレッジレポートを出力 |
 | `npm run test` | テストをウォッチモードで実行 |
 | `npm run dev` | Vite ローカル開発サーバーを起動 (ポート 1420) |
 | `npm run build` | TypeScript コンパイルおよびフロントエンドのプロダクションビルド |
-
----
-
-## 4. エージェントの重要開発ルール
-
-1. **純粋なコアロジック**: `src/core/` 内で React や UI コンポーネントを絶対にインポートしないでください。コアロジックは DOM 依存ゼロで 100% 単体テスト可能でなければなりません。
-2. **デュアルストレージ互換性**: すべてのデータ永続化は `StorageAdapter` を経由してください。デスクトップ起動時は Tauri FS を、ブラウザプレビュー時は LocalStorage / File System Access API を自動使用します。
-3. **プラグイン型 AI プロバイダー**: `AiProvider` インターフェースを使用してください。テスト時は `MockAiProvider` が安全に動作するため、API キーがなくてもテストが 100% パスします。
-4. **厳格な型安全性**: `any` 型の使用を禁止し、常に `src/types/` で定義された型を使用してください。
-5. **ドキュメントの完全日本語標準化**: `docs/` 配下の事前検証書、計画書、成果レポート（および `AGENTS.md` 含む全ドキュメント）は、すべて自然で明確な **完全日本語** で記述・更新・保守してください。
-6. **検証 & コミット・即時プッシュの完全一体化（必須）**: 各フェーズ完了時は必ず `npm run check` で全件合格を確認後、Conventional Commits 形式（`feat:`, `ci:`, `chore:`, `docs:`, `fix:` 等）の接頭辞をつけてコミットし、**直ちに `git push origin main` を実行して GitHub リモートへ即時反映してください**。「プッシュを忘れてローカルコミットのみで終了・報告すること」は厳格に禁止（アンチパターン）とします。必ず `git status` で `Your branch is up to date with 'origin/main'.` を確認して完了とします。
