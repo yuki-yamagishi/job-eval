@@ -91,18 +91,20 @@ export async function fetchAvailableGeminiModels(
   }
 }
 
+const RECOMMENDED_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"];
+
 /**
- * Test connectivity with Gemini API using provided API key and model (with 20s timeout)
+ * Test connectivity with Gemini API using provided API key and model
  */
 export async function testGeminiConnection(
   apiKey: string,
-  model: string = "gemini-2.0-flash"
+  model: string = "gemini-3.6-flash"
 ): Promise<{ ok: boolean; message: string; availableModels?: string[] }> {
   if (!apiKey || !apiKey.trim()) {
     return { ok: false, message: "APIキーが入力されていません。" };
   }
 
-  const sanitizedModel = (model || "gemini-2.0-flash").replace(/^models\//, "").trim();
+  const sanitizedModel = (model || "gemini-3.6-flash").replace(/^models\//, "").trim();
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${sanitizedModel}:generateContent?key=${apiKey.trim()}`;
   const requestBody = {
     contents: [
@@ -114,7 +116,7 @@ export async function testGeminiConnection(
   };
 
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const timeoutId = controller ? setTimeout(() => controller.abort(), 20000) : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), 12000) : null;
 
   try {
     const fetchOptions: RequestInit = {
@@ -134,32 +136,40 @@ export async function testGeminiConnection(
     if (response.ok) {
       return { 
         ok: true, 
-        message: `Gemini API (${sanitizedModel}) への疎通・認証に成功しました！正常に応答が得られました。` 
+        message: `Gemini API (${sanitizedModel}) への接続・認証に成功しました！正常に応答が得られました。` 
       };
     }
 
     const errorData = await response.text();
+    let errorJson: { error?: { code?: number; message?: string } } | null = null;
+    try {
+      errorJson = JSON.parse(errorData);
+    } catch {
+      // plain text
+    }
+
+    const errorMsg = errorJson?.error?.message || errorData;
+
     if (response.status === 400 || response.status === 403) {
       return { ok: false, message: `認証エラー (HTTP ${response.status}): APIキーが無効か権限がありません。Google AI Studioでキーをご確認ください。` };
     } else if (response.status === 404) {
-      // Fetch available models to guide user
-      const modelFetch = await fetchAvailableGeminiModels(apiKey);
-      const hint = modelFetch.models.length > 0 
-        ? `\n利用可能なモデル一覧: ${modelFetch.models.slice(0, 5).join(", ")}`
-        : "";
       return { 
         ok: false, 
-        message: `モデル未検出 (HTTP 404): モデル '${sanitizedModel}' が見つかりませんでした。${hint}`,
-        availableModels: modelFetch.models
+        message: `モデル未検出 (HTTP 404): モデル '${sanitizedModel}' は提供終了または存在しません。「gemini-3.6-flash」または「gemini-3.5-flash」をお試しください。`
+      };
+    } else if (response.status === 503) {
+      return { 
+        ok: false, 
+        message: `Googleサーバー高負荷 (HTTP 503): モデル '${sanitizedModel}' が混雑しています。「gemini-3.6-flash」や「gemini-3.5-flash」を選択してください。` 
       };
     } else if (response.status === 429) {
       return { ok: false, message: "レート制限エラー (HTTP 429): APIの利用上限に達しています。しばらく待ってから再試行してください。" };
     }
-    return { ok: false, message: `API接続エラー (HTTP ${response.status}): ${errorData.slice(0, 150)}` };
+    return { ok: false, message: `API接続エラー (HTTP ${response.status}): ${errorMsg.slice(0, 150)}` };
   } catch (err: unknown) {
     if (timeoutId) clearTimeout(timeoutId);
     if (err instanceof Error && err.name === "AbortError") {
-      return { ok: false, message: "タイムアウト: 20秒以内に応答がありませんでした。通信環境またはプロキシ設定をご確認ください。" };
+      return { ok: false, message: `タイムアウト: モデル '${sanitizedModel}' の応答に12秒以上かかりました。高速な「gemini-3.6-flash」または「gemini-3.5-flash」をお試しください。` };
     }
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, message: `通信エラー: ${msg}` };
@@ -179,10 +189,32 @@ export class GeminiAiProvider implements AiProvider {
       throw new Error("Gemini API キーが設定されていません。プロファイル設定画面から入力してください。");
     }
 
-    const rawModel = profile.apiSettings?.geminiModel || "gemini-2.0-flash";
-    const model = rawModel.replace(/^models\//, "").trim();
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const primaryModel = (profile.apiSettings?.geminiModel || "gemini-3.6-flash").replace(/^models\//, "").trim();
+    
+    // Fallback list of models if primary model suffers from 503 high demand or timeout
+    const candidateModels = Array.from(new Set([primaryModel, ...RECOMMENDED_MODELS]));
+    let lastError: Error | null = null;
 
+    for (const model of candidateModels) {
+      try {
+        return await this.callGeminiModel(jobText, source, profile, apiKey, model);
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        console.warn(`Gemini model ${model} failed, trying fallback model...`, lastError.message);
+      }
+    }
+
+    throw lastError || new Error("Gemini API での解析に失敗しました。");
+  }
+
+  private async callGeminiModel(
+    jobText: string,
+    source: AgentSource,
+    profile: UserProfile,
+    apiKey: string,
+    model: string
+  ): Promise<JobAnalysisResult> {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const { systemInstruction, userPrompt } = buildJobAnalysisPrompt(jobText, source, profile);
 
     const requestBody = {
@@ -203,7 +235,7 @@ export class GeminiAiProvider implements AiProvider {
     };
 
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 30000) : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 20000) : null;
 
     try {
       const fetchOptions: RequestInit = {
@@ -219,15 +251,16 @@ export class GeminiAiProvider implements AiProvider {
       }
 
       const response = await fetch(endpoint, fetchOptions);
-
       if (timeoutId) clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
         if (response.status === 400 || response.status === 403) {
           throw new Error(`Gemini API 認証エラー (HTTP ${response.status}): APIキーをご確認ください。`);
+        } else if (response.status === 503) {
+          throw new Error(`Gemini API (HTTP 503): モデル '${model}' が混雑しています。`);
         } else if (response.status === 404) {
-          throw new Error(`Gemini API モデルエラー (HTTP 404): モデル '${model}' は利用できません。プロファイル設定で別のモデルを選択してください。`);
+          throw new Error(`Gemini API (HTTP 404): モデル '${model}' は利用できません。`);
         } else if (response.status === 429) {
           throw new Error("Gemini API レート制限に達しました。しばらく待ってから再試行してください。");
         }
@@ -246,7 +279,7 @@ export class GeminiAiProvider implements AiProvider {
     } catch (err: unknown) {
       if (timeoutId) clearTimeout(timeoutId);
       if (err instanceof Error && err.name === "AbortError") {
-        throw new Error("Gemini API 呼び出しがタイムアウトしました (30秒)。通信環境をご確認ください。");
+        throw new Error(`Gemini API 呼び出しがタイムアウトしました (${model})。`);
       }
       throw err;
     }

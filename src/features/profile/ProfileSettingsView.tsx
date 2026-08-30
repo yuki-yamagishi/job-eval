@@ -881,11 +881,10 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                       ))
                     ) : (
                       <>
-                        <option value="gemini-2.0-flash">gemini-2.0-flash (推奨・高速・最新)</option>
-                        <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite (軽量・超低遅延)</option>
-                        <option value="gemini-1.5-flash">gemini-1.5-flash (標準)</option>
-                        <option value="gemini-1.5-pro">gemini-1.5-pro (高精度推論)</option>
-                        <option value="gemini-3.7-flash">gemini-3.7-flash (カスタム)</option>
+                        <option value="gemini-3.6-flash">gemini-3.6-flash (推奨・最新・高精度)</option>
+                        <option value="gemini-3.5-flash">gemini-3.5-flash (高速・安定)</option>
+                        <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (軽量・超低遅延)</option>
+                        <option value="gemini-3.7-flash">gemini-3.7-flash (高機能・混雑時自動フォールバック)</option>
                       </>
                     )}
                   </select>
