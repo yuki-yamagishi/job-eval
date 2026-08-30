@@ -163,4 +163,33 @@ describe("PreviewPane Component", () => {
 
     expect(handleGenerate).toHaveBeenCalledWith(mockResult);
   });
+
+  it("triggers onGenerateCareerTrajectory when regenerate button is clicked on existing trajectory", async () => {
+    const handleGenerate = vi.fn().mockResolvedValue(undefined);
+    const resultWithTrajectory: JobAnalysisResult = {
+      ...mockResult,
+      careerTrajectory: {
+        acquiredSkills: ["IaC"],
+        nextCareerOptions: ["VPoE"],
+        marketValueProjection: "1200万",
+        careerRisksOrLockin: "保守",
+        overallOutlook: "良好",
+      },
+    };
+
+    render(
+      <PreviewPane
+        analysisResult={resultWithTrajectory}
+        isAnalyzing={false}
+        onGenerateCareerTrajectory={handleGenerate}
+      />
+    );
+
+    const regenerateBtn = screen.getByText("再生成");
+    await waitFor(async () => {
+      fireEvent.click(regenerateBtn);
+    });
+
+    expect(handleGenerate).toHaveBeenCalledWith(resultWithTrajectory);
+  });
 });

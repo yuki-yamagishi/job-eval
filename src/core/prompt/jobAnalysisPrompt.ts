@@ -172,34 +172,6 @@ export const GEMINI_JOB_ANALYSIS_SCHEMA = {
       },
       required: ["required_certifications", "recommended_certifications", "advice"],
     },
-    career_trajectory: {
-      type: "object",
-      properties: {
-        acquired_skills: {
-          type: "array",
-          items: { type: "string" },
-          description: "このポジションで2〜3年実務を積むことで獲得・深化できる市場価値の高い希少スキル (3〜5項目)",
-        },
-        next_career_options: {
-          type: "array",
-          items: { type: "string" },
-          description: "この会社を経て次に狙える上位職種・キャリアパス (例: スタッフエンジニア, VPoE, CTO, フリーランス顧問等 3〜4項目)",
-        },
-        market_value_projection: {
-          type: "string",
-          description: "2〜3年後の想定市場価値・年収レンジ (例: 想定年収: 1,100万円〜1,400万円)",
-        },
-        career_risks_or_lockin: {
-          type: "string",
-          description: "技術的ロックインやキャリア上の留意点 (例: 移行完了後の保守固定化リスク等)",
-        },
-        overall_outlook: {
-          type: "string",
-          description: "このポジション選択が候補者の将来キャリアに与える展望と中長期戦略の総括アドバイス",
-        },
-      },
-      required: ["acquired_skills", "next_career_options", "market_value_projection", "overall_outlook"],
-    },
     must_requirements: {
       type: "array",
       items: { type: "string" },

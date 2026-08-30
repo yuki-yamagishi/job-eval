@@ -86,22 +86,6 @@ export class MockAiProvider implements AiProvider {
       advice: "パブリッククラウドの設計実績に加え、現在学習中のAZ-400やコンテナ技術(CKA)を取得することで、インフラ自動化・CI/CD推進ポジションでの合格率が大幅に向上します。",
     };
 
-    const careerTrajectory = {
-      acquiredSkills: [
-        "大規模マルチクラウド基盤 (Azure/AWS) の統括設計・IaC自動化",
-        "高トラフィックWeb基盤におけるマイクロサービス & CI/CD最適化",
-        "開発組織横断のSRE・SLO策定および耐障害性アーキテクチャ設計",
-      ],
-      nextCareerOptions: [
-        "スタッフエンジニア / プリンシパル クラウドアーキテクト",
-        "VPoE / エンジニアリングマネージャー (EM)",
-        "技術顧問 / クラウド戦略フリーランスコンサルタント",
-      ],
-      marketValueProjection: "想定市場年収: 1,100万円 〜 1,450万円",
-      careerRisksOrLockin: "クラウド刷新が一段落した後の保守運用比率の増加に注意。新規アーキテクチャの導入裁量を早期に確保することが重要。",
-      overallOutlook: "本ポジションでの実務経験は、市場需要が極めて高い『クラウドネイティブ推進リード』としての確固たる実績となり、将来のCTO/スタッフエンジニアへのキャリア飛躍に直結します。",
-    };
-
     const today = new Date().toISOString().split("T")[0];
     const jobId = `job-${today.replace(/-/g, "")}-${Math.floor(100 + Math.random() * 900)}`;
 
@@ -127,7 +111,6 @@ export class MockAiProvider implements AiProvider {
       agentQuestions,
       appealPoints,
       qualificationAdvice,
-      careerTrajectory,
       mustRequirements: mustReqs,
       wantRequirements: wantReqs,
       jobDescription: [
@@ -146,7 +129,7 @@ export class MockAiProvider implements AiProvider {
       agentQuestions,
       appealPoints,
       qualificationAdvice,
-      careerTrajectory,
+      careerTrajectory: undefined,
       jobDetails: {
         mustRequirements: mustReqs,
         wantRequirements: wantReqs,

@@ -1,3 +1,35 @@
+# Phase 9: キャリア展望の常設深掘り・再生成とプロンプト最適化 実装計画書
+
+## 🎯 実装目的・概要
+初回一括解析時の軽快なレスポンス速度（3秒台）を保ちつつ、ユーザーが興味を持った求人に対して専用プロンプト（`buildCareerTrajectoryPrompt`）による最高精度の「キャリア展望・獲得スキル・次の転職先」へいつでもアップグレードできる「🔄 AIでキャリア展望を再生成・深掘り」ボタンを常設実装します。
+
+---
+
+## 📝 変更ファイル一覧と実装内容
+
+### 1. `src/components/pane/PreviewPane.tsx`
+- キャリア展望カードのヘッダー右上に **「🔄 AIでキャリア展望を再生成・深掘り」ボタン** を常設。
+- 生成中のスピナー・ローディング表示（`isGeneratingTrajectory`）をサポート。
+- 過去求人の「未生成」状態だけでなく、「生成済み」状態からの深掘り再生成にもシームレスに対応。
+
+### 2. `src/App.tsx`
+- `isGeneratingTrajectory` ステートを追加し、再生成処理中の UI ロック・フィードバックを制御。
+- `handleGenerateCareerTrajectory` 実行時に Markdown を自動更新し、ローカルストレージへ即時自動保存。
+
+### 3. `src/core/prompt/jobAnalysisPrompt.ts`
+- `buildCareerTrajectoryPrompt` のプロンプト指示をさらに深掘りし、2〜3年の技術進化や具体的な職種・年収根拠を強化。
+
+### 4. 自動テストの拡充
+- `tests/features/PreviewPane.test.tsx`: キャリア展望が既に存在する場合の再生成ボタン押下・コールバック呼び出しテストを追加。
+
+---
+
+## 🧪 検証手順
+1. `npm run check`（シークレットスキャン + ドキュメント整合性検査 + 型検査 + 全単体UIテスト + 本番ビルド）を実行し、全件パスを確認。
+2. Pre-commit Hook & Pre-push Hook による二重防御の確認。
+3. Conventional Commits 形式でコミットし、`git push origin main` で GitHub へ即時反映。
+
+
 # Phase 8: 中長期キャリア展望・獲得スキル・次の転職先 (Career Trajectory) AI & 可視化 実装計画
 
 ユーザーからの追加要望（「このキャリアを選択した後の展望・得られるスキル・さらなる転職や方向性についても知っておきたい」）に応え、求人票を起点とした 2〜3 年後の中長期キャリアパス、獲得スキル、次の転職先候補（Exit Strategy）、市場年収展望を AI で自動分析・可視化する機能を実装します。

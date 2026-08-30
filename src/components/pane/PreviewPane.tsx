@@ -19,7 +19,8 @@ import {
   Rocket,
   Compass,
   ShieldAlert,
-  Layers
+  Layers,
+  RotateCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -530,9 +531,31 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                     <Rocket className="h-4 w-4 text-indigo-400" />
                     🚀 入社後のキャリア展望 & 次のキャリアパス (Career Trajectory)
                   </CardTitle>
-                  <Badge variant="indigo" className="text-[10px] bg-indigo-950 border-indigo-700/60 text-indigo-300">
-                    2〜3年後の市場価値
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="indigo" className="text-[10px] bg-indigo-950 border-indigo-700/60 text-indigo-300">
+                      2〜3年後の市場価値
+                    </Badge>
+                    {onGenerateCareerTrajectory && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isGeneratingTrajectory}
+                        onClick={async () => {
+                          if (!analysisResult) return;
+                          setIsGeneratingTrajectory(true);
+                          try {
+                            await onGenerateCareerTrajectory(analysisResult);
+                          } finally {
+                            setIsGeneratingTrajectory(false);
+                          }
+                        }}
+                        className="h-6 px-2 text-[10px] text-indigo-300 hover:text-white hover:bg-indigo-600/30 border border-indigo-500/30"
+                      >
+                        <RotateCw className={`h-3 w-3 mr-1 ${isGeneratingTrajectory ? "animate-spin" : ""}`} />
+                        {isGeneratingTrajectory ? "再生成中..." : "再生成"}
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="p-3.5 pt-3 space-y-3">
                   {/* Market Value & Future Salary */}
@@ -605,8 +628,8 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                 </CardContent>
               </Card>
             ) : (
-              /* Fallback Card for older jobs without career trajectory */
-              <Card className="border-indigo-500/20 bg-slate-950/60">
+              /* On-Demand Generate Banner */
+              <Card className="border-indigo-500/30 bg-gradient-to-r from-slate-950 via-indigo-950/20 to-purple-950/20 border-dashed">
                 <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div>
                     <h4 className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
@@ -614,7 +637,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                       🚀 中長期キャリア展望・次の転職先 (Career Trajectory)
                     </h4>
                     <p className="text-[11px] text-slate-400 mt-1">
-                      この求人選択後の「身につくスキル」「次の転職先候補」「将来年収展望」をAIで生成します。
+                      この求人に入社した場合の「2〜3年で身につく希少スキル」「次の転職先候補」「将来想定年収」をAI専用プロンプトで深掘り生成します。
                     </p>
                   </div>
                   {onGenerateCareerTrajectory && (
