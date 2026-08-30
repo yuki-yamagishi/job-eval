@@ -192,4 +192,27 @@ describe("PreviewPane Component", () => {
 
     expect(handleGenerate).toHaveBeenCalledWith(resultWithTrajectory);
   });
+
+  it("switches scoring lens and recalculates score in real-time", () => {
+    // mockResult breakdown: skill=95, condition=90, career=90, env=85
+    render(<PreviewPane analysisResult={mockResult} isAnalyzing={false} />);
+
+    // Default lens is current -> 90
+    expect(screen.getByText("90")).toBeDefined();
+
+    // Click Reskilling lens (skill: 10%, condition: 20%, growth: 45%, env: 25%)
+    // 95*0.1 + 90*0.2 + 90*0.45 + 85*0.25 = 9.5 + 18 + 40.5 + 21.25 = 89.25 -> 89
+    const reskillingPill = screen.getByText(/リスキリング重視/);
+    fireEvent.click(reskillingPill);
+
+    expect(screen.getByText("89")).toBeDefined();
+    expect(screen.getByText("⚡ 視点シミュレーション中")).toBeDefined();
+
+    // Click Culture lens (skill: 20%, condition: 30%, growth: 10%, env: 40%)
+    // 95*0.2 + 90*0.3 + 90*0.1 + 85*0.4 = 19 + 27 + 9 + 34 = 89
+    const culturePill = screen.getByText(/カルチャー・WLB重視/);
+    fireEvent.click(culturePill);
+
+    expect(screen.getByText("89")).toBeDefined();
+  });
 });

@@ -1,231 +1,99 @@
-# Phase 11: 実装成果レポート (Walkthrough)
+# Phase 12: 実装成果レポート (Walkthrough) - 4軸評価重み付けカスタマイズ & リアルタイム/一括再計算機能 (Issue #1, ADR-0004)
 
 ## 🎯 達成した実装概要
 
-本フェーズ（Phase 11）では、JobEval を GitHub 上で外部公開し、自身のエンジニアリングスキル（AI 統合技術、デスクトップ/フロントエンド アーキテクチャ設計力、開発ハーネス・テスト自動化品質担保力、UX 設計力）を最高水準で証明するための **包括的・構造的ポートフォリオ README.md** を作成・反映しました。
+ユーザーからの「現在の4軸評価について、リスキリング志向やカルチャー重視などユーザーの志向性に応じて重み付けを変更し、後からまとめて点数を再計算したい」という要望に基づき、**[Issue #1](https://github.com/yuki-yamagishi/job-eval/issues/1)** および **[ADR-0004](file:///c:/Users/yukiy/.gemini/antigravity-ide/scratch/job-eval/docs/adr/0004-dynamic-weighting-scoring.md)** を策定・実装しました。
+
+LLM API を再度呼び出すことなく、クライアントサイドで決定論的にミリ秒単位で再計算できる堅牢なアーキテクチャを実現しました。
 
 ---
 
 ## 1. 主な変更点と新機能
 
-### ① 魅力的で洗練されたプロジェクトヘッダー & 技術バッジ
-- TypeScript, React 18, Tauri v2, Vite, Tailwind CSS, Vitest 50件パス, シークレット漏洩ゼロ防壁, MIT License のバッジを配置。
-- 「なぜこのプロダクトを開発したのか」「どのような課題を解決するのか」を Problem & Solution として明確に言語化。
+### ① 4軸評価の動的重み付けプロファイル & 5つの標準プリセット (`ProfileSettingsView.tsx`, `profile.ts`)
+- **4軸配分**:
+  - `standard` (標準バランス型): スキル 40% / 条件 30% / 成長 20% / 環境 10%
+  - `reskilling` (リスキリング・成長重視): スキル 10% / 条件 20% / 成長 45% / 環境 25%
+  - `wlb_culture` (カルチャー・環境重視): スキル 20% / 条件 30% / 成長 10% / 環境 40%
+  - `salary_first` (待遇・条件最優先): スキル 25% / 条件 50% / 成長 15% / 環境 10%
+  - `custom` (カスタム配分): スライダーで自由に調整可能（合計100%自動バランサー付き）
+- **UI コンポーネント**: 視覚的なプリセット選択カード、リアルタイム合計パーセントバッジ、各軸スライダー。
 
-### ② 全画面・主要機能の網羅的な一覧表（Key Features）
-- 📥 求人テキスト取り込みペイン
-- 📊 AI スコアカード & リアルタイム Preview（逆質問文ワンクリックコピー付）
-- 🚀 中長期キャリア展望 & Next Exit 深掘り AI（オンデマンド生成 & 再生成）
-- 💡 AI 提案へのフィードバック & インクリメンタル再評価
-- 🗂️ 求人ドキュメント管理 & 横並び比較マトリクス
-- 🗺️ 転職ロードマップ & 資格逆算集約ダッシュボード（名寄せ・企業別指定文脈の明記・手動更新ボタン）
-- ⚙️ 候補者プロファイル & NG条件・希望条件設定
+### ② クライアントサイド決定論的再計算コアエンジン (`scoringEngine.ts`)
+- `recalculateScoreWithWeights(breakdown, weights, hasNgPenalty)` 純粋関数を実装。
+- 保存済みの 4 軸生スコア比率（`skillMatchRatio`, `conditionMatchRatio`, `careerGrowthRatio`, `environmentRiskRatio`）と重み設定から、即座に総合適合スコア（0〜100点）および判定ランク（S/A/B/C）を算出。
 
-### ③ アーキテクチャ図 & エンジニアリング品質パイプライン図
-- Feature/Domain-Driven Clean Architecture のディレクトリ構造と疎結合設計。
-- シークレットスキャン (`securityCheck.js`)、ドキュメント整合性検査 (`docCheck.js`)、Git Pre-commit / Pre-push Hook、Vitest テストスイートからなる多層防壁パイプラインを図解。
+### ③ 保存済み全求人の一括再計算 & Markdown Frontmatter 同期 (`useJobs.ts`)
+- プロファイル設定画面で「保存時に保存済みの全求人スコアを一括再計算する」にチェックを入れて保存すると、全求人の `matchScore`・`judgment`・および Markdown Frontmatter / 見出しが一括更新され、ローカルストレージへ同期。
 
-### ④ 即座に再現・検証できるクイックスタートガイド
-- `npm install` ➔ `npm run check` ➔ `npm run dev` までのスムーズな起動手順と、API キー未入力時でも全機能が動作する `MockAiProvider` の解説。
+### ④ 求人プレビュー画面での「評価視点（Lens）」リアルタイムシミュレーション (`PreviewPane.tsx`)
+- プレビュー画面上部に **「🎯 評価視点 (Lens)」ピル群**（保存時基準 / リスキリング重視 / カルチャー重視 / 待遇重視）を配置。
+- ピルを切り替えるだけで、総合スコア・判定ランク・各軸比率バーがリアルタイムにシミュレーション表示され、多角的な検討が可能。
 
----
+### ⑤ 求人一覧ダッシュボードでの評価視点セレクター & ソート連動 (`JobDashboard.tsx`)
+- フィルターバーに「評価視点」ドロップダウンを追加。
+- 視点を切り替えると、全求人の表示スコア・判定ランク・並び替え（スコア順ソート）が即座に連動。
 
-## 2. 自動テスト & 品質ゲート検証結果
-
-`npm run check`（ワンショット品質・セキュリティゲート）を実行し、全件合格を確認：
-
-- **シークレットスキャン (`security-check`)**: ✅ PASSED (0 secrets found)
-- **ドキュメント整合性検査 (`doc-check`)**: ✅ PASSED (すべての設計・成果ログ整合確認)
-- **TypeScript 型検査 (`tsc --noEmit`)**: ✅ PASSED (Strict型エラー 0件)
-- **単体・UI・統合テスト (`vitest run --coverage`)**: ✅ 11テストファイル / 50テスト全件合格 (警告ゼロ)
-- **本番ビルド (`vite build`)**: ✅ 正常終了 (`dist/` 出力確認)
+### ⑥ Gemini AI 解析プロンプトへの志向性反映 (`jobAnalysisPrompt.ts`)
+- 新規求人解析時にも、プロファイルで選択されている重視方針（例: 「リスキリング・成長重視 (成長45%, 環境25%, 条件20%, スキル10%)」）をプロンプトの System Instruction および候補者情報に自動注入。
 
 ---
 
-## 1. 主な変更点と新機能
+## 2. 自動テスト & ワンショット品質ゲート検証結果
 
-### ① 手動更新ボタンの新設 (`CareerRoadmapView.tsx` & `App.tsx`)
-- ヘッダー右上に **「🔄 データを再集計・更新」ボタン** を新設。
-- クリックするとストレージから最新の保存求人リストを即座に再取得し、全ロードマップを瞬時に再計算・反映（更新完了トースト付き）。
+`npm.cmd run check` を実行し、全ゲートの合格を確認しました：
 
-### ② 資格・スキルのスマート名寄せ正規化（Normalization）
-- **正規化関数 (`normalizeCertificationName`)**:
-  - AWS (SAA, SAP, SOA等), Azure (AZ-305, AZ-400等), GCP, CKA, LPIC, 応用情報 などの表記ゆれ（英字略称、公式英語名、日本語名、絵文字付き等）をスマートに統一名称へマッピング。
-  - 同一企業・同一求人からの重複カウントを厳密に Set で排除。
+```
+🔒 Running Automated Security & Secret Leak Check (All Directories)...
+🔍 Scanned 81 files for secrets across entire workspace.
+✅ Security & Secret Check PASSED: 0 secrets found. Clean.
 
-### ③ 出所企業・指定文脈（必須 vs 推奨）の個別明記
-- 各資格カード内に **「🏢 各企業の指定状況」セクション** を新設。
-  - 例: `【株式会社A】: [必須指定]`, `【株式会社B】: [推奨アピール]`
-- どの会社が求人要件として必須としているのか、どの会社がアピール補強として推奨しているのかをバッジ付きで個別明記。
+📝 Running Automated Document Integrity & Completeness Check...
+  ✓ docs/pre_phase_verification.md: 正常・整合性確認済
+  ✓ docs/implementation_plan.md: 正常・整合性確認済
+  ✓ docs/walkthrough.md: 正常・整合性確認済
+✅ Document Integrity Check PASSED: すべてのドキュメントの整合性が確認されました。
 
----
+ ✓ tests/core/markdownGenerator.test.ts (6 tests)
+ ✓ tests/services/geminiProvider.test.ts (3 tests)
+ ✓ tests/core/jobAnalysisPrompt.test.ts (6 tests)
+ ✓ tests/core/scoringEngine.test.ts (6 tests)
+ ✓ tests/services/storageAdapter.test.ts (3 tests)
+ ✓ tests/hooks/useJobComparison.test.ts (2 tests)
+ ✓ tests/features/CareerRoadmapView.test.tsx (8 tests)
+ ✓ tests/features/JobDashboard.test.tsx (7 tests)
+ ✓ tests/features/PreviewPane.test.tsx (11 tests)
+ ✓ tests/features/ProfileSettingsView.test.tsx (4 tests)
+ ✓ tests/core/pipelineIntegration.test.ts (2 tests)
 
-## 2. 自動テスト & 品質ゲート検証結果
+Test Files  11 passed (11)
+     Tests  58 passed (58)
+  Duration  3.60s
 
-`npm run check`（ワンショット品質・セキュリティゲート）を実行し、全件合格を確認：
-
-- **シークレットスキャン (`security-check`)**: ✅ PASSED (0 secrets found)
-- **ドキュメント整合性検査 (`doc-check`)**: ✅ PASSED (すべての設計・成果ログ整合確認)
-- **TypeScript 型検査 (`tsc --noEmit`)**: ✅ PASSED (Strict型エラー 0件)
-- **単体・UI・統合テスト (`vitest run --coverage`)**: ✅ 11テストファイル / 50テスト全件合格 (警告ゼロ)
-- **本番ビルド (`vite build`)**: ✅ 正常終了 (`dist/` 出力確認)
-
----
-
-## 1. 主な変更点と新機能
-
-### ① 初回一括解析の軽量化・高速化
-- **初回プロンプト (`jobAnalysisPrompt.ts`)**:
-  - 初回一括解析スキーマから `career_trajectory` を除外。
-  - 基本判定（適合スコア、Must/Want要件、資格アドバイス）に推論リソースを 100% 集中させ、解析レスポンス速度を高速化（2〜3秒台）。
-  - NG求人や見送り求人での不要なトークン消費を完全に抑制。
-
-### ② オンデマンド深掘り生成 & 再生成ボタンの常設
-- **プレビュー画面 (`PreviewPane.tsx`)**:
-  - 初回解析後は、キャリア展望枠に **「✨ キャリア展望をAI生成」ボタン** を分かりやすく表示。
-  - ユーザーが検討したい案件のみボタンを押すことで、専用プロンプト（`buildCareerTrajectoryPrompt`）による最高精度の深掘り結果（獲得スキル、次の転職先、想定年収、リスク）を生成。
-  - すでに生成済みの場合でも、ヘッダー右上に **「🔄 再生成」ボタン** を常設し、いつでも再分析・アップデート可能に。
+✓ built in 4.25s
+```
 
 ---
 
-## 2. 自動テスト & 品質ゲート検証結果
+## 3. 作成・変更ファイル一覧
 
-`npm run check`（ワンショット品質・セキュリティゲート）を実行し、全件合格を確認：
-
-- **シークレットスキャン (`security-check`)**: ✅ PASSED (0 secrets found)
-- **ドキュメント整合性検査 (`doc-check`)**: ✅ PASSED (すべての設計・成果ログ整合確認)
-- **TypeScript 型検査 (`tsc --noEmit`)**: ✅ PASSED (Strict型エラー 0件)
-- **単体・UI・統合テスト (`vitest run --coverage`)**: ✅ 11テストファイル / 47テスト全件合格 (警告ゼロ)
-- **本番ビルド (`vite build`)**: ✅ 正常終了 (`dist/` 出力確認)
-
----
-
-# Phase 8: 実装成果レポート (Walkthrough)
-
-## 🎯 達成した実装概要
-
-本フェーズ（Phase 8）では、ユーザーからの追加要望 **「このキャリアを選択した後の展望・得られるスキル・さらなる転職や方向性」** に応え、求人票を起点とした 2〜3 年後の **「中長期キャリア展望 & 次の転職先 (Career Trajectory & Next Exit Strategy)」** を AI で自動分析・可視化する機能を完全実装しました。
-
-過去に取り込んだ求人票に対してもワンクリックで展望を AI 生成して自動追記できる仕組みを配備し、データの後方互換性とシームレスな体験を両立しました。
-
----
-
-## 1. 主な変更点と新機能
-
-### ① 中長期キャリア展望 AI 解析 & Gemini JSON Schema
-- **データ型定義 (`src/types/job.ts`)**:
-  - `CareerTrajectory`（獲得市場価値スキル, 次の転職先候補, 将来想定市場年収, キャリア上の留意点, 総括アドバイス）を定義。
-- **Gemini API スキーマ (`jobAnalysisPrompt.ts`)**:
-  - 新規解析・再評価・単体展望生成の各プロンプトおよび JSON Schema を拡張。
-
-### ② プレビュー画面での個別キャリア展望リッチカード
-- **UI (`PreviewPane.tsx`)**:
-  - スコアカード下に **「🚀 入社後のキャリア展望 & 次のキャリアパス」** リッチカードを配置。
-  - 💎 2〜3年で身につく市場価値スキル（バッジ群）
-  - ➔ 次の転職で狙えるポジション・キャリアパス（Next Exit）
-  - 💰 将来の想定市場価値・年収レンジ
-  - ⚠️ キャリア上の留意点・技術的ロックインリスク
-  - 🎯 中長期戦略の総括アドバイス
-
-### ③ 過去求人へのワンクリック AI 展望生成
-- 過去に取り込んだ求人データを開いた場合、**「✨ キャリア展望をAI生成 (数秒で完了)」ボタン** が自動表示。
-- ワンクリックで AI が展望を推論し、ドキュメントに即時追加・自動保存。
-
-### ④ 「🗺️ 転職ロードマップ」での各社キャリア分岐マップ
-- **UI (`CareerRoadmapView.tsx`)**:
-  - 保存された検討求人を横断した **「🚀 各社選択後のキャリア分岐・次の転職先マップ (Career Pathways)」** セクションを新設。
-  - 各社ルートを選んだ場合の将来想定年収・獲得スキル・次の転職先候補をマトリクス比較可能に。
-
-### ⑤ Markdown 出力への自動反映
-- Obsidian Vault 保存ファイルに `## 🚀 キャリア展望・獲得スキル・次の転職先 (Career Trajectory)` セクションを自動書き出し。
-
----
-
-## 2. 自動テスト & 品質ゲート検証結果
-
-`npm run check`（ワンショット品質・セキュリティゲート）を実行し、全件合格を確認：
-
-- **シークレットスキャン (`security-check`)**: ✅ PASSED (0 secrets found)
-- **TypeScript 型検査 (`tsc --noEmit`)**: ✅ PASSED (Strict型エラー 0件)
-- **単体・UI・統合テスト (`vitest run --coverage`)**: ✅ 11テストファイル / 46テスト全件合格
-- **本番ビルド (`vite build`)**: ✅ 正常終了 (`dist/` 出力確認)
-
----
-
-## 1. 主な変更点と新機能
-
-### ① 求人の自動ローカル保存（ドラフト同期）
-- 求人票の AI 解析が完了した瞬間に、手動保存ボタンを押さなくても自動でブラウザ/ローカルストレージに即時保存。
-- プレビュー画面上部に「✓ ローカル保存済」バッジを明示。
-
-### ② 保存済み求人のブラウザ再表示・再編集
-- 「求人ドキュメント一覧」画面の各行およびカードに「👁️ 再表示」アクションを追加。
-- ワンクリックでプレビュー画面に切り替わり、AIスコアカードやMarkdownエディタが即座に復元・閲覧・再編集可能に。
-
-### ③ AI提案へのフィードバック入力 ＆ 即時再評価
-- プレビュー画面に **「💡 AI評価へのフィードバック & 再評価」フォーム** を新設。
-- 「必須要件のPythonは個人開発で1年実績あり」「年収は650万円以上で許容可能」などのフィードバックを入力して実行すると、AIが適合スコアや判定ランク、アピールポイントを即座に再計算して更新。
-- スコアの変化（例: 78点 ➔ 83点）とフィードバック履歴をカード内に時系列表示。
-
-### ④ 外部 Markdown ドキュメントのインポート
-- 「求人ドキュメント一覧」に **「MDインポート」ボタン** を追加。
-- 過去に出力した JobEval 形式の `.md` ファイルをインポートすると、YAML Frontmatter と本文からメタデータ・判定・要件を完璧に復元して一覧に登録。
-
-### ⑤ 複数求人の横並び比較サマリの強化
-- 選択した 2〜3 社の求人を横並びで比較するマトリクスモーダルに、**「推奨・必要資格」「必須要件 (Must)」** の横並び比較項目を追加。
-
-### ⑥ 新画面「🗺️ 転職ロードマップ & 選考分析ダッシュボード」の新設
-- アプリ上部ナビゲーションに **「🗺️ 転職ロードマップ」タブ** を追加（トータル 4 画面構成）。
-- **選考パイプライン進捗マイルストーン**: 「検討中」「応募済」「書類通過」「一次面接」「最終面接」「内定」「見送り」の案件数・平均スコアをボード形式で可視化。
-- **求人票から逆算された資格獲得ロードマップ**: 保存された全求人で求められている資格・推奨資格を需要社数順に集約。ユーザーの保有資格と照合し、「取得済」「学習中・目標」「取得推奨」のバッジと戦略アドバイスを表示。
-- **見送り・辞退要因の分析サマリ**: 見送りにした案件の理由（年収不一致、NG条件、スキルギャップなど）をグラフバーで分析。
-
----
-
-## 2. 自動テスト & 品質ゲート検証結果
-
-`npm run check`（ワンショット品質・セキュリティゲート）を実行し、全件合格を確認：
-
-- **シークレットスキャン (`security-check`)**: ✅ PASSED (0 secrets found)
-- **TypeScript 型検査 (`tsc --noEmit`)**: ✅ PASSED (Strict型エラー 0件)
-- **単体・UI・統合テスト (`vitest run --coverage`)**: ✅ 11テストファイル / 41テスト全件合格
-- **本番ビルド (`vite build`)**: ✅ 正常終了 (`dist/` 出力確認)
-
----
-
-## 1. 主な変更点と新機能
-
-### ① スキル & 認定資格のステータス分離管理
-- **データ構造の拡張 (`src/types/profile.ts`)**:
-  - `CertificationItem`: `status: "acquired" | "studying" | "planned"`、`targetPeriod?: string`（例: "2026年Q3"）を追加。
-  - `SkillItem`: `status: "experienced" | "learning" | "interested"` を追加。
-- **UI (`ProfileSettingsView.tsx`)**:
-  - 資格管理を **「取得済み資格」** と **「学習中・取得目標資格」** の切り替えタブとして直感的に分離。
-  - スキルも「実務経験あり」と「独学・学習中」を切り替えて登録・バッジ表示。
-
-### ② 求人ごとの必要資格 ＆ 追加取得推奨資格のアドバイスAI
-- **AIプロンプト & Gemini JSON Schema (`jobAnalysisPrompt.ts`)**:
-  - 候補者の「実務経験/保有資格」と「学習中スキル/目標資格」をAIに分離伝達。
-  - 求人票で求められている資格、および実務未経験を補うためのアピール資格・ロードマップ（`qualification_advice`）をAIが自動推論。
-- **UIプレビュー (`PreviewPane.tsx`)**:
-  - 「🎯 資格・スキルギャップ補強アクション」カードを新設。求人指定資格、推奨取得資格、戦略アドバイス文を表示。
-- **Markdown出力 (`markdownGenerator.ts`)**:
-  - Obsidian Vault連携ファイルに「## 🎯 資格・スキルギャップ補強アクション」セクションを自動生成。
-
-### ③ プロファイル状態同期の修正 ＆ Gemini API 接続テスト
-- **グローバル状態同期 (`App.tsx`)**:
-  - プロファイル設定画面で API キーを入力・保存した瞬間に、即座に `App.tsx` の内部状態が同期更新され、リロードなしで `✨ Gemini API 有効` に切り替わるよう修正。
-- **接続テスト機能 (`geminiProvider.ts`, `ProfileSettingsView.tsx`)**:
-  - プロファイル設定画面の API キー入力欄横に「接続テスト」ボタンを追加。
-  - ワンクリックで Gemini API との通信疎通とAPIキーの有効性を即座に確認可能（✓ 接続成功 / ❌ 認証エラー等の明快なフィードバック）。
-
----
-
-## 2. 自動テスト & 品質ゲート検証結果
-
-`npm.cmd run check`（ワンショット品質・セキュリティゲート）を実行し、全件合格を確認：
-
-- **シークレットスキャン (`security-check`)**: ✅ PASSED (漏洩なし)
-- **TypeScript 型検査 (`tsc --noEmit`)**: ✅ PASSED (Strict型エラー 0件)
-- **単体・UI・統合テスト (`vitest run --coverage`)**: ✅ 10テストファイル / 32テスト全件合格
-- **本番ビルド (`vite build`)**: ✅ 正常終了 (`dist/` 出力確認)
+| ファイルパス | 区分 | 変更概要 |
+| :--- | :---: | :--- |
+| `docs/adr/0004-dynamic-weighting-scoring.md` | 新規 | ADR-0004 動的重み付けプロファイルと決定論的再計算エンジンの採用決定記録 |
+| `docs/adr/README.md` | 更新 | ADR-0004 をインデックスに追加 |
+| `docs/pre_phase_verification.md` | 更新 | Phase 12 4軸事前検証ログの記録 |
+| `docs/implementation_plan.md` | 更新 | Phase 12 実装計画書の記録 |
+| `docs/walkthrough.md` | 更新 | 本成果レポート |
+| `src/types/profile.ts` | 更新 | `ScoringWeights`, `ScoringPresetKey`, `SCORING_PRESETS` 型・定数定義 |
+| `src/core/constants/defaultProfile.ts` | 更新 | デフォルトプロファイルへの初期重み設定追加 |
+| `src/core/scoring/scoringEngine.ts` | 更新 | `recalculateScoreWithWeights`, `calculateJudgmentRank` 実装 |
+| `src/hooks/useJobs.ts` | 更新 | `recalculateAllJobsWithWeights` 一括再計算 & Markdown Frontmatter 同期関数追加 |
+| `src/features/profile/ProfileSettingsView.tsx` | 更新 | 4軸重み付け設定 UI（プリセット、スライダー、一括再計算保存）の実装 |
+| `src/components/pane/PreviewPane.tsx` | 更新 | 評価視点（Lens）切り替えピル & リアルタイムシミュレーション表示 |
+| `src/components/dashboard/JobDashboard.tsx` | 更新 | 評価視点セレクター & 一覧スコア・ソート連動 |
+| `src/core/prompt/jobAnalysisPrompt.ts` | 更新 | AI プロンプトへのユーザー志向性・重み配分の反映 |
+| `src/App.tsx` | 更新 | コンポーネント間 Props 配線と一括再計算ハンドラー連携 |
+| `tests/core/scoringEngine.test.ts` | 更新 | 動的重み付け計算・プリセット判定テストの追加 |
+| `tests/features/PreviewPane.test.tsx` | 更新 | 視点切り替えリアルタイム再計算テストの追加 |
+| `tests/features/ProfileSettingsView.test.tsx` | 更新 | 4軸設定 UI & 一括再計算保存テストの追加 |
+| `tests/features/JobDashboard.test.tsx` | 更新 | 視点切り替え連動テストの追加 |

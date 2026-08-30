@@ -51,14 +51,29 @@ export function buildJobAnalysisPrompt(
 
   const ngConditionsList = profile.conditions.ngConditions.map((ng) => `- ${ng}`).join("\n");
 
+  const weights = profile.conditions.scoringWeights || { skill: 40, condition: 30, growth: 20, environment: 10 };
+  const presetKey = profile.conditions.scoringPreset || "standard";
+  const presetDescriptions: Record<string, string> = {
+    standard: "標準バランス型（即戦力性・条件を重視）",
+    reskilling: "リスキリング・成長重視（得られる技術・成長機会・育成カルチャーを最優先）",
+    wlb_culture: "カルチャー・環境重視（働きやすさ・社風・健全性を最優先）",
+    salary_first: "待遇・条件最優先（年収レンジ・勤務形態の一致を最優先）",
+    custom: "カスタム配分",
+  };
+  const presetLabel = presetDescriptions[presetKey] || "標準";
+
   const systemInstruction = `あなたはIT・ソフトウェア業界の求職活動を支援する最高峰のAI転職アドバイザーです。
-提供された「求人票テキスト」を精密に構造化解析し、候補者の「職務経歴・実務スキル・学習中スキル・保有資格・学習中/目標資格・希望条件・NG条件」と照合して、客観的でバイアスのない適合度判定、資格・スキルギャップ補強アクション、およびアクション提案（逆質問・アピール点）をJSON形式で出力してください。
+提供された「求人票テキスト」を精密に構造化解析し、候補者の「職務経歴・実務スキル・学習中スキル・保有資格・学習中/目標資格・希望条件・NG条件・評価重視方針」と照合して、客観的でバイアスのない適合度判定、資格・スキルギャップ補強アクション、およびアクション提案（逆質問・アピール点）をJSON形式で出力してください。
+
+【候補者の評価重視方針】
+- 重視スタイル: ${presetLabel}
+- 各軸の配点比率: スキル合致度(${weights.skill}%) / 希望条件(${weights.condition}%) / キャリア成長性(${weights.growth}%) / 労働環境・カルチャー(${weights.environment}%)
 
 【評価軸と配点ガイドライン (100点満点)】
-1. スキル合致度 (40%): 必須要件(Must)・歓迎要件(Want)と候補者スキル・資格の一致度
-2. 希望条件合致度 (30%): 想定年収レンジ（最低${profile.conditions.targetSalaryMin}万〜目標${profile.conditions.targetSalaryMax}万円）、勤務形態（${profile.conditions.preferredWorkStyle}）、勤務地の一致度
-3. キャリア成長性 (20%): クラウド刷新、モダンアーキテクチャ、テックリード裁量等の成長機会
-4. 労働環境・リスク (10%): 固定残業多寡、客先常駐比率、裁量、オンコール体制
+1. スキル合致度 (${weights.skill}%): 必須要件(Must)・歓迎要件(Want)と候補者スキル・資格の一致度
+2. 希望条件合致度 (${weights.condition}%): 想定年収レンジ（最低${profile.conditions.targetSalaryMin}万〜目標${profile.conditions.targetSalaryMax}万円）、勤務形態（${profile.conditions.preferredWorkStyle}）、勤務地の一致度
+3. キャリア成長性 (${weights.growth}%): クラウド刷新、モダンアーキテクチャ、テックリード裁量等の成長機会
+4. 労働環境・リスク (${weights.environment}%): 固定残業多寡、客先常駐比率、裁量、オンコール体制
 ※ NG条件に抵触している場合は、総合スコアを大幅に減点し、判定ランクを「C (見送り推奨)」または「B (要確認・検討)」としてください。
 
 【資格・スキルギャップ補強アドバイス (qualification_advice) の作成指針】
@@ -84,6 +99,7 @@ export function buildJobAnalysisPrompt(
 - 希望勤務形態: ${profile.conditions.preferredWorkStyle}
 - 希望勤務地: ${profile.conditions.preferredLocation}
 - 志向ポジション: ${profile.conditions.preferredRoles.join(", ")}
+- 評価重視方針: ${presetLabel} (スキル ${weights.skill}% / 条件 ${weights.condition}% / 成長 ${weights.growth}% / 環境 ${weights.environment}%)
 - NG条件 / 除外キーワード:
 ${ngConditionsList || "なし"}
 

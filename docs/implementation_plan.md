@@ -1,6 +1,58 @@
-# Phase 11: ポートフォリオ公開用 README.md 刷新 実装計画書
+# Phase 12: 4軸評価の動的重み付けカスタマイズ＆保存済求人の一括・リアルタイム再計算機能 実装計画書 (Issue #1)
 
 ## 🎯 実装目的・概要
+ユーザーの転職志向（リスキリング重視、カルチャー重視、待遇重視、即戦力重視など）に応じて4軸の重み付け（％）を自由に変更可能にし、保存済みの全求人および閲覧中求人の適合度スコア（0〜100点）および判定ランク（S/A/B/C）をクライアント側で瞬時に再計算・一括更新できる機能を提供します。
+
+---
+
+## 📝 変更ファイル一覧と実装内容
+
+### 1. 型定義の拡張
+- **`src/types/profile.ts`**:
+  - `ScoringWeights` インターフェース（`skill`, `condition`, `growth`, `environment` 各 %、合計100）
+  - `ScoringPresetKey` 型（`"standard"` | `"reskilling"` | `"wlb_culture"` | `"salary_first"` | `"custom"`）
+  - `DEFAULT_SCORING_WEIGHTS` 定数（40/30/20/10%）
+  - `SCORING_PRESETS` 辞書定義
+  - `ConditionMatrix.scoringWeights`（オプショナル、後方互換性担保）
+- **`src/core/constants/defaultProfile.ts`**:
+  - デフォルトプロファイルに `scoringWeights: DEFAULT_SCORING_WEIGHTS` を追加
+
+### 2. コア再計算エンジンの実装
+- **`src/core/scoring/scoringEngine.ts`**:
+  - `recalculateScoreWithWeights(breakdown, weights, ngTriggered?)` 純粋関数
+  - `getJudgmentRank(totalScore, hasNgTriggered?)` 判定ロジック
+
+### 3. UI コンポーネントの実装
+- **`src/features/profile/ProfileSettingsView.tsx`**:
+  - 重み付けプリセット選択ボタン（5種類）
+  - 4軸重みスライダー＆合計100%自動バランサー
+  - 「保存時に既存の全求人に新しい重みを適用して一括再計算する」機能
+- **`src/components/pane/PreviewPane.tsx`**:
+  - 評価視点切り替えピル（🎯標準 / 🚀リスキリング / 🌿カルチャー / 💰待遇）
+  - クリックによる即座のスコア再計算＆判定ランク連動プレビュー
+- **`src/components/dashboard/JobDashboard.tsx`**:
+  - 評価視点（プリセット）切り替えによる一覧スコア・ソート順の即時連動
+
+### 4. フック & プロンプト連携
+- **`src/hooks/useJobs.ts`**:
+  - `recalculateAllJobsWithWeights(weights)` 一括更新関数
+  - Markdown Frontmatter の `match_score` / `judgment` 同期更新
+- **`src/core/prompt/jobAnalysisPrompt.ts`**:
+  - ユーザーの選択重み付け方針（リスキリング重視等）を Gemini System Instruction に反映
+
+### 5. 自動テストの拡充
+- **`tests/core/scoringEngine.test.ts`**: 各プリセットでの再計算ロジック、合計100%バランサーテスト
+- **`tests/features/PreviewPane.test.tsx`**: 視点切り替えピルの動作テスト
+- **`tests/features/ProfileSettingsView.test.tsx`**: 重み付け設定UIテスト
+- **`tests/features/JobDashboard.test.tsx`**: ダッシュボードでの視点連動テスト
+
+---
+
+## 🧪 検証手順
+1. `npm.cmd run check`（シークレット + ドキュメント整合性 + 型検査 + 全単体UIテスト + 本番ビルド）を実行し、全件 PASS を確認。
+2. Git Pre-commit Hook & Pre-push Hook による自動検査を経てコミットし、`gh pr create` で PR を起票。
+
+---
 JobEval を GitHub 上で外部に公開し、自身のスキル（AI統合力、フロントエンド/デスクトップアーキテクチャ設計力、開発ハーネス・テスト駆動品質担保力、UX設計力）を証明するための洗練された `README.md` を作成・反映します。
 
 ---

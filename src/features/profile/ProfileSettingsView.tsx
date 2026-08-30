@@ -24,9 +24,19 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { useProfile } from "@/hooks/useProfile";
-import { WorkStylePreference, RoleLevelPreference, UserProfile, CertificationItem, SkillItem } from "@/types/profile";
+import { 
+  WorkStylePreference, 
+  RoleLevelPreference, 
+  UserProfile, 
+  CertificationItem, 
+  SkillItem,
+  ScoringWeights,
+  ScoringPresetKey,
+  DEFAULT_SCORING_WEIGHTS,
+  SCORING_PRESETS,
+} from "@/types/profile";
 import { testGeminiConnection, fetchAvailableGeminiModels } from "@/services/ai/aiService";
+import { useProfile } from "@/hooks/useProfile";
 
 const ROLE_OPTIONS: RoleLevelPreference[] = [
   "クラウドアーキテクト",
@@ -43,6 +53,7 @@ interface ProfileSettingsViewProps {
   profile?: UserProfile;
   onSaveProfile?: (profile: UserProfile) => Promise<void>;
   onResetProfile?: () => Promise<void>;
+  onRecalculateAllJobs?: (weights: ScoringWeights) => Promise<unknown>;
   isLoading?: boolean;
   isSaving?: boolean;
   lastSavedTime?: Date | null;
@@ -52,6 +63,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   profile: propProfile,
   onSaveProfile,
   onResetProfile,
+  onRecalculateAllJobs,
   isLoading: propIsLoading,
   isSaving: propIsSaving,
   lastSavedTime: propLastSavedTime,
@@ -79,6 +91,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   const [newCertPeriod, setNewCertPeriod] = useState<string>("2026年Q3");
 
   const [newNgCondition, setNewNgCondition] = useState("");
+  const [shouldRecalculateAllJobs, setShouldRecalculateAllJobs] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // API Connection test state
@@ -93,9 +106,52 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   // Sync draft when profile loads
   useEffect(() => {
     if (profile) {
-      setDraft(profile);
+      // Ensure scoringWeights exists
+      const initialWeights = profile.conditions?.scoringWeights || DEFAULT_SCORING_WEIGHTS;
+      const initialPreset = profile.conditions?.scoringPreset || "standard";
+      setDraft({
+        ...profile,
+        conditions: {
+          ...profile.conditions,
+          scoringPreset: initialPreset,
+          scoringWeights: initialWeights,
+        },
+      });
     }
   }, [profile]);
+
+  const activePreset = draft.conditions?.scoringPreset || "standard";
+  const activeWeights = draft.conditions?.scoringWeights || DEFAULT_SCORING_WEIGHTS;
+
+  const handleSelectPreset = (presetKey: ScoringPresetKey) => {
+    const preset = SCORING_PRESETS[presetKey];
+    setDraft((prev) => ({
+      ...prev,
+      conditions: {
+        ...prev.conditions,
+        scoringPreset: presetKey,
+        scoringWeights: { ...preset.weights },
+      },
+    }));
+  };
+
+  const handleWeightChange = (key: keyof ScoringWeights, value: number) => {
+    const clamped = Math.max(0, Math.min(100, value));
+    setDraft((prev) => {
+      const current = prev.conditions.scoringWeights || DEFAULT_SCORING_WEIGHTS;
+      return {
+        ...prev,
+        conditions: {
+          ...prev.conditions,
+          scoringPreset: "custom",
+          scoringWeights: {
+            ...current,
+            [key]: clamped,
+          },
+        },
+      };
+    });
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -103,10 +159,21 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   };
 
   const handleSave = async () => {
+    const weightsToSave = draft.conditions?.scoringWeights || DEFAULT_SCORING_WEIGHTS;
     if (onSaveProfile) {
       await onSaveProfile(draft);
     } else {
       await hookState.saveProfile(draft);
+    }
+
+    if (shouldRecalculateAllJobs && onRecalculateAllJobs) {
+      try {
+        await onRecalculateAllJobs(weightsToSave);
+        showToast("プロファイル設定を保存し、全求人スコアを一括再計算しました！");
+        return;
+      } catch (err) {
+        console.error("Recalculate all jobs error", err);
+      }
     }
     showToast("プロファイル設定をローカルへ保存しました");
   };
@@ -735,6 +802,209 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                   );
                 })}
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Section 3.5: Dynamic 4-Axis Weighting Profile (ADR-0004) */}
+        <Card className="border-indigo-500/30 bg-gradient-to-b from-indigo-950/20 to-slate-900/40">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm text-indigo-300 flex items-center gap-2">
+                <Sliders className="h-4 w-4 text-indigo-400" />
+                4軸評価の重み付けプロファイル (ADR-0004)
+              </CardTitle>
+              <Badge variant="outline" className="text-[11px] bg-indigo-950/60 border-indigo-500/40 text-indigo-300">
+                {SCORING_PRESETS[activePreset]?.badge || "⚙️ カスタム"}
+              </Badge>
+            </div>
+            <CardDescription className="text-xs">
+              ユーザーの転職志向（リスキリング・成長・カルチャー重視など）に応じて各軸の比率をカスタマイズ
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-0">
+            {/* Presets Selector */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-300">重視方針プリセット</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {(Object.keys(SCORING_PRESETS) as ScoringPresetKey[]).map((key) => {
+                  const preset = SCORING_PRESETS[key];
+                  const isSelected = activePreset === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => handleSelectPreset(key)}
+                      className={`text-left p-2.5 rounded-lg border transition-all ${
+                        isSelected
+                          ? "bg-indigo-600/30 border-indigo-500 text-white shadow-sm ring-1 ring-indigo-500/50"
+                          : "bg-slate-950/70 border-slate-800 text-slate-400 hover:bg-slate-800/80 hover:text-slate-200"
+                      }`}
+                    >
+                      <div className="text-xs font-medium flex items-center justify-between mb-0.5">
+                        <span>{preset.badge}</span>
+                        {isSelected && <Check className="h-3 w-3 text-indigo-400" />}
+                      </div>
+                      <div className="text-[10px] text-slate-400 line-clamp-1 leading-tight">
+                        {key === "standard" && "40 / 30 / 20 / 10%"}
+                        {key === "reskilling" && "10 / 20 / 45 / 25%"}
+                        {key === "wlb_culture" && "20 / 30 / 10 / 40%"}
+                        {key === "salary_first" && "25 / 50 / 15 / 10%"}
+                        {key === "custom" && "自由配分"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-indigo-300/80 bg-indigo-950/40 px-3 py-1.5 rounded border border-indigo-500/20">
+                💡 <strong>{SCORING_PRESETS[activePreset]?.label}</strong>: {SCORING_PRESETS[activePreset]?.description}
+              </p>
+            </div>
+
+            {/* Sliders Grid */}
+            <div className="space-y-3 pt-1 bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
+              {/* Total Weight Header */}
+              {(() => {
+                const total = activeWeights.skill + activeWeights.condition + activeWeights.growth + activeWeights.environment;
+                const isExact100 = total === 100;
+                return (
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 text-xs">
+                    <span className="font-semibold text-slate-300">配分比率 (合計 100%)</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-mono text-xs px-2 py-0.5 rounded font-bold ${
+                        isExact100 
+                          ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/40" 
+                          : "bg-amber-950/80 text-amber-300 border border-amber-500/40 animate-pulse"
+                      }`}>
+                        合計: {total}%
+                      </span>
+                      {!isExact100 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Normalize to exact 100
+                            const s = activeWeights.skill || 1;
+                            const c = activeWeights.condition || 1;
+                            const g = activeWeights.growth || 1;
+                            const e = activeWeights.environment || 1;
+                            const curTotal = s + c + g + e;
+                            const normSkill = Math.round((s / curTotal) * 100);
+                            const normCond = Math.round((c / curTotal) * 100);
+                            const normGrowth = Math.round((g / curTotal) * 100);
+                            const normEnv = 100 - (normSkill + normCond + normGrowth);
+                            setDraft((prev) => ({
+                              ...prev,
+                              conditions: {
+                                ...prev.conditions,
+                                scoringPreset: "custom",
+                                scoringWeights: {
+                                  skill: normSkill,
+                                  condition: normCond,
+                                  growth: normGrowth,
+                                  environment: normEnv,
+                                },
+                              },
+                            }));
+                          }}
+                          className="text-[10px] text-indigo-300 hover:underline bg-indigo-900/40 px-2 py-0.5 rounded"
+                        >
+                          100%に自動調整
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 1. Skill */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300 font-medium flex items-center gap-1">
+                    🎯 スキル・経験一致度 (Must / Want)
+                  </span>
+                  <span className="font-mono text-indigo-400 font-bold">{activeWeights.skill}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={80}
+                  step={5}
+                  value={activeWeights.skill}
+                  onChange={(e) => handleWeightChange("skill", Number(e.target.value))}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                />
+              </div>
+
+              {/* 2. Condition */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300 font-medium flex items-center gap-1">
+                    💼 希望条件合致度 (年収・勤務地・リモート)
+                  </span>
+                  <span className="font-mono text-indigo-400 font-bold">{activeWeights.condition}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={80}
+                  step={5}
+                  value={activeWeights.condition}
+                  onChange={(e) => handleWeightChange("condition", Number(e.target.value))}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                />
+              </div>
+
+              {/* 3. Growth */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300 font-medium flex items-center gap-1">
+                    🚀 キャリア成長性・得られる技術
+                  </span>
+                  <span className="font-mono text-indigo-400 font-bold">{activeWeights.growth}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={80}
+                  step={5}
+                  value={activeWeights.growth}
+                  onChange={(e) => handleWeightChange("growth", Number(e.target.value))}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                />
+              </div>
+
+              {/* 4. Environment */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300 font-medium flex items-center gap-1">
+                    🌿 労働環境・カルチャー・リスク健全度
+                  </span>
+                  <span className="font-mono text-indigo-400 font-bold">{activeWeights.environment}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={80}
+                  step={5}
+                  value={activeWeights.environment}
+                  onChange={(e) => handleWeightChange("environment", Number(e.target.value))}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                />
+              </div>
+            </div>
+
+            {/* Batch Recalculate Checkbox */}
+            <div className="flex items-center gap-2 pt-1 border-t border-slate-800/80">
+              <input
+                type="checkbox"
+                id="recalculateCheckbox"
+                checked={shouldRecalculateAllJobs}
+                onChange={(e) => setShouldRecalculateAllJobs(e.target.checked)}
+                className="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+              />
+              <label htmlFor="recalculateCheckbox" className="text-xs text-slate-300 cursor-pointer select-none">
+                ⚡ <strong>保存時に保存済みの全求人スコアを新しい重みで一括再計算する</strong> (Markdown Frontmatter も自動同期)
+              </label>
             </div>
           </CardContent>
         </Card>

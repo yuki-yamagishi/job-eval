@@ -1,4 +1,4 @@
-import { UserProfile } from "@/types/profile";
+import { UserProfile, DEFAULT_SCORING_WEIGHTS } from "@/types/profile";
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
   id: "user-default",
@@ -40,6 +40,8 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
       "固定残業制で45時間超を含む雇用契約",
       "レガシー技術・特定独自言語への固定配置",
     ],
+    scoringPreset: "standard",
+    scoringWeights: DEFAULT_SCORING_WEIGHTS,
   },
   apiSettings: {
     geminiApiKey: "",

@@ -20,19 +20,23 @@ import {
   Compass,
   ShieldAlert,
   Layers,
-  RotateCw
+  RotateCw,
+  Sliders
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { JobAnalysisResult, JudgmentRank } from "@/types/job";
+import { UserProfile, ScoringPresetKey, SCORING_PRESETS, DEFAULT_SCORING_WEIGHTS } from "@/types/profile";
 import { getStandardMarkdownFilename, parseJobMarkdown } from "@/core/markdown/markdownGenerator";
+import { recalculateScoreWithWeights } from "@/core/scoring/scoringEngine";
 
 interface PreviewPaneProps {
   analysisResult: JobAnalysisResult | null;
   isAnalyzing: boolean;
   isReEvaluating?: boolean;
+  userProfile?: UserProfile;
   onSaveMarkdown?: (markdownContent: string) => void;
   onReEvaluate?: (feedback: string) => Promise<void>;
   onGenerateCareerTrajectory?: (job: JobAnalysisResult) => Promise<void>;
@@ -44,6 +48,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
   analysisResult,
   isAnalyzing,
   isReEvaluating = false,
+  userProfile,
   onSaveMarkdown,
   onReEvaluate,
   onGenerateCareerTrajectory,
@@ -54,6 +59,8 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
   const [userFeedbackText, setUserFeedbackText] = useState("");
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isGeneratingTrajectory, setIsGeneratingTrajectory] = useState(false);
+
+  const [selectedLens, setSelectedLens] = useState<ScoringPresetKey | "current">("current");
 
   // Sync markdown content when analysisResult changes
   useEffect(() => {
@@ -139,6 +146,21 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
   const standardFilename = getStandardMarkdownFilename(metadata);
   const parsedMarkdown = parseJobMarkdown(editedMarkdown);
 
+  // Dynamic lens recalculation
+  const profileWeights = userProfile?.conditions?.scoringWeights || DEFAULT_SCORING_WEIGHTS;
+  const activeWeights = selectedLens === "current" 
+    ? profileWeights 
+    : SCORING_PRESETS[selectedLens]?.weights || profileWeights;
+
+  const hasNg = concerns?.some((c) => c.includes("NG条件")) ?? false;
+  const recalculated = recalculateScoreWithWeights(scoreBreakdown, activeWeights, hasNg);
+  const displayScore = selectedLens === "current" && metadata.matchScore !== undefined 
+    ? metadata.matchScore 
+    : recalculated.totalScore;
+  const displayJudgment = selectedLens === "current" && metadata.judgment 
+    ? metadata.judgment 
+    : recalculated.judgment;
+
   return (
     <div className="h-full flex flex-col overflow-hidden bg-slate-950/60 relative">
       {/* Toast Notification */}
@@ -152,8 +174,8 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
       {/* Top Bar Actions */}
       <div className="h-12 border-b border-slate-800 px-4 flex items-center justify-between bg-slate-900/70 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-2">
-          <Badge variant={getRankBadgeVariant(metadata.judgment)}>
-            {metadata.judgment}
+          <Badge variant={getRankBadgeVariant(displayJudgment)}>
+            {displayJudgment}
           </Badge>
           <div className="flex items-center gap-1.5 text-xs text-slate-300">
             <span className="font-semibold text-slate-200 truncate max-w-[200px]">
@@ -229,6 +251,56 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
         {/* Mode 1: Rich Summary View */}
         {viewMode === "rich" && (
           <>
+            {/* Dynamic Lens / Weighting Simulation Selector */}
+            <div className="bg-slate-900/80 border border-indigo-500/20 p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-sm">
+              <div className="flex items-center gap-1.5 text-xs text-indigo-300 font-semibold">
+                <Sliders className="h-3.5 w-3.5 text-indigo-400" />
+                <span>評価視点 (Lens):</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <button
+                  onClick={() => setSelectedLens("current")}
+                  className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
+                    selectedLens === "current"
+                      ? "bg-indigo-600 text-white border-indigo-500 shadow-sm font-semibold"
+                      : "bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200"
+                  }`}
+                >
+                  🎯 保存時基準 ({profileWeights.skill}/{profileWeights.condition}/{profileWeights.growth}/{profileWeights.environment}%)
+                </button>
+                <button
+                  onClick={() => setSelectedLens("reskilling")}
+                  className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
+                    selectedLens === "reskilling"
+                      ? "bg-cyan-600 text-white border-cyan-500 shadow-sm font-semibold"
+                      : "bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200"
+                  }`}
+                >
+                  🚀 リスキリング重視 (成長45% / 環境25%)
+                </button>
+                <button
+                  onClick={() => setSelectedLens("wlb_culture")}
+                  className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
+                    selectedLens === "wlb_culture"
+                      ? "bg-emerald-600 text-white border-emerald-500 shadow-sm font-semibold"
+                      : "bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200"
+                  }`}
+                >
+                  🌿 カルチャー・WLB重視 (環境40%)
+                </button>
+                <button
+                  onClick={() => setSelectedLens("salary_first")}
+                  className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
+                    selectedLens === "salary_first"
+                      ? "bg-amber-600 text-white border-amber-500 shadow-sm font-semibold"
+                      : "bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200"
+                  }`}
+                >
+                  💰 待遇重視 (条件50%)
+                </button>
+              </div>
+            </div>
+
             {/* AI Summary Header Card */}
             <Card className="border-indigo-500/20 bg-gradient-to-r from-slate-900/90 via-slate-900/95 to-slate-950/90">
               <CardContent className="p-4 space-y-3">
@@ -239,6 +311,11 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                       <span>{metadata.agentSource} 求人票</span>
                       <span>•</span>
                       <span>解析日: {metadata.dateAnalyzed}</span>
+                      {selectedLens !== "current" && (
+                        <span className="text-cyan-300 bg-cyan-950/60 border border-cyan-800 px-1.5 py-0.2 rounded text-[10px]">
+                          ⚡ 視点シミュレーション中
+                        </span>
+                      )}
                     </div>
                     <h2 className="text-lg font-bold text-white tracking-tight">
                       {metadata.title}
@@ -248,9 +325,11 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-slate-400 font-medium">総合適合スコア</div>
+                    <div className="text-xs text-slate-400 font-medium">
+                      {selectedLens === "current" ? "総合適合スコア" : "シミュレーションスコア"}
+                    </div>
                     <div className="text-3xl font-extrabold text-indigo-400 font-mono tracking-tight">
-                      {metadata.matchScore}
+                      {displayScore}
                       <span className="text-sm font-normal text-slate-400"> / 100</span>
                     </div>
                   </div>
@@ -259,19 +338,19 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                 {/* Score Breakdown Bar */}
                 <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-800/80 text-xs">
                   <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                    <span className="text-slate-400 block text-[11px]">スキル合致 (40%)</span>
+                    <span className="text-slate-400 block text-[11px]">スキル合致 ({activeWeights.skill}%)</span>
                     <span className="font-bold text-emerald-400 font-mono text-sm">{scoreBreakdown.skillMatchRatio}%</span>
                   </div>
                   <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                    <span className="text-slate-400 block text-[11px]">希望条件 (30%)</span>
+                    <span className="text-slate-400 block text-[11px]">希望条件 ({activeWeights.condition}%)</span>
                     <span className="font-bold text-indigo-400 font-mono text-sm">{scoreBreakdown.conditionMatchRatio}%</span>
                   </div>
                   <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                    <span className="text-slate-400 block text-[11px]">キャリア成長 (20%)</span>
+                    <span className="text-slate-400 block text-[11px]">キャリア成長 ({activeWeights.growth}%)</span>
                     <span className="font-bold text-cyan-400 font-mono text-sm">{scoreBreakdown.careerGrowthRatio}%</span>
                   </div>
                   <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                    <span className="text-slate-400 block text-[11px]">環境・リスク (10%)</span>
+                    <span className="text-slate-400 block text-[11px]">環境・リスク ({activeWeights.environment}%)</span>
                     <span className="font-bold text-amber-400 font-mono text-sm">{scoreBreakdown.environmentRiskRatio}%</span>
                   </div>
                 </div>

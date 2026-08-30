@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ProfileSettingsView } from "@/features/profile/ProfileSettingsView";
 
 describe("ProfileSettingsView Component", () => {
@@ -45,5 +45,41 @@ describe("ProfileSettingsView Component", () => {
 
     // Verify it is displayed
     expect(await screen.findByText("AZ-400 DevOps Expert")).toBeDefined();
+  });
+
+  it("renders 4-axis weighting profile section and selects presets", async () => {
+    render(<ProfileSettingsView />);
+
+    expect(await screen.findByText("4軸評価の重み付けプロファイル (ADR-0004)")).toBeDefined();
+    expect(screen.getByText("🚀 リスキリング")).toBeDefined();
+    expect(screen.getByText("🌿 カルチャー")).toBeDefined();
+    expect(screen.getByText("💰 待遇重視")).toBeDefined();
+
+    // Click Reskilling preset
+    const reskillingBtn = screen.getByText("🚀 リスキリング").closest("button");
+    if (reskillingBtn) {
+      fireEvent.click(reskillingBtn);
+    }
+    expect(await screen.findByText(/得られる技術・成長機会・サポート体制を最重要視/)).toBeDefined();
+  });
+
+  it("calls onRecalculateAllJobs when saving profile with recalculate enabled", async () => {
+    const handleRecalculate = vi.fn().mockResolvedValue([]);
+    const handleSave = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <ProfileSettingsView
+        onSaveProfile={handleSave}
+        onRecalculateAllJobs={handleRecalculate}
+      />
+    );
+
+    const saveBtn = await screen.findByText("設定を保存");
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(handleSave).toHaveBeenCalledTimes(1);
+      expect(handleRecalculate).toHaveBeenCalledTimes(1);
+    });
   });
 });

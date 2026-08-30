@@ -23,7 +23,16 @@ export function App() {
 
   // Custom Hooks for persistence
   const { profile, saveProfile, resetToDefault, isLoading, isSaving, lastSavedTime } = useProfile();
-  const { jobs, fetchJobs, saveJob, updateJobStatus, importJobFromMarkdown, deleteJob, exportMarkdown } = useJobs();
+  const { 
+    jobs, 
+    fetchJobs, 
+    saveJob, 
+    updateJobStatus, 
+    importJobFromMarkdown, 
+    deleteJob, 
+    exportMarkdown, 
+    recalculateAllJobsWithWeights 
+  } = useJobs();
 
   const handleAnalyze = async (text: string, source: AgentSource) => {
     setIsAnalyzing(true);
@@ -145,6 +154,7 @@ export function App() {
                 analysisResult={analysisResult}
                 isAnalyzing={isAnalyzing}
                 isReEvaluating={isReEvaluating}
+                userProfile={profile}
                 onSaveMarkdown={handleSaveMarkdown}
                 onReEvaluate={handleReEvaluate}
                 onGenerateCareerTrajectory={handleGenerateCareerTrajectory}
@@ -156,6 +166,7 @@ export function App() {
         {activeTab === "dashboard" && (
           <JobDashboard
             savedJobs={jobs}
+            userProfile={profile}
             onUpdateStatus={updateJobStatus}
             onDeleteJob={deleteJob}
             onExportJob={exportMarkdown}
@@ -179,6 +190,7 @@ export function App() {
             profile={profile}
             onSaveProfile={saveProfile}
             onResetProfile={resetToDefault}
+            onRecalculateAllJobs={recalculateAllJobsWithWeights}
             isLoading={isLoading}
             isSaving={isSaving}
             lastSavedTime={lastSavedTime}
