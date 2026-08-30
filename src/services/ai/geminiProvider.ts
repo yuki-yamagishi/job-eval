@@ -40,7 +40,7 @@ interface GeminiRawResponse {
  */
 export async function testGeminiConnection(
   apiKey: string,
-  model: string = "gemini-1.5-flash"
+  model: string = "gemini-3.7-flash"
 ): Promise<{ ok: boolean; message: string }> {
   if (!apiKey || !apiKey.trim()) {
     return { ok: false, message: "APIキーが入力されていません。" };
@@ -77,12 +77,14 @@ export async function testGeminiConnection(
     if (timeoutId) clearTimeout(timeoutId);
 
     if (response.ok) {
-      return { ok: true, message: "Gemini API への接続に成功しました！正常に通信可能です。" };
+      return { ok: true, message: `Gemini API (${model}) への接続に成功しました！正常に通信可能です。` };
     }
 
     const errorData = await response.text();
     if (response.status === 400 || response.status === 403) {
       return { ok: false, message: `認証エラー (HTTP ${response.status}): APIキーが無効か権限がありません。` };
+    } else if (response.status === 404) {
+      return { ok: false, message: `モデル未検出 (HTTP 404): モデル '${model}' が見つかりませんでした。別のモデルをお試しください。` };
     } else if (response.status === 429) {
       return { ok: false, message: "レート制限エラー (HTTP 429): APIの利用上限に達しています。" };
     }
@@ -110,7 +112,7 @@ export class GeminiAiProvider implements AiProvider {
       throw new Error("Gemini API キーが設定されていません。プロファイル設定画面から入力してください。");
     }
 
-    const model = profile.apiSettings?.geminiModel || "gemini-1.5-flash";
+    const model = profile.apiSettings?.geminiModel || "gemini-3.7-flash";
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const { systemInstruction, userPrompt } = buildJobAnalysisPrompt(jobText, source, profile);

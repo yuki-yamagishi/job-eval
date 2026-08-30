@@ -131,7 +131,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
 
     setApiTestStatus({ checking: true, result: null });
     try {
-      const res = await testGeminiConnection(key, draft.apiSettings?.geminiModel || "gemini-1.5-flash");
+      const res = await testGeminiConnection(key, draft.apiSettings?.geminiModel || "gemini-3.7-flash");
       setApiTestStatus({ checking: false, result: res });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -760,15 +760,36 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                 Google Gemini API 設定 & 接続テスト (NFR-101)
               </CardTitle>
               <CardDescription className="text-xs">
-                求人情報の構造化抽出および資格推薦推論に使用する API キー
+                求人情報の構造化抽出および資格推薦推論に使用する API キーとモデル
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 pt-0">
+              {/* Model selection */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">使用 Gemini モデル</label>
+                <select
+                  value={draft.apiSettings.geminiModel || "gemini-3.7-flash"}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      apiSettings: { ...draft.apiSettings, geminiModel: e.target.value },
+                    })
+                  }
+                  className="w-full h-9 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 font-mono focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="gemini-3.7-flash">gemini-3.7-flash (最新・推奨・高速)</option>
+                  <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                  <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                  <option value="gemini-1.5-pro">gemini-1.5-pro (高精度・推論)</option>
+                </select>
+              </div>
+
+              {/* API Key input */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-slate-300">Gemini API Key</label>
                   <span className="text-[11px] text-slate-500 font-mono">
-                    {draft.apiSettings.geminiModel || "gemini-1.5-flash"}
+                    Google AI Studio
                   </span>
                 </div>
                 <div className="flex gap-2">

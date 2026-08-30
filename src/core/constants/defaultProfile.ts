@@ -43,7 +43,7 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   },
   apiSettings: {
     geminiApiKey: "",
-    geminiModel: "gemini-1.5-flash",
+    geminiModel: "gemini-3.7-flash",
   },
   updatedAt: new Date().toISOString(),
 };

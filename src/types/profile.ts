@@ -36,9 +36,16 @@ export interface ConditionMatrix {
   ngConditions: string[]; // e.g. ["常駐・SESメイン", "みなし残業45h超過", "レガシー技術固定"]
 }
 
+export type GeminiModel = 
+  | "gemini-3.7-flash"
+  | "gemini-2.0-flash"
+  | "gemini-1.5-flash"
+  | "gemini-1.5-pro"
+  | string;
+
 export interface ApiSettings {
   geminiApiKey: string;
-  geminiModel: "gemini-1.5-flash" | "gemini-1.5-pro" | "gemini-2.0-flash";
+  geminiModel: GeminiModel;
   customInstructions?: string;
 }
 
