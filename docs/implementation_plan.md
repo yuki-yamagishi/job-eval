@@ -1,6 +1,6 @@
-# Phase 7: 自動ローカル保存・再表示・AI再評価・ドキュメントインポート・横並び比較 & 転職ロードマップ画面 実装計画
+# Phase 8: 中長期キャリア展望・獲得スキル・次の転職先 (Career Trajectory) AI & 可視化 実装計画
 
-ユーザーからの追加要望（求人の自動ローカル保存、保存済み案件のブラウザ再表示、AI評価へのフィードバック＆再評価、Markdownインポート、横並び比較サマリ、選考状況・見送り理由・資格から俯瞰する転職ロードマップ画面）を網羅的に実装します。
+ユーザーからの追加要望（「このキャリアを選択した後の展望・得られるスキル・さらなる転職や方向性についても知っておきたい」）に応え、求人票を起点とした 2〜3 年後の中長期キャリアパス、獲得スキル、次の転職先候補（Exit Strategy）、市場年収展望を AI で自動分析・可視化する機能を実装します。
 
 ---
 
@@ -8,57 +8,56 @@
 
 ### 1. 型定義・ドメイン拡張
 #### [MODIFY] `src/types/job.ts`
-- `JobAnalysisResult` に `feedbackHistory?: Array<{ date: string; feedback: string; scoreDelta: number }>` を追加。
-- `JobAnalysisResult` に `originalJobText?: string` を追加（再評価時の元テキスト保持）。
+- `CareerTrajectory` インターフェースを新設：
+  ```ts
+  export interface CareerTrajectory {
+    acquiredSkills: string[];          // 2〜3年で身につく市場価値の高いスキル
+    nextCareerOptions: string[];       // 次の転職で狙えるポジション・キャリアパス
+    marketValueProjection: string;     // 2〜3年後の想定市場価値・年収レンジ
+    careerRisksOrLockin?: string;      // 技術的ロックインやキャリア上の留意点
+    overallOutlook: string;            // 中長期キャリア展望の総括アドバイス
+  }
+  ```
+- `JobAnalysisResult` に `careerTrajectory?: CareerTrajectory` を追加。
 
 ---
 
 ### 2. コアAIプロンプト & プロバイダ拡張
 #### [MODIFY] `src/core/prompt/jobAnalysisPrompt.ts`
-- `buildJobReEvaluationPrompt(previousResult, userFeedback, profile)` を新設。ユーザーのフィードバック（「実はAWS実務経験がある」「この年収条件は許容できる」など）を反映してスコア・判定・アピール点を再計算するプロンプトと JSON Schema を定義。
+- `buildJobAnalysisPrompt` および `buildJobReEvaluationPrompt` に「中長期キャリア展望（得られるスキル・次のキャリアパス・想定市場年収・ロックインリスク）」の推論指示を追加。
+- `GEMINI_JOB_ANALYSIS_SCHEMA` に `career_trajectory` オブジェクトを定義。
 
-#### [MODIFY] `src/services/ai/aiProvider.ts`, `geminiProvider.ts`, `mockAiProvider.ts`, `aiService.ts`
-- `reEvaluateJob(previousResult, userFeedback, profile)` メソッドを追加。
-
----
-
-### 3. 自動ローカル保存 & ドキュメントインポート
-#### [MODIFY] `src/services/storage/storageAdapter.ts`
-- `importMarkdownFile(fileContent: string): JobAnalysisResult` を実装（Markdown Frontmatter をパースして `JobAnalysisResult` に復元）。
-
-#### [MODIFY] `src/hooks/useJobs.ts`
-- `autoSaveJob(result: JobAnalysisResult)` メソッドを追加（解析完了時に自動同期）。
-- `importJobFromMarkdown(fileContent: string)` メソッドを追加。
+#### [MODIFY] `src/services/ai/geminiProvider.ts`, `mockAiProvider.ts`
+- Gemini Raw レスポンスから `careerTrajectory` へのパース・マッピングを実装。
+- `MockAiProvider` にも業種・職種・ポジションに応じたキャリア展望シミュレーション生成を実装。
 
 ---
 
-### 4. UI 機能の拡充
+### 3. Markdown 生成 & パース拡張
+#### [MODIFY] `src/core/markdown/markdownGenerator.ts`
+- Markdown 出力テンプレートに **`## 🚀 キャリア展望・獲得スキル・次の転職先 (Career Trajectory)`** セクションを追加。
+- インポート時（`parseJobMarkdownToJobResult`）にもキャリア展望セクションを復元。
+
+---
+
+### 4. UI 画面でのリッチ可視化
 #### [MODIFY] `src/components/pane/PreviewPane.tsx`
-- **「💡 AI提案へのフィードバック & 再評価」フォーム** を新設（フィードバック入力 ➔ ワンクリックでスコア再計算・更新）。
-- **「自動保存ステータス（✓ ローカル保存済み）」バッジ** を表示。
+- **「🚀 入社後のキャリア展望 & 次のキャリアパス」** リッチカードを新設：
+  - 身につくスキルバッジ群
+  - 次の転職で狙えるポジション・職種カード
+  - 将来の市場価値・年収レンジ展望
+  - キャリア上の留意点（ロックインリスク・留意事項）
 
-#### [MODIFY] `src/components/dashboard/JobDashboard.tsx`
-- **「求人の再表示」機能**: カードまたはテーブル行をクリックすると、プレビュー画面（または詳細モーダル）で即座に再閲覧・再編集。
-- **「Markdownインポート」ボタン & ドラッグ＆ドロップ**: 外部の `.md` を即時インポート。
-- **「横並び比較サマリ」機能**: 選択した 2〜4 社の年収・スコア・勤務形態・必須/歓迎要件・資格アドバイス・アピール点をマトリクスで並べて比較。
-
-#### [NEW] `src/features/roadmap/CareerRoadmapView.tsx`
-- **「転職ロードマップ」画面** を新設：
-  1. **選考パイプライン マイルストーン**: 「応募検討中 (N件)」「応募済 (N件)」「一次面接 (N件)」「最終面接 (N件)」「内定 (N件)」「見送り・辞退 (N件)」の進捗ボード・タイムライン。
-  2. **見送り・辞退分析サマリ**: 見送りにした求人の傾向（年収不適合、NG条件、スキルギャップ等）の可視化。
-  3. **資格・スキル獲得ロードマップ**: 全求人で要求・推奨された資格（AWS SAA, CKA, AZ-400 等）を目標時期・重要度順にまとめた戦略的ロードマップ。
-
-#### [MODIFY] `src/components/layout/Header.tsx`, `src/App.tsx`
-- ヘッダーに **「🗺️ ロードマップ」** タブを追加。
-- 各画面間のスムーズな連携（案件クリックでプレビューへジャンプ、解析完了時の自動ローカル保存など）を配線。
+#### [MODIFY] `src/features/roadmap/CareerRoadmapView.tsx`
+- 保存された全求人のキャリア展望を集約し、**「将来のキャリア分岐マップ & 次の転職先候補集約」** を表示。
 
 ---
 
 ## 検証計画 (Verification Plan)
 
 ### 自動テスト
-- `tests/core/jobAnalysisPrompt.test.ts`: 再評価プロンプトの生成テスト。
-- `tests/services/storageAdapter.test.ts`: Markdown インポート＆復元パーステスト。
-- `tests/features/CareerRoadmapView.test.tsx`: ロードマップ集計・パイプライン表示テスト。
-- `tests/features/JobDashboard.test.tsx`: 再表示・比較・インポートの UI テスト。
-- `npm run check`: ワンショット総合品質 & セキュリティゲートの全件パス確認。
+- `tests/core/jobAnalysisPrompt.test.ts`: キャリア展望プロンプトと JSON Schema の検証
+- `tests/core/markdownGenerator.test.ts`: キャリア展望 Markdown の生成・パース検証
+- `tests/features/PreviewPane.test.tsx`: キャリア展望リッチカードの描画検証
+- `tests/features/CareerRoadmapView.test.tsx`: 全求人横断キャリア展望の表示検証
+- `npm run check`: ワンショット総合品質・セキュリティゲートの全件合格

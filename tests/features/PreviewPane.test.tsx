@@ -124,4 +124,39 @@ describe("PreviewPane Component", () => {
 
     expect(handleReEvaluate).toHaveBeenCalledWith("AWSの実務経験が3年あります。");
   });
+
+  it("renders CareerTrajectory card when careerTrajectory is present", () => {
+    const resultWithTrajectory: JobAnalysisResult = {
+      ...mockResult,
+      careerTrajectory: {
+        acquiredSkills: ["マルチクラウドIaC基盤設計", "SRE推進"],
+        nextCareerOptions: ["スタッフエンジニア", "CTO / VPoE"],
+        marketValueProjection: "想定市場年収: 1,200万円 〜 1,500万円",
+        careerRisksOrLockin: "保守比率の増加に注意",
+        overallOutlook: "将来のCTOキャリアに直結する有望なポジションです。",
+      },
+    };
+
+    render(<PreviewPane analysisResult={resultWithTrajectory} isAnalyzing={false} />);
+    expect(screen.getByText(/入社後のキャリア展望 & 次のキャリアパス/)).toBeDefined();
+    expect(screen.getByText(/マルチクラウドIaC基盤設計/)).toBeDefined();
+    expect(screen.getByText("スタッフエンジニア")).toBeDefined();
+    expect(screen.getByText("想定市場年収: 1,200万円 〜 1,500万円")).toBeDefined();
+  });
+
+  it("triggers onGenerateCareerTrajectory when generate button is clicked on older job", async () => {
+    const handleGenerate = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PreviewPane
+        analysisResult={mockResult}
+        isAnalyzing={false}
+        onGenerateCareerTrajectory={handleGenerate}
+      />
+    );
+
+    const generateBtn = screen.getByText(/キャリア展望をAI生成/);
+    fireEvent.click(generateBtn);
+
+    expect(handleGenerate).toHaveBeenCalledWith(mockResult);
+  });
 });

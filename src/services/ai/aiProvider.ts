@@ -1,4 +1,4 @@
-import { JobAnalysisResult, AgentSource } from "@/types/job";
+import { JobAnalysisResult, AgentSource, CareerTrajectory } from "@/types/job";
 import { UserProfile } from "@/types/profile";
 
 export interface AiProvider {
@@ -13,4 +13,8 @@ export interface AiProvider {
     userFeedback: string,
     profile: UserProfile
   ): Promise<JobAnalysisResult>;
+  generateCareerTrajectory(
+    jobResult: JobAnalysisResult,
+    profile: UserProfile
+  ): Promise<CareerTrajectory>;
 }

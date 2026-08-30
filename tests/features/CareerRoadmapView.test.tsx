@@ -34,6 +34,13 @@ describe("CareerRoadmapView", () => {
         recommendedCertifications: ["AWS SAP", "CKA"],
         advice: "AWS実務経験のアピールにSAP取得を推奨。",
       },
+      careerTrajectory: {
+        acquiredSkills: ["マルチクラウドIaC基盤設計", "高トラフィック分散アーキテクチャ"],
+        nextCareerOptions: ["スタッフエンジニア / プリンシパル", "VPoE / EM"],
+        marketValueProjection: "想定市場年収: 1,100万円 〜 1,450万円",
+        careerRisksOrLockin: "保守比率の増加に注意",
+        overallOutlook: "将来のCTOキャリアに直結する有望なポジションです。",
+      },
       jobDetails: {
         mustRequirements: [],
         wantRequirements: [],
@@ -129,5 +136,19 @@ describe("CareerRoadmapView", () => {
     fireEvent.click(jobCards[0]);
 
     expect(handleSelect).toHaveBeenCalledWith(mockJobs[0]);
+  });
+
+  it("renders Career Pathways section aggregating trajectories across jobs", () => {
+    render(
+      <CareerRoadmapView
+        savedJobs={mockJobs}
+        profile={TEST_MOCK_PROFILE}
+      />
+    );
+
+    expect(screen.getByText(/各社選択後のキャリア分岐・次の転職先マップ/)).toBeDefined();
+    expect(screen.getByText(/マルチクラウドIaC基盤設計/)).toBeDefined();
+    expect(screen.getByText(/スタッフエンジニア \/ プリンシパル/)).toBeDefined();
+    expect(screen.getByText("想定市場年収: 1,100万円 〜 1,450万円")).toBeDefined();
   });
 });

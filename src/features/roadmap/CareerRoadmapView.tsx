@@ -5,7 +5,9 @@ import {
   XCircle, 
   Layers, 
   Building2,
-  Eye
+  Eye,
+  Rocket,
+  Compass
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -147,6 +149,20 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({
       })
       .sort((a, b) => b.count - a.count);
   }, [savedJobs, profile]);
+
+  // 4. Aggregate career trajectories across all active jobs
+  const careerPathways = useMemo(() => {
+    const validJobs = savedJobs.filter((j) => j.careerTrajectory);
+    return validJobs.map((j) => ({
+      jobId: j.metadata.id,
+      company: j.metadata.company,
+      title: j.metadata.title,
+      status: j.metadata.status,
+      matchScore: j.metadata.matchScore,
+      salaryRange: formatSalary(j.metadata.salaryMin, j.metadata.salaryMax),
+      trajectory: j.careerTrajectory!,
+    }));
+  }, [savedJobs]);
 
   return (
     <div className="h-full p-6 space-y-6 overflow-y-auto max-w-7xl mx-auto pb-20">
@@ -366,6 +382,111 @@ export const CareerRoadmapView: React.FC<CareerRoadmapViewProps> = ({
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* 3. Bottom Section: Career Pathways & Next Exit Strategy Across Jobs */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-indigo-300 flex items-center gap-1.5">
+              <Rocket className="h-4 w-4 text-indigo-400" />
+              🚀 各社選択後のキャリア分岐・次の転職先マップ (Career Pathways)
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              検討中求人に入社して2〜3年実務を積んだ後、それぞれどのようなスキルが身につき、どのキャリア（Next Exit）に繋がるのかを比較します。
+            </p>
+          </div>
+        </div>
+
+        {careerPathways.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {careerPathways.map((item) => {
+              const originalJob = savedJobs.find((j) => j.metadata.id === item.jobId);
+              return (
+                <Card
+                  key={item.jobId}
+                  className="border-indigo-500/20 bg-slate-950/70 hover:border-indigo-500/40 transition-all flex flex-col justify-between"
+                >
+                  <CardContent className="p-4 space-y-3">
+                    {/* Header */}
+                    <div className="flex items-start justify-between border-b border-slate-800/80 pb-2">
+                      <div>
+                        <h4 className="text-xs font-bold text-white truncate max-w-[180px]">
+                          {item.company}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 truncate max-w-[180px]">
+                          {item.title}
+                        </p>
+                      </div>
+                      <Badge variant="indigo" className="text-[10px] font-mono shrink-0">
+                        {item.matchScore}点
+                      </Badge>
+                    </div>
+
+                    {/* Future Market Value */}
+                    <div className="bg-slate-900/90 p-2 rounded-lg border border-indigo-500/20 text-xs flex items-center justify-between">
+                      <span className="text-slate-400 font-medium">将来想定年収:</span>
+                      <span className="font-mono font-bold text-emerald-400 text-[11px]">
+                        {item.trajectory.marketValueProjection}
+                      </span>
+                    </div>
+
+                    {/* Acquired Skills */}
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+                        <Layers className="h-3 w-3 text-indigo-400" />
+                        身につくスキル:
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {item.trajectory.acquiredSkills.map((s, i) => (
+                          <span
+                            key={i}
+                            className="text-[10px] bg-slate-900 text-indigo-200 px-2 py-0.5 rounded border border-slate-800"
+                          >
+                            💎 {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Next Exit Options */}
+                    <div className="space-y-1 pt-1 border-t border-slate-800/60">
+                      <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+                        <Compass className="h-3 w-3 text-purple-400" />
+                        次の転職先・キャリアパス:
+                      </span>
+                      <ul className="text-[11px] text-purple-300 space-y-0.5">
+                        {item.trajectory.nextCareerOptions.map((o, i) => (
+                          <li key={i} className="flex items-center gap-1">
+                            <span className="text-purple-400 font-bold">➔</span>
+                            <span className="truncate">{o}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Preview Button */}
+                    {originalJob && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onSelectJobForPreview?.(originalJob)}
+                        className="w-full h-7 text-xs text-indigo-300 hover:text-white hover:bg-indigo-600/30 mt-2"
+                      >
+                        <Eye className="h-3.5 w-3.5 mr-1" />
+                        詳細プレビューを見る
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <Card className="border-slate-800 bg-slate-950/40 p-6 text-center text-xs text-slate-500">
+            求人を解析すると、各社選択後のキャリア分岐・次の転職先候補（Next Exit）がここに集約されます。
+          </Card>
+        )}
       </div>
     </div>
   );

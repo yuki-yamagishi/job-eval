@@ -86,6 +86,22 @@ export class MockAiProvider implements AiProvider {
       advice: "パブリッククラウドの設計実績に加え、現在学習中のAZ-400やコンテナ技術(CKA)を取得することで、インフラ自動化・CI/CD推進ポジションでの合格率が大幅に向上します。",
     };
 
+    const careerTrajectory = {
+      acquiredSkills: [
+        "大規模マルチクラウド基盤 (Azure/AWS) の統括設計・IaC自動化",
+        "高トラフィックWeb基盤におけるマイクロサービス & CI/CD最適化",
+        "開発組織横断のSRE・SLO策定および耐障害性アーキテクチャ設計",
+      ],
+      nextCareerOptions: [
+        "スタッフエンジニア / プリンシパル クラウドアーキテクト",
+        "VPoE / エンジニアリングマネージャー (EM)",
+        "技術顧問 / クラウド戦略フリーランスコンサルタント",
+      ],
+      marketValueProjection: "想定市場年収: 1,100万円 〜 1,450万円",
+      careerRisksOrLockin: "クラウド刷新が一段落した後の保守運用比率の増加に注意。新規アーキテクチャの導入裁量を早期に確保することが重要。",
+      overallOutlook: "本ポジションでの実務経験は、市場需要が極めて高い『クラウドネイティブ推進リード』としての確固たる実績となり、将来のCTO/スタッフエンジニアへのキャリア飛躍に直結します。",
+    };
+
     const today = new Date().toISOString().split("T")[0];
     const jobId = `job-${today.replace(/-/g, "")}-${Math.floor(100 + Math.random() * 900)}`;
 
@@ -111,6 +127,7 @@ export class MockAiProvider implements AiProvider {
       agentQuestions,
       appealPoints,
       qualificationAdvice,
+      careerTrajectory,
       mustRequirements: mustReqs,
       wantRequirements: wantReqs,
       jobDescription: [
@@ -129,6 +146,7 @@ export class MockAiProvider implements AiProvider {
       agentQuestions,
       appealPoints,
       qualificationAdvice,
+      careerTrajectory,
       jobDetails: {
         mustRequirements: mustReqs,
         wantRequirements: wantReqs,
@@ -179,6 +197,19 @@ export class MockAiProvider implements AiProvider {
       },
     ];
 
+    const careerTrajectory = previousResult.careerTrajectory || {
+      acquiredSkills: [
+        "実務フィードバックを反映した高度なアーキテクチャ設計・推進力",
+        "大規模クラウド基盤のコスト & パフォーマンス最適化",
+      ],
+      nextCareerOptions: [
+        "スタッフエンジニア / プリンシパル",
+        "VPoE / 技術スペシャリスト",
+      ],
+      marketValueProjection: "想定市場年収: 1,150万円 〜 1,500万円",
+      overallOutlook: "ユーザーの追加知見・強みを加味したことで、市場価値のさらなる伸長が期待できます。",
+    };
+
     const markdownContent = generateJobMarkdown({
       metadata: updatedMetadata,
       scoreBreakdown: {
@@ -193,6 +224,7 @@ export class MockAiProvider implements AiProvider {
         `フィードバック補足事項: ${userFeedback}`,
       ],
       qualificationAdvice: previousResult.qualificationAdvice,
+      careerTrajectory,
       mustRequirements: previousResult.jobDetails.mustRequirements,
       wantRequirements: previousResult.jobDetails.wantRequirements,
       jobDescription: previousResult.jobDetails.jobDescription,
@@ -203,8 +235,35 @@ export class MockAiProvider implements AiProvider {
       ...previousResult,
       metadata: updatedMetadata,
       positives: updatedPositives,
+      careerTrajectory,
       feedbackHistory: updatedHistory,
       markdownContent,
+    };
+  }
+
+  async generateCareerTrajectory(
+    jobResult: JobAnalysisResult,
+    _profile: UserProfile
+  ): Promise<import("@/types/job").CareerTrajectory> {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    const title = jobResult.metadata.title;
+    const isLead = title.includes("リード") || title.includes("アーキテクト") || title.includes("マネージャー");
+
+    return {
+      acquiredSkills: [
+        `実務を通じた「${title}」領域の高度な専門性と設計主導力`,
+        "事業成長フェーズにおけるスケーラブルな技術標準化の推進",
+        "チーム内の技術メンターシップおよび開発生産性の向上実績",
+      ],
+      nextCareerOptions: isLead
+        ? ["プリンシパルエンジニア / テックフェロー", "CTO / VPoE", "独立技術コンサルタント"]
+        : ["テックリード / シニアアーキテクト", "エンジニアリングマネージャー", "スタートアップ初期CTO"],
+      marketValueProjection: isLead
+        ? "想定市場年収: 1,100万円 〜 1,500万円"
+        : "想定市場年収: 900万円 〜 1,200万円",
+      careerRisksOrLockin: "社内特定ツールへの過度な依存を避け、OSSや業界標準技術に軸足を置いた実績作りを意識してください。",
+      overallOutlook: `このポジションでの2〜3年の実績は、次の転職市場において「${title}」としての確固たる信頼となり、上位レイヤーへのキャリアアップを確実なものにします。`,
     };
   }
 }

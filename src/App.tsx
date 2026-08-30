@@ -5,7 +5,12 @@ import { PreviewPane } from "@/components/pane/PreviewPane";
 import { JobDashboard } from "@/components/dashboard/JobDashboard";
 import { CareerRoadmapView } from "@/features/roadmap/CareerRoadmapView";
 import { ProfileSettingsView } from "@/features/profile/ProfileSettingsView";
-import { analyzeJobWithProfile, reEvaluateJobWithProfile } from "@/services/ai/aiService";
+import { 
+  analyzeJobWithProfile, 
+  reEvaluateJobWithProfile, 
+  generateCareerTrajectoryWithProfile 
+} from "@/services/ai/aiService";
+import { generateJobMarkdown } from "@/core/markdown/markdownGenerator";
 import { useProfile } from "@/hooks/useProfile";
 import { useJobs } from "@/hooks/useJobs";
 import { JobAnalysisResult, AgentSource } from "@/types/job";
@@ -50,6 +55,39 @@ export function App() {
       alert(`【再評価エラー】${message}`);
     } finally {
       setIsReEvaluating(false);
+    }
+  };
+
+  const handleGenerateCareerTrajectory = async (job: JobAnalysisResult) => {
+    try {
+      const trajectory = await generateCareerTrajectoryWithProfile(job, profile);
+      const updatedMarkdown = generateJobMarkdown({
+        metadata: job.metadata,
+        scoreBreakdown: job.scoreBreakdown,
+        positives: job.positives,
+        concerns: job.concerns,
+        agentQuestions: job.agentQuestions,
+        appealPoints: job.appealPoints,
+        qualificationAdvice: job.qualificationAdvice,
+        careerTrajectory: trajectory,
+        mustRequirements: job.jobDetails.mustRequirements,
+        wantRequirements: job.jobDetails.wantRequirements,
+        jobDescription: job.jobDetails.jobDescription,
+        selectionProcess: job.jobDetails.selectionProcess,
+      });
+
+      const updatedJob: JobAnalysisResult = {
+        ...job,
+        careerTrajectory: trajectory,
+        markdownContent: updatedMarkdown,
+      };
+
+      setAnalysisResult(updatedJob);
+      await saveJob(updatedJob);
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error("Generating career trajectory failed:", err);
+      alert(`キャリア展望の生成に失敗しました:\n${err.message}`);
     }
   };
 
@@ -109,6 +147,7 @@ export function App() {
                 isReEvaluating={isReEvaluating}
                 onSaveMarkdown={handleSaveMarkdown}
                 onReEvaluate={handleReEvaluate}
+                onGenerateCareerTrajectory={handleGenerateCareerTrajectory}
               />
             </div>
           </div>

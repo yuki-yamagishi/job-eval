@@ -1,10 +1,12 @@
-import { JobAnalysisResult, AgentSource, JudgmentRank } from "@/types/job";
+import { JobAnalysisResult, AgentSource, JudgmentRank, CareerTrajectory } from "@/types/job";
 import { UserProfile } from "@/types/profile";
 import { AiProvider } from "./aiProvider";
 import {
   buildJobAnalysisPrompt,
   buildJobReEvaluationPrompt,
+  buildCareerTrajectoryPrompt,
   GEMINI_JOB_ANALYSIS_SCHEMA,
+  GEMINI_CAREER_TRAJECTORY_SCHEMA,
 } from "@/core/prompt/jobAnalysisPrompt";
 import { generateJobMarkdown } from "@/core/markdown/markdownGenerator";
 
@@ -32,6 +34,13 @@ interface GeminiRawResponse {
     required_certifications?: string[];
     recommended_certifications?: string[];
     advice?: string;
+  };
+  career_trajectory?: {
+    acquired_skills?: string[];
+    next_career_options?: string[];
+    market_value_projection?: string;
+    career_risks_or_lockin?: string;
+    overall_outlook?: string;
   };
   must_requirements?: string[];
   want_requirements?: string[];
@@ -263,6 +272,77 @@ export class GeminiAiProvider implements AiProvider {
     throw lastError || new Error("Gemini API での再評価に失敗しました。");
   }
 
+  async generateCareerTrajectory(
+    jobResult: JobAnalysisResult,
+    profile: UserProfile
+  ): Promise<CareerTrajectory> {
+    const apiKey = profile.apiSettings?.geminiApiKey?.trim();
+    if (!apiKey) {
+      throw new Error("Gemini API キーが設定されていません。プロファイル設定画面から入力してください。");
+    }
+
+    const primaryModel = (profile.apiSettings?.geminiModel || "gemini-3.6-flash").replace(/^models\//, "").trim();
+    const candidateModels = Array.from(new Set([primaryModel, ...RECOMMENDED_MODELS]));
+    let lastError: Error | null = null;
+
+    const { systemInstruction, userPrompt } = buildCareerTrajectoryPrompt(jobResult, profile);
+
+    for (const model of candidateModels) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const requestBody = {
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: userPrompt }],
+            },
+          ],
+          systemInstruction: {
+            parts: [{ text: systemInstruction }],
+          },
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: GEMINI_CAREER_TRAJECTORY_SCHEMA,
+            temperature: 0.2,
+          },
+        };
+
+        const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), 20000) : null;
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+          signal: controller?.signal,
+        });
+        if (timeoutId) clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Gemini API エラー (HTTP ${response.status})`);
+        }
+
+        const data = await response.json();
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!rawText) throw new Error("Gemini からの応答が空でした。");
+
+        const raw = JSON.parse(rawText);
+        return {
+          acquiredSkills: raw.acquired_skills || ["モダンアーキテクチャの設計・構築経験"],
+          nextCareerOptions: raw.next_career_options || ["スタッフエンジニア", "EM / VPoE"],
+          marketValueProjection: raw.market_value_projection || "想定年収: 1,000万〜1,300万円",
+          careerRisksOrLockin: raw.career_risks_or_lockin,
+          overallOutlook: raw.overall_outlook || "技術的専門性を活かした市場価値向上が見込めます。",
+        };
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        console.warn(`Gemini career trajectory model ${model} failed, trying fallback...`, lastError.message);
+      }
+    }
+
+    throw lastError || new Error("Gemini API でのキャリア展望生成に失敗しました。");
+  }
+
   private async executeGeminiRequest(
     apiKey: string,
     model: string,
@@ -410,6 +490,16 @@ export class GeminiAiProvider implements AiProvider {
         }
       : undefined;
 
+    const careerTrajectory = raw.career_trajectory
+      ? {
+          acquiredSkills: raw.career_trajectory.acquired_skills || [],
+          nextCareerOptions: raw.career_trajectory.next_career_options || [],
+          marketValueProjection: raw.career_trajectory.market_value_projection || "",
+          careerRisksOrLockin: raw.career_trajectory.career_risks_or_lockin,
+          overallOutlook: raw.career_trajectory.overall_outlook || "",
+        }
+      : undefined;
+
     const markdownContent = generateJobMarkdown({
       metadata,
       scoreBreakdown,
@@ -418,6 +508,7 @@ export class GeminiAiProvider implements AiProvider {
       agentQuestions,
       appealPoints,
       qualificationAdvice,
+      careerTrajectory,
       mustRequirements,
       wantRequirements,
       jobDescription,
@@ -432,6 +523,7 @@ export class GeminiAiProvider implements AiProvider {
       agentQuestions,
       appealPoints,
       qualificationAdvice,
+      careerTrajectory,
       jobDetails: {
         mustRequirements,
         wantRequirements,

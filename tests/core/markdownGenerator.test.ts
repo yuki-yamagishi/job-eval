@@ -146,4 +146,39 @@ tags:
     expect(result.appealPoints.length).toBe(1);
     expect(result.jobDetails.mustRequirements).toContain("Rust実務経験 3年以上");
   });
+
+  it("generates markdown with Career Trajectory section and parses it back", () => {
+    const md = generateJobMarkdown({
+      metadata: mockMetadata,
+      scoreBreakdown: {
+        skillMatchRatio: 90,
+        conditionMatchRatio: 90,
+        careerGrowthRatio: 90,
+        environmentRiskRatio: 90,
+      },
+      positives: ["高待遇"],
+      concerns: [],
+      agentQuestions: [],
+      appealPoints: [],
+      careerTrajectory: {
+        acquiredSkills: ["大規模マルチクラウド基盤設計", "IaC自動化"],
+        nextCareerOptions: ["スタッフエンジニア", "VPoE"],
+        marketValueProjection: "想定市場年収: 1,200万円 〜 1,500万円",
+        careerRisksOrLockin: "運用固定化に注意",
+        overallOutlook: "将来のCTOキャリアに直結する有望なポジションです。",
+      },
+      mustRequirements: ["AWS設計経験"],
+      wantRequirements: [],
+      jobDescription: ["インフラ刷新"],
+    });
+
+    expect(md).toContain("## 🚀 キャリア展望・獲得スキル・次の転職先 (Career Trajectory)");
+    expect(md).toContain("大規模マルチクラウド基盤設計");
+    expect(md).toContain("スタッフエンジニア");
+    expect(md).toContain("想定市場年収: 1,200万円 〜 1,500万円");
+
+    const parsed = parseJobMarkdownToJobResult(md);
+    expect(parsed.careerTrajectory).toBeDefined();
+    expect(parsed.careerTrajectory?.acquiredSkills.length).toBeGreaterThan(0);
+  });
 });

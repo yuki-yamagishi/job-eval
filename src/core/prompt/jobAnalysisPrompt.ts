@@ -172,6 +172,34 @@ export const GEMINI_JOB_ANALYSIS_SCHEMA = {
       },
       required: ["required_certifications", "recommended_certifications", "advice"],
     },
+    career_trajectory: {
+      type: "object",
+      properties: {
+        acquired_skills: {
+          type: "array",
+          items: { type: "string" },
+          description: "このポジションで2〜3年実務を積むことで獲得・深化できる市場価値の高い希少スキル (3〜5項目)",
+        },
+        next_career_options: {
+          type: "array",
+          items: { type: "string" },
+          description: "この会社を経て次に狙える上位職種・キャリアパス (例: スタッフエンジニア, VPoE, CTO, フリーランス顧問等 3〜4項目)",
+        },
+        market_value_projection: {
+          type: "string",
+          description: "2〜3年後の想定市場価値・年収レンジ (例: 想定年収: 1,100万円〜1,400万円)",
+        },
+        career_risks_or_lockin: {
+          type: "string",
+          description: "技術的ロックインやキャリア上の留意点 (例: 移行完了後の保守固定化リスク等)",
+        },
+        overall_outlook: {
+          type: "string",
+          description: "このポジション選択が候補者の将来キャリアに与える展望と中長期戦略の総括アドバイス",
+        },
+      },
+      required: ["acquired_skills", "next_career_options", "market_value_projection", "overall_outlook"],
+    },
     must_requirements: {
       type: "array",
       items: { type: "string" },
@@ -210,6 +238,73 @@ export const GEMINI_JOB_ANALYSIS_SCHEMA = {
 };
 
 /**
+ * Dedicated schema for generating career trajectory for existing jobs
+ */
+export const GEMINI_CAREER_TRAJECTORY_SCHEMA = {
+  type: "object",
+  properties: {
+    acquired_skills: {
+      type: "array",
+      items: { type: "string" },
+      description: "このポジションで2〜3年実務を積むことで獲得・深化できる市場価値の高い希少スキル (3〜5項目)",
+    },
+    next_career_options: {
+      type: "array",
+      items: { type: "string" },
+      description: "この会社を経て次に狙える上位職種・キャリアパス (例: スタッフエンジニア, VPoE, CTO, フリーランス顧問等 3〜4項目)",
+    },
+    market_value_projection: {
+      type: "string",
+      description: "2〜3年後の想定市場価値・年収レンジ (例: 想定年収: 1,100万円〜1,400万円)",
+    },
+    career_risks_or_lockin: {
+      type: "string",
+      description: "技術的ロックインやキャリア上の留意点 (例: 移行完了後の保守固定化リスク等)",
+    },
+    overall_outlook: {
+      type: "string",
+      description: "このポジション選択が候補者の将来キャリアに与える展望と中長期戦略の総括アドバイス",
+    },
+  },
+  required: ["acquired_skills", "next_career_options", "market_value_projection", "overall_outlook"],
+};
+
+/**
+ * Build prompt to generate career trajectory for an already analyzed job
+ */
+export function buildCareerTrajectoryPrompt(
+  jobResult: import("@/types/job").JobAnalysisResult,
+  profile: UserProfile
+): { systemInstruction: string; userPrompt: string } {
+  const systemInstruction = `あなたはトップITキャリアコンサルタントおよびテックリードメンターです。
+与えられた求人票情報（企業名、ポジション、必須要件、業務内容）と候補者プロファイルに基づき、
+「この会社に入社して2〜3年実務を経験した後の、中長期キャリア展望 (Career Trajectory)」を客観的・戦略的に分析してください。
+
+【分析視点】
+1. 2〜3年で獲得できる市場価値の高いスキル（技術・設計・組織推進）
+2. この会社を経て次に狙える上位職種・キャリアパス（Next Exit Strategy）
+3. 2〜3年後の想定市場価値・年収レンジ
+4. キャリア上の留意点や技術的ロックインリスク
+5. キャリア展望の総括アドバイス`;
+
+  const userPrompt = `【対象求人情報】
+- 企業名: ${jobResult.metadata.company}
+- 募集職種: ${jobResult.metadata.title}
+- 提示年収: ${jobResult.metadata.salaryMin ?? "不明"}万 〜 ${jobResult.metadata.salaryMax ?? "不明"}万円
+- 必須要件: ${jobResult.jobDetails.mustRequirements.join(" / ")}
+- 担当業務: ${jobResult.jobDetails.jobDescription.join(" / ")}
+
+【候補者プロファイル】
+- 現在の主な経験技術: ${profile.skills.map((s) => s.name).join(", ")}
+- 目標年収: ${profile.conditions.targetSalaryMin}万円以上
+
+---
+上記求人における中長期キャリア展望をJSONスキーマに従って出力してください。`;
+
+  return { systemInstruction, userPrompt };
+}
+
+/**
  * Build a re-evaluation prompt incorporating user feedback on previous AI analysis
  */
 export function buildJobReEvaluationPrompt(
@@ -228,7 +323,7 @@ export function buildJobReEvaluationPrompt(
 【再評価（フィードバック反映）の特別指示】
 ユーザーから前回のAI判定・評価結果に対する追加情報・フィードバックが届きました。
 ユーザーのフィードバック内容（例: 記載漏れスキルの補足、年収条件の優先度変更、懸念事項の自己解決状況など）を真摯に考慮し、
-スコアの内訳（スキル合致度、条件合致度等）、判定ランク、アピールポイント、逆質問文を再計算・更新してください。`;
+スコアの内訳（スキル合致度、条件合致度等）、判定ランク、アピールポイント、逆質問文、および中長期キャリア展望を再計算・更新してください。`;
 
   const reEvaluationUserPrompt = `${base.userPrompt}
 

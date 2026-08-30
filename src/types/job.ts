@@ -43,6 +43,14 @@ export interface FeedbackItem {
   newScore: number;
 }
 
+export interface CareerTrajectory {
+  acquiredSkills: string[];          // 2〜3年で身につく市場価値の高いスキル
+  nextCareerOptions: string[];       // 次の転職で狙えるポジション・キャリアパス
+  marketValueProjection: string;     // 2〜3年後の想定市場価値・年収レンジ
+  careerRisksOrLockin?: string;      // 技術的ロックインやキャリア上の留意点
+  overallOutlook: string;            // 中長期キャリア展望の総括アドバイス
+}
+
 export interface JobAnalysisResult {
   metadata: JobMetadata;
   originalJobText?: string;
@@ -62,6 +70,7 @@ export interface JobAnalysisResult {
     recommendedCertifications: string[];
     advice: string;
   };
+  careerTrajectory?: CareerTrajectory;
   jobDetails: {
     mustRequirements: string[];
     wantRequirements: string[];

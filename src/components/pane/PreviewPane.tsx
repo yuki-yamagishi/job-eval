@@ -14,7 +14,12 @@ import {
   Check,
   Download,
   FolderOpen,
-  GraduationCap
+  GraduationCap,
+  TrendingUp,
+  Rocket,
+  Compass,
+  ShieldAlert,
+  Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -29,6 +34,7 @@ interface PreviewPaneProps {
   isReEvaluating?: boolean;
   onSaveMarkdown?: (markdownContent: string) => void;
   onReEvaluate?: (feedback: string) => Promise<void>;
+  onGenerateCareerTrajectory?: (job: JobAnalysisResult) => Promise<void>;
 }
 
 type ViewMode = "rich" | "split" | "raw";
@@ -39,12 +45,14 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
   isReEvaluating = false,
   onSaveMarkdown,
   onReEvaluate,
+  onGenerateCareerTrajectory,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>("rich");
   const [editedMarkdown, setEditedMarkdown] = useState<string>("");
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [userFeedbackText, setUserFeedbackText] = useState("");
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isGeneratingTrajectory, setIsGeneratingTrajectory] = useState(false);
 
   // Sync markdown content when analysisResult changes
   useEffect(() => {
@@ -509,6 +517,133 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                       <span className="text-cyan-400 font-semibold mr-1.5">💡 戦略アドバイス:</span>
                       <span>{analysisResult.qualificationAdvice.advice}</span>
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Career Trajectory Card (中長期キャリア展望 & 次の転職先) */}
+            {analysisResult.careerTrajectory ? (
+              <Card className="border-indigo-500/30 bg-gradient-to-br from-slate-900/95 via-indigo-950/20 to-purple-950/30 shadow-lg shadow-indigo-950/20">
+                <CardHeader className="p-3.5 pb-2.5 border-b border-indigo-500/20 flex flex-row items-center justify-between">
+                  <CardTitle className="text-xs text-indigo-300 flex items-center gap-1.5 font-bold">
+                    <Rocket className="h-4 w-4 text-indigo-400" />
+                    🚀 入社後のキャリア展望 & 次のキャリアパス (Career Trajectory)
+                  </CardTitle>
+                  <Badge variant="indigo" className="text-[10px] bg-indigo-950 border-indigo-700/60 text-indigo-300">
+                    2〜3年後の市場価値
+                  </Badge>
+                </CardHeader>
+                <CardContent className="p-3.5 pt-3 space-y-3">
+                  {/* Market Value & Future Salary */}
+                  <div className="bg-slate-950/70 p-3 rounded-xl border border-indigo-500/20 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-emerald-400" />
+                      <span className="text-xs text-slate-300 font-semibold">将来の想定市場価値:</span>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-800/40">
+                      {analysisResult.careerTrajectory.marketValueProjection}
+                    </span>
+                  </div>
+
+                  {/* 2-3 Years Acquired Skills */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
+                      <Layers className="h-3.5 w-3.5 text-indigo-400" />
+                      <span>2〜3年で身につく市場価値の高い希少スキル:</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {analysisResult.careerTrajectory.acquiredSkills.map((skill, i) => (
+                        <Badge
+                          key={i}
+                          variant="secondary"
+                          className="text-[11px] px-2.5 py-1 bg-slate-900 border border-indigo-500/30 text-indigo-200 font-medium"
+                        >
+                          💎 {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Next Career Options (Next Exit) */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
+                      <Compass className="h-3.5 w-3.5 text-purple-400" />
+                      <span>この会社を経て次に狙える上位職種・進路 (Next Exit):</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {analysisResult.careerTrajectory.nextCareerOptions.map((opt, i) => (
+                        <div
+                          key={i}
+                          className="bg-slate-950/60 p-2 rounded-lg border border-purple-500/20 text-xs text-purple-200 flex items-center gap-1.5"
+                        >
+                          <span className="text-purple-400 font-bold">➔</span>
+                          <span>{opt}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Career Risks / Lock-in */}
+                  {analysisResult.careerTrajectory.careerRisksOrLockin && (
+                    <div className="bg-amber-950/20 p-2.5 rounded-lg border border-amber-500/30 text-xs text-amber-200 leading-relaxed flex items-start gap-2">
+                      <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold text-amber-300 block mb-0.5">キャリア上の留意点・リスク:</span>
+                        <span>{analysisResult.careerTrajectory.careerRisksOrLockin}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Overall Outlook */}
+                  {analysisResult.careerTrajectory.overallOutlook && (
+                    <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                      <span className="text-indigo-400 font-semibold mr-1.5">🎯 中長期戦略総括:</span>
+                      <span>{analysisResult.careerTrajectory.overallOutlook}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              /* Fallback Card for older jobs without career trajectory */
+              <Card className="border-indigo-500/20 bg-slate-950/60">
+                <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                      <Rocket className="h-4 w-4 text-indigo-400" />
+                      🚀 中長期キャリア展望・次の転職先 (Career Trajectory)
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      この求人選択後の「身につくスキル」「次の転職先候補」「将来年収展望」をAIで生成します。
+                    </p>
+                  </div>
+                  {onGenerateCareerTrajectory && (
+                    <Button
+                      size="sm"
+                      disabled={isGeneratingTrajectory}
+                      onClick={async () => {
+                        if (!analysisResult) return;
+                        setIsGeneratingTrajectory(true);
+                        try {
+                          await onGenerateCareerTrajectory(analysisResult);
+                        } finally {
+                          setIsGeneratingTrajectory(false);
+                        }
+                      }}
+                      className="shrink-0 h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium"
+                    >
+                      {isGeneratingTrajectory ? (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          展望を生成中...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                          ✨ キャリア展望をAI生成
+                        </>
+                      )}
+                    </Button>
                   )}
                 </CardContent>
               </Card>

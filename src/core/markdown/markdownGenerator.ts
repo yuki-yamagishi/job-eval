@@ -1,4 +1,4 @@
-import { JobMetadata } from "@/types/job";
+import { JobMetadata, CareerTrajectory } from "@/types/job";
 
 export interface MarkdownGenerationInput {
   metadata: JobMetadata;
@@ -17,6 +17,7 @@ export interface MarkdownGenerationInput {
     recommendedCertifications: string[];
     advice: string;
   };
+  careerTrajectory?: CareerTrajectory;
   mustRequirements: string[];
   wantRequirements: string[];
   jobDescription: string[];
@@ -60,17 +61,35 @@ export function generateJobMarkdown(input: MarkdownGenerationInput): string {
   if (qualificationAdvice) {
     const reqCerts = qualificationAdvice.requiredCertifications.length > 0
       ? qualificationAdvice.requiredCertifications.join(", ")
-      : "特になし（実務経験重視）";
+      : "特になし";
     const recCerts = qualificationAdvice.recommendedCertifications.length > 0
       ? qualificationAdvice.recommendedCertifications.map((c) => `\`${c}\``).join(" / ")
-      : "現状の保有資格で十分アピール可能";
+      : "特になし";
 
-    qualificationSection = `---
+    qualificationSection = `
 
 ## 🎯 資格・スキルギャップ補強アクション
 - **求人指定・関連資格**: ${reqCerts}
 - **アピール強化・推奨資格**: ${recCerts}
 - **戦略アドバイス**: ${qualificationAdvice.advice}
+`;
+  }
+
+  let careerTrajectorySection = "";
+  if (input.careerTrajectory) {
+    const ct = input.careerTrajectory;
+    const skills = ct.acquiredSkills.map((s) => `  - \`${s}\``).join("\n");
+    const nextOptions = ct.nextCareerOptions.map((o) => `  - ${o}`).join("\n");
+
+    careerTrajectorySection = `
+
+## 🚀 キャリア展望・獲得スキル・次の転職先 (Career Trajectory)
+- **2〜3年で身につく市場価値スキル**:
+${skills}
+- **次の転職で狙えるポジション・キャリアパス (Next Career)**:
+${nextOptions}
+- **将来想定市場年収**: ${ct.marketValueProjection}
+${ct.careerRisksOrLockin ? `- **キャリア上の留意点・リスク**: ${ct.careerRisksOrLockin}\n` : ""}- **中長期展望アドバイス**: ${ct.overallOutlook}
 `;
   }
 
@@ -101,7 +120,7 @@ ${positivesFormatted}
 
 ### ⚠️ 懸念点・確認事項
 ${concernsFormatted}
-${qualificationSection}
+${qualificationSection}${careerTrajectorySection}
 ---
 
 ## 💬 エージェントへの逆質問・確認事項
@@ -286,6 +305,19 @@ export function parseJobMarkdownToJobResult(markdown: string): import("@/types/j
   const wantRequirements = extractSectionList(/^##+\s+.*(歓迎要件|Want)/i);
   const jobDescription = extractSectionList(/^##+\s+.*(業務内容|募集概要)/i);
 
+  const careerSkills = extractSectionList(/^##+\s+.*(キャリア展望|獲得スキル|市場価値スキル)/i);
+  const nextCareers = extractSectionList(/^##+\s+.*(次の転職|上位ポジション|キャリアパス)/i);
+
+  let careerTrajectory: import("@/types/job").CareerTrajectory | undefined = undefined;
+  if (careerSkills.length > 0 || nextCareers.length > 0 || parsed.body.includes("Career Trajectory")) {
+    careerTrajectory = {
+      acquiredSkills: careerSkills.length > 0 ? careerSkills : ["実務領域における専門設計・構築スキル"],
+      nextCareerOptions: nextCareers.length > 0 ? nextCareers : ["シニアエンジニア / アーキテクト", "テックリード"],
+      marketValueProjection: "想定市場年収: 1,000万円 〜 1,300万円",
+      overallOutlook: "インポートされた求人に基づく中長期キャリア展望です。",
+    };
+  }
+
   const fullMetadata: import("@/types/job").JobMetadata = {
     id,
     company,
@@ -312,6 +344,7 @@ export function parseJobMarkdownToJobResult(markdown: string): import("@/types/j
     concerns: concerns.length > 0 ? concerns : ["詳細条件をご確認ください。"],
     agentQuestions: agentQuestions.length > 0 ? agentQuestions : [],
     appealPoints: appealPoints.length > 0 ? appealPoints : [],
+    careerTrajectory,
     jobDetails: {
       mustRequirements,
       wantRequirements,

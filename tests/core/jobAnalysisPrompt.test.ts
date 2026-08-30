@@ -3,6 +3,7 @@ import {
   cleanJobText,
   buildJobAnalysisPrompt,
   buildJobReEvaluationPrompt,
+  buildCareerTrajectoryPrompt,
   GEMINI_JOB_ANALYSIS_SCHEMA,
 } from "@/core/prompt/jobAnalysisPrompt";
 import { TEST_MOCK_PROFILE } from "../fixtures/sampleProfile";
@@ -108,5 +109,45 @@ describe("jobAnalysisPrompt", () => {
     expect(userPrompt).toContain("前回のAI評価結果");
     expect(userPrompt).toContain("総合適合スコア: 78点");
     expect(userPrompt).toContain("実はPythonは個人開発でFastAPIアプリを複数本運用しており");
+  });
+
+  it("builds dedicated career trajectory prompt with position and requirements", () => {
+    const mockResult: import("@/types/job").JobAnalysisResult = {
+      metadata: {
+        id: "job-ct-1",
+        company: "株式会社クラウド未来",
+        title: "プリンシパルアーキテクト",
+        agentSource: "ビズリーチ",
+        dateAnalyzed: "2026-08-30",
+        matchScore: 92,
+        judgment: "S (即応募推奨)",
+        status: "応募検討中",
+        tags: ["Cloud", "IaC"],
+      },
+      scoreBreakdown: {
+        skillMatchRatio: 90,
+        conditionMatchRatio: 90,
+        careerGrowthRatio: 95,
+        environmentRiskRatio: 90,
+      },
+      positives: [],
+      concerns: [],
+      agentQuestions: [],
+      appealPoints: [],
+      jobDetails: {
+        mustRequirements: ["大規模クラウド設計実績 5年以上"],
+        wantRequirements: [],
+        jobDescription: ["全社クラウドガバナンス策定"],
+        location: "東京",
+        selectionProcess: "面接",
+      },
+      markdownContent: "#",
+    };
+
+    const { systemInstruction, userPrompt } = buildCareerTrajectoryPrompt(mockResult, TEST_MOCK_PROFILE);
+    expect(systemInstruction).toContain("中長期キャリア展望 (Career Trajectory)");
+    expect(userPrompt).toContain("企業名: 株式会社クラウド未来");
+    expect(userPrompt).toContain("募集職種: プリンシパルアーキテクト");
+    expect(userPrompt).toContain("大規模クラウド設計実績 5年以上");
   });
 });
