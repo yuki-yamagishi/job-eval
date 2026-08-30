@@ -80,6 +80,12 @@ export class MockAiProvider implements AiProvider {
       "モダン言語での開発経験: インフラ構築だけでなくバックエンド開発も主導できるクロスオーバー能力を強調。",
     ];
 
+    const qualificationAdvice = {
+      requiredCertifications: ["AZ-305: Azure Solutions Architect Expert", "AZ-400: Azure DevOps"],
+      recommendedCertifications: ["AZ-400 (DevOps)", "CKA (Kubernetes Administrator)"],
+      advice: "パブリッククラウドの設計実績に加え、現在学習中のAZ-400やコンテナ技術(CKA)を取得することで、インフラ自動化・CI/CD推進ポジションでの合格率が大幅に向上します。",
+    };
+
     const today = new Date().toISOString().split("T")[0];
     const jobId = `job-${today.replace(/-/g, "")}-${Math.floor(100 + Math.random() * 900)}`;
 
@@ -104,6 +110,7 @@ export class MockAiProvider implements AiProvider {
       concerns,
       agentQuestions,
       appealPoints,
+      qualificationAdvice,
       mustRequirements: mustReqs,
       wantRequirements: wantReqs,
       jobDescription: [
@@ -120,6 +127,7 @@ export class MockAiProvider implements AiProvider {
       concerns,
       agentQuestions,
       appealPoints,
+      qualificationAdvice,
       jobDetails: {
         mustRequirements: mustReqs,
         wantRequirements: wantReqs,

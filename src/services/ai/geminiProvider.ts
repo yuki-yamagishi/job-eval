@@ -24,10 +24,77 @@ interface GeminiRawResponse {
   concerns?: string[];
   agent_questions?: string[];
   appeal_points?: string[];
+  qualification_advice?: {
+    required_certifications?: string[];
+    recommended_certifications?: string[];
+    advice?: string;
+  };
   must_requirements?: string[];
   want_requirements?: string[];
   job_description?: string[];
   selection_process?: string;
+}
+
+/**
+ * Test connectivity with Gemini API using provided API key and model
+ */
+export async function testGeminiConnection(
+  apiKey: string,
+  model: string = "gemini-1.5-flash"
+): Promise<{ ok: boolean; message: string }> {
+  if (!apiKey || !apiKey.trim()) {
+    return { ok: false, message: "APIキーが入力されていません。" };
+  }
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
+  const requestBody = {
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: "Respond with JSON: {\"status\":\"ok\"}" }],
+      },
+    ],
+    generationConfig: {
+      responseMimeType: "application/json",
+      temperature: 0.1,
+    },
+  };
+
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), 8000) : null;
+
+  try {
+    const fetchOptions: RequestInit = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    };
+    if (controller?.signal && typeof controller.signal === "object") {
+      fetchOptions.signal = controller.signal;
+    }
+
+    const response = await fetch(endpoint, fetchOptions);
+    if (timeoutId) clearTimeout(timeoutId);
+
+    if (response.ok) {
+      return { ok: true, message: "Gemini API への接続に成功しました！正常に通信可能です。" };
+    }
+
+    const errorData = await response.text();
+    if (response.status === 400 || response.status === 403) {
+      return { ok: false, message: `認証エラー (HTTP ${response.status}): APIキーが無効か権限がありません。` };
+    } else if (response.status === 429) {
+      return { ok: false, message: "レート制限エラー (HTTP 429): APIの利用上限に達しています。" };
+    }
+    return { ok: false, message: `API接続エラー (HTTP ${response.status}): ${errorData.slice(0, 100)}` };
+  } catch (err: unknown) {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      return { ok: false, message: "タイムアウト: 接続が8秒以内に完了しませんでした。通信環境をご確認ください。" };
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, message: `通信エラー: ${msg}` };
+  }
 }
 
 export class GeminiAiProvider implements AiProvider {
@@ -162,6 +229,14 @@ export class GeminiAiProvider implements AiProvider {
     const wantRequirements = raw.want_requirements || [];
     const jobDescription = raw.job_description || [];
 
+    const qualificationAdvice = raw.qualification_advice
+      ? {
+          requiredCertifications: raw.qualification_advice.required_certifications || [],
+          recommendedCertifications: raw.qualification_advice.recommended_certifications || [],
+          advice: raw.qualification_advice.advice || "",
+        }
+      : undefined;
+
     const markdownContent = generateJobMarkdown({
       metadata,
       scoreBreakdown,
@@ -169,6 +244,7 @@ export class GeminiAiProvider implements AiProvider {
       concerns,
       agentQuestions,
       appealPoints,
+      qualificationAdvice,
       mustRequirements,
       wantRequirements,
       jobDescription,
@@ -182,6 +258,7 @@ export class GeminiAiProvider implements AiProvider {
       concerns,
       agentQuestions,
       appealPoints,
+      qualificationAdvice,
       jobDetails: {
         mustRequirements,
         wantRequirements,

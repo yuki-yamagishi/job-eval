@@ -13,7 +13,8 @@ import {
   Columns,
   Check,
   Download,
-  FolderOpen
+  FolderOpen,
+  GraduationCap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -365,6 +366,65 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                 </ul>
               </CardContent>
             </Card>
+
+            {/* Qualification & Skill Gap Advice Card */}
+            {analysisResult.qualificationAdvice && (
+              <Card className="border-cyan-500/25 bg-gradient-to-br from-slate-900/90 via-slate-900/95 to-cyan-950/20">
+                <CardHeader className="p-3 pb-2 border-b border-slate-800/80">
+                  <CardTitle className="text-xs text-cyan-300 flex items-center gap-1.5 font-semibold">
+                    <GraduationCap className="h-4 w-4 text-cyan-400" />
+                    資格・スキルギャップ補強アクション (求人最適化アドバイス)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-2 space-y-2.5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                    {/* Required / Mentioned Certs */}
+                    <div className="bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/60">
+                      <span className="text-[11px] text-slate-400 font-medium block mb-1">
+                        求人票の指定・関連資格
+                      </span>
+                      {analysisResult.qualificationAdvice.requiredCertifications.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {analysisResult.qualificationAdvice.requiredCertifications.map((c, i) => (
+                            <Badge key={i} variant="secondary" className="text-[11px] px-2 py-0.5 bg-slate-800 text-slate-200">
+                              {c}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 text-[11px]">特になし（実務経験重視）</span>
+                      )}
+                    </div>
+
+                    {/* Recommended Certs to Gain */}
+                    <div className="bg-slate-950/60 p-2.5 rounded-lg border border-cyan-500/20">
+                      <span className="text-[11px] text-cyan-300 font-medium block mb-1">
+                        アピール強化・推奨取得資格
+                      </span>
+                      {analysisResult.qualificationAdvice.recommendedCertifications.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {analysisResult.qualificationAdvice.recommendedCertifications.map((c, i) => (
+                            <Badge key={i} variant="indigo" className="text-[11px] px-2 py-0.5 bg-cyan-500/20 text-cyan-200 border-cyan-500/40 font-medium">
+                              🎯 {c}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 text-[11px]">現状の保有資格で十分アピール可能</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Strategic Advice Text */}
+                  {analysisResult.qualificationAdvice.advice && (
+                    <div className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                      <span className="text-cyan-400 font-semibold mr-1.5">💡 戦略アドバイス:</span>
+                      <span>{analysisResult.qualificationAdvice.advice}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Full Markdown Render Preview */}
             <Card className="border-slate-800 bg-slate-900/40">

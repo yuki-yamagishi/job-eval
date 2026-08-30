@@ -31,18 +31,28 @@ export function buildJobAnalysisPrompt(
 ): { systemInstruction: string; userPrompt: string } {
   const cleanedText = cleanJobText(jobText);
 
-  const userSkillsList = profile.skills
-    .map((s) => `${s.name} (${s.category}, ${s.yearsOfExperience || 0}年, ${s.level || "intermediate"})`)
-    .join(", ");
+  // Separate experienced vs learning skills
+  const experiencedSkills = profile.skills
+    .filter((s) => (s.status ?? "experienced") === "experienced")
+    .map((s) => `${s.name} (${s.category}, 実務${s.yearsOfExperience || 0}年, ${s.level || "intermediate"})`);
 
-  const userCertsList = profile.certifications
-    .map((c) => `${c.name} (発行元: ${c.issuer})`)
-    .join(", ");
+  const learningSkills = profile.skills
+    .filter((s) => (s.status ?? "experienced") !== "experienced")
+    .map((s) => `${s.name} (${s.status === "learning" ? "独学・学習中" : "習得予定"})`);
+
+  // Separate acquired vs studying/planned certifications
+  const acquiredCerts = profile.certifications
+    .filter((c) => (c.status ?? "acquired") === "acquired")
+    .map((c) => `${c.name} (${c.yearAcquired ? `${c.yearAcquired}年取得, ` : ""}発行元: ${c.issuer})`);
+
+  const plannedCerts = profile.certifications
+    .filter((c) => (c.status ?? "acquired") !== "acquired")
+    .map((c) => `${c.name} (${c.status === "studying" ? "現在学習中/受験予定" : "取得目標"}${c.targetPeriod ? `, 目標: ${c.targetPeriod}` : ""}, 発行元: ${c.issuer})`);
 
   const ngConditionsList = profile.conditions.ngConditions.map((ng) => `- ${ng}`).join("\n");
 
   const systemInstruction = `あなたはIT・ソフトウェア業界の求職活動を支援する最高峰のAI転職アドバイザーです。
-提供された「求人票テキスト」を精密に構造化解析し、候補者の「職務経歴・スキル・希望条件・NG条件」と照合して、客観的でバイアスのない適合度判定とアクション提案（逆質問・アピール点）をJSON形式で出力してください。
+提供された「求人票テキスト」を精密に構造化解析し、候補者の「職務経歴・実務スキル・学習中スキル・保有資格・学習中/目標資格・希望条件・NG条件」と照合して、客観的でバイアスのない適合度判定、資格・スキルギャップ補強アクション、およびアクション提案（逆質問・アピール点）をJSON形式で出力してください。
 
 【評価軸と配点ガイドライン (100点満点)】
 1. スキル合致度 (40%): 必須要件(Must)・歓迎要件(Want)と候補者スキル・資格の一致度
@@ -50,6 +60,11 @@ export function buildJobAnalysisPrompt(
 3. キャリア成長性 (20%): クラウド刷新、モダンアーキテクチャ、テックリード裁量等の成長機会
 4. 労働環境・リスク (10%): 固定残業多寡、客先常駐比率、裁量、オンコール体制
 ※ NG条件に抵触している場合は、総合スコアを大幅に減点し、判定ランクを「C (見送り推奨)」または「B (要確認・検討)」としてください。
+
+【資格・スキルギャップ補強アドバイス (qualification_advice) の作成指針】
+- 求人票で直接言及されている資格（必須・歓迎）があれば required_certifications に抽出。
+- 候補者の実務経験が不足している領域（例: クラウド実務未経験、特定言語・基盤の経験不足）がある場合、それを資格でアピールして補強するならどの資格を取得すべきか（例: AWS SAA / SAP, AZ-104 / AZ-305, CKA 等）を recommended_certifications に提案。
+- 候補者がすでに「学習中・取得目標」としている資格がある場合はその有効性や、職務経歴書・面接でのアピール戦略を advice に具体的に記述。
 
 【判定ランク基準】
 - "S (即応募推奨)": 90点以上。スキル・条件・成長性すべてが極めて高水準。
@@ -61,8 +76,10 @@ export function buildJobAnalysisPrompt(
 【候補者プロファイル】
 - 氏名/呼称: ${profile.name} (${profile.title}, 実務経験 ${profile.yearsOfExperience}年)
 - スキル要約: ${profile.summary}
-- 保有技術スタック: ${userSkillsList || "特になし"}
-- 保有資格: ${userCertsList || "特になし"}
+- 実務経験技術スタック: ${experiencedSkills.join(", ") || "特になし"}
+- 学習中・習得予定技術: ${learningSkills.join(", ") || "特になし"}
+- 取得済み認定資格: ${acquiredCerts.join(", ") || "特になし"}
+- 学習中・取得目標資格: ${plannedCerts.join(", ") || "特になし"}
 - 希望年収レンジ: ${profile.conditions.targetSalaryMin}万円 〜 ${profile.conditions.targetSalaryMax}万円
 - 希望勤務形態: ${profile.conditions.preferredWorkStyle}
 - 希望勤務地: ${profile.conditions.preferredLocation}
@@ -134,6 +151,26 @@ export const GEMINI_JOB_ANALYSIS_SCHEMA = {
       type: "array",
       items: { type: "string" },
       description: "応募時の自己アピールポイント案 (2〜3項目)",
+    },
+    qualification_advice: {
+      type: "object",
+      properties: {
+        required_certifications: {
+          type: "array",
+          items: { type: "string" },
+          description: "求人票で言及されている必須・歓迎資格 (なければ空配列)",
+        },
+        recommended_certifications: {
+          type: "array",
+          items: { type: "string" },
+          description: "経験不足の補強やアピール強化のために追加で取得を推奨する資格",
+        },
+        advice: {
+          type: "string",
+          description: "資格や経験ギャップを補うための具体的な戦略・学習ロードマップ・アピール助言",
+        },
+      },
+      required: ["required_certifications", "recommended_certifications", "advice"],
     },
     must_requirements: {
       type: "array",

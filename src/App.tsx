@@ -15,7 +15,7 @@ export function App() {
   const [analysisResult, setAnalysisResult] = useState<JobAnalysisResult | null>(null);
 
   // Custom Hooks for persistence
-  const { profile } = useProfile();
+  const { profile, saveProfile, resetToDefault, isLoading, isSaving, lastSavedTime } = useProfile();
   const { jobs, saveJob, updateJobStatus, deleteJob, exportMarkdown } = useJobs();
 
   const handleAnalyze = async (text: string, source: AgentSource) => {
@@ -84,7 +84,16 @@ export function App() {
           />
         )}
 
-        {activeTab === "profile" && <ProfileSettingsView />}
+        {activeTab === "profile" && (
+          <ProfileSettingsView
+            profile={profile}
+            onSaveProfile={saveProfile}
+            onResetProfile={resetToDefault}
+            isLoading={isLoading}
+            isSaving={isSaving}
+            lastSavedTime={lastSavedTime}
+          />
+        )}
       </main>
     </div>
   );

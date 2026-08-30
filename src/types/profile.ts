@@ -14,13 +14,16 @@ export interface SkillItem {
   category: "language" | "cloud" | "framework" | "database" | "devops" | "other";
   yearsOfExperience?: number;
   level?: "expert" | "advanced" | "intermediate" | "beginner";
+  status?: "experienced" | "learning" | "interested"; // 実務経験あり / 独学・学習中 / 習得予定
 }
 
 export interface CertificationItem {
   id: string;
   name: string;
   issuer: string;
-  yearAcquired?: number;
+  status?: "acquired" | "studying" | "planned"; // 取得済 / 学習・受験中 / 取得予定
+  yearAcquired?: number; // 取得年 (取得済の場合)
+  targetPeriod?: string; // 目標時期 (例: "2026年Q3", "年内" 等)
 }
 
 export interface ConditionMatrix {

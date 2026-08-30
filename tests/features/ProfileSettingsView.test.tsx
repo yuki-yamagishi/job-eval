@@ -16,12 +16,15 @@ describe("ProfileSettingsView Component", () => {
 
     // Check section headings
     expect(await screen.findByText("基本プロファイル")).toBeDefined();
-    expect(await screen.findByText(/保有スキル & 認定資格/)).toBeDefined();
+    expect(await screen.findByText(/スキル & 認定資格/)).toBeDefined();
     expect(await screen.findByText(/転職希望条件マトリクス/)).toBeDefined();
     expect(await screen.findByText(/NG条件・除外キーワード/)).toBeDefined();
     expect(await screen.findByText(/Google Gemini API 設定/)).toBeDefined();
 
-    // Check action buttons
+    // Check tabs and action buttons
+    expect(await screen.findByText(/取得済み/)).toBeDefined();
+    expect(await screen.findByText(/学習中・取得目標/)).toBeDefined();
+    expect(await screen.findByText("接続テスト")).toBeDefined();
     expect(await screen.findByText("設定を保存")).toBeDefined();
     expect(await screen.findByText("初期値に戻す")).toBeDefined();
   });

@@ -12,6 +12,11 @@ export interface MarkdownGenerationInput {
   concerns: string[];
   agentQuestions: string[];
   appealPoints: string[];
+  qualificationAdvice?: {
+    requiredCertifications: string[];
+    recommendedCertifications: string[];
+    advice: string;
+  };
   mustRequirements: string[];
   wantRequirements: string[];
   jobDescription: string[];
@@ -35,6 +40,7 @@ export function generateJobMarkdown(input: MarkdownGenerationInput): string {
     concerns,
     agentQuestions,
     appealPoints,
+    qualificationAdvice,
     mustRequirements,
     wantRequirements,
     jobDescription,
@@ -49,6 +55,24 @@ export function generateJobMarkdown(input: MarkdownGenerationInput): string {
   const mustFormatted = mustRequirements.map((m) => `- ${m}`).join("\n");
   const wantFormatted = wantRequirements.map((w) => `- ${w}`).join("\n");
   const descriptionFormatted = jobDescription.map((d) => `- ${d}`).join("\n");
+
+  let qualificationSection = "";
+  if (qualificationAdvice) {
+    const reqCerts = qualificationAdvice.requiredCertifications.length > 0
+      ? qualificationAdvice.requiredCertifications.join(", ")
+      : "特になし（実務経験重視）";
+    const recCerts = qualificationAdvice.recommendedCertifications.length > 0
+      ? qualificationAdvice.recommendedCertifications.map((c) => `\`${c}\``).join(" / ")
+      : "現状の保有資格で十分アピール可能";
+
+    qualificationSection = `---
+
+## 🎯 資格・スキルギャップ補強アクション
+- **求人指定・関連資格**: ${reqCerts}
+- **アピール強化・推奨資格**: ${recCerts}
+- **戦略アドバイス**: ${qualificationAdvice.advice}
+`;
+  }
 
   return `---
 id: ${metadata.id}
@@ -77,7 +101,7 @@ ${positivesFormatted}
 
 ### ⚠️ 懸念点・確認事項
 ${concernsFormatted}
-
+${qualificationSection}
 ---
 
 ## 💬 エージェントへの逆質問・確認事項

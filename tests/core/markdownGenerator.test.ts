@@ -36,6 +36,11 @@ describe("markdownGenerator", () => {
       concerns: ["リリース前の残業確認"],
       agentQuestions: ["プロジェクトのフェーズは？"],
       appealPoints: ["クラウド設計実績"],
+      qualificationAdvice: {
+        requiredCertifications: ["AZ-305"],
+        recommendedCertifications: ["AZ-400 (DevOps)"],
+        advice: "DevOps自動化経験をアピールすることを推奨します。",
+      },
       mustRequirements: ["Azure設計経験 3年以上"],
       wantRequirements: ["AZ-305保有"],
       jobDescription: ["全社インフラ刷新推進"],
@@ -45,6 +50,9 @@ describe("markdownGenerator", () => {
     expect(md).toContain("company: 株式会社テスト/テック:リード");
     expect(md).toContain("match_score: 88");
     expect(md).toContain("## 📊 AI適合度判定サマリー");
+    expect(md).toContain("## 🎯 資格・スキルギャップ補強アクション");
+    expect(md).toContain("- **求人指定・関連資格**: AZ-305");
+    expect(md).toContain("`AZ-400 (DevOps)`");
     expect(md).toContain("## 💬 エージェントへの逆質問・確認事項");
     expect(md).toContain("## 📝 応募時アピールポイント案");
   });

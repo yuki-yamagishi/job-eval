@@ -14,7 +14,10 @@ import {
   ShieldCheck, 
   DollarSign, 
   MapPin, 
-  Laptop 
+  Laptop,
+  Calendar,
+  Activity,
+  AlertCircle
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,7 +25,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useProfile } from "@/hooks/useProfile";
-import { WorkStylePreference, RoleLevelPreference } from "@/types/profile";
+import { WorkStylePreference, RoleLevelPreference, UserProfile, CertificationItem, SkillItem } from "@/types/profile";
+import { testGeminiConnection } from "@/services/ai/aiService";
 
 const ROLE_OPTIONS: RoleLevelPreference[] = [
   "クラウドアーキテクト",
@@ -35,26 +39,59 @@ const ROLE_OPTIONS: RoleLevelPreference[] = [
 
 const WORK_STYLES: WorkStylePreference[] = ["フルリモート", "ハイブリッド", "出社可"];
 
-export const ProfileSettingsView: React.FC = () => {
-  const {
-    profile,
-    isLoading,
-    isSaving,
-    lastSavedTime,
-    saveProfile,
-    resetToDefault,
-  } = useProfile();
+interface ProfileSettingsViewProps {
+  profile?: UserProfile;
+  onSaveProfile?: (profile: UserProfile) => Promise<void>;
+  onResetProfile?: () => Promise<void>;
+  isLoading?: boolean;
+  isSaving?: boolean;
+  lastSavedTime?: Date | null;
+}
+
+export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
+  profile: propProfile,
+  onSaveProfile,
+  onResetProfile,
+  isLoading: propIsLoading,
+  isSaving: propIsSaving,
+  lastSavedTime: propLastSavedTime,
+}) => {
+  // Fallback to internal hook if not passed from parent
+  const hookState = useProfile();
+  const profile = propProfile ?? hookState.profile;
+  const isLoading = propIsLoading ?? hookState.isLoading;
+  const isSaving = propIsSaving ?? hookState.isSaving;
+  const lastSavedTime = propLastSavedTime ?? hookState.lastSavedTime;
 
   // Local editable draft state
-  const [draft, setDraft] = useState(profile);
+  const [draft, setDraft] = useState<UserProfile>(profile);
+  
+  // Skill inputs
   const [newSkill, setNewSkill] = useState("");
-  const [newCert, setNewCert] = useState("");
+  const [newSkillStatus, setNewSkillStatus] = useState<"experienced" | "learning">("experienced");
+  
+  // Certification inputs
+  const [activeCertTab, setActiveCertTab] = useState<"acquired" | "planned">("acquired");
+  const [newCertName, setNewCertName] = useState("");
+  const [newCertIssuer, setNewCertIssuer] = useState("");
+  const [newCertStatus, setNewCertStatus] = useState<"acquired" | "studying" | "planned">("acquired");
+  const [newCertYear, setNewCertYear] = useState<string>(new Date().getFullYear().toString());
+  const [newCertPeriod, setNewCertPeriod] = useState<string>("2026年Q3");
+
   const [newNgCondition, setNewNgCondition] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // API Connection test state
+  const [apiTestStatus, setApiTestStatus] = useState<{
+    checking: boolean;
+    result: { ok: boolean; message: string } | null;
+  }>({ checking: false, result: null });
+
   // Sync draft when profile loads
   useEffect(() => {
-    setDraft(profile);
+    if (profile) {
+      setDraft(profile);
+    }
   }, [profile]);
 
   const showToast = (msg: string) => {
@@ -63,14 +100,42 @@ export const ProfileSettingsView: React.FC = () => {
   };
 
   const handleSave = async () => {
-    await saveProfile(draft);
+    if (onSaveProfile) {
+      await onSaveProfile(draft);
+    } else {
+      await hookState.saveProfile(draft);
+    }
     showToast("プロファイル設定をローカルへ保存しました");
   };
 
   const handleReset = async () => {
     if (window.confirm("プロファイル設定をデフォルト初期値にリセットしますか？")) {
-      await resetToDefault();
+      if (onResetProfile) {
+        await onResetProfile();
+      } else {
+        await hookState.resetToDefault();
+      }
       showToast("初期デフォルト設定にリセットしました");
+    }
+  };
+
+  const handleTestApiKey = async () => {
+    const key = draft.apiSettings?.geminiApiKey?.trim();
+    if (!key) {
+      setApiTestStatus({
+        checking: false,
+        result: { ok: false, message: "APIキーが入力されていません。入力後に再テストしてください。" },
+      });
+      return;
+    }
+
+    setApiTestStatus({ checking: true, result: null });
+    try {
+      const res = await testGeminiConnection(key, draft.apiSettings?.geminiModel || "gemini-1.5-flash");
+      setApiTestStatus({ checking: false, result: res });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setApiTestStatus({ checking: false, result: { ok: false, message: `テスト失敗: ${msg}` } });
     }
   };
 
@@ -79,17 +144,17 @@ export const ProfileSettingsView: React.FC = () => {
     if (!newSkill.trim()) return;
     if (draft.skills.some((s) => s.name.toLowerCase() === newSkill.trim().toLowerCase())) return;
 
+    const newSkillItem: SkillItem = {
+      id: `s-${Date.now()}`,
+      name: newSkill.trim(),
+      category: "other",
+      level: newSkillStatus === "experienced" ? "advanced" : "beginner",
+      status: newSkillStatus,
+    };
+
     setDraft((prev) => ({
       ...prev,
-      skills: [
-        ...prev.skills,
-        {
-          id: `s-${Date.now()}`,
-          name: newSkill.trim(),
-          category: "other",
-          level: "advanced",
-        },
-      ],
+      skills: [...prev.skills, newSkillItem],
     }));
     setNewSkill("");
   };
@@ -103,19 +168,24 @@ export const ProfileSettingsView: React.FC = () => {
 
   // Certification handlers
   const handleAddCert = () => {
-    if (!newCert.trim()) return;
+    if (!newCertName.trim()) return;
+
+    const newCertItem: CertificationItem = {
+      id: `c-${Date.now()}`,
+      name: newCertName.trim(),
+      issuer: newCertIssuer.trim() || "認定機関",
+      status: activeCertTab === "acquired" ? "acquired" : newCertStatus,
+      yearAcquired: activeCertTab === "acquired" && newCertYear ? Number(newCertYear) || undefined : undefined,
+      targetPeriod: activeCertTab === "planned" ? newCertPeriod.trim() : undefined,
+    };
+
     setDraft((prev) => ({
       ...prev,
-      certifications: [
-        ...prev.certifications,
-        {
-          id: `c-${Date.now()}`,
-          name: newCert.trim(),
-          issuer: "Certified Authority",
-        },
-      ],
+      certifications: [...prev.certifications, newCertItem],
     }));
-    setNewCert("");
+
+    setNewCertName("");
+    setNewCertIssuer("");
   };
 
   const handleRemoveCert = (id: string) => {
@@ -170,6 +240,9 @@ export const ProfileSettingsView: React.FC = () => {
     );
   }
 
+  const acquiredCertifications = draft.certifications.filter((c) => (c.status ?? "acquired") === "acquired");
+  const plannedCertifications = draft.certifications.filter((c) => (c.status ?? "acquired") !== "acquired");
+
   return (
     <div className="h-full p-6 space-y-6 overflow-y-auto max-w-5xl mx-auto pb-16">
       {/* Toast Notification */}
@@ -188,7 +261,7 @@ export const ProfileSettingsView: React.FC = () => {
             求職者プロファイル & 判定マトリクス設定
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            職務経歴・希望年収・勤務形態・NG条件を定義し、AIによる客観的適合度判定の精度を高めます。
+            職務経歴・保有資格/学習中資格・希望年収・NG条件を定義し、AIによる客観的適合度判定と資格推薦の精度を高めます。
           </p>
         </div>
 
@@ -277,36 +350,73 @@ export const ProfileSettingsView: React.FC = () => {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm text-indigo-300 flex items-center gap-2">
               <Award className="h-4 w-4 text-indigo-400" />
-              保有スキル & 認定資格 (FR-201)
+              スキル & 認定資格 (取得済 / 学習中・目標)
             </CardTitle>
             <CardDescription className="text-xs">
-              AIが求人票のMust/Want要件と照合する技術スタック
+              AIが求人票のMust/Want要件と照合・不足資格推薦を行う技術情報
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-0">
             {/* Skills */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300">技術スタック (言語・FW・インフラ)</label>
-              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1.5 bg-slate-950/60 rounded-lg border border-slate-800/80">
-                {draft.skills.map((skill) => (
-                  <Badge
-                    key={skill.id}
-                    variant="indigo"
-                    className="text-xs pl-2 pr-1 py-0.5 flex items-center gap-1 bg-indigo-500/20 text-indigo-200 border-indigo-500/40"
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-300">技術スタック (言語・FW・インフラ)</label>
+                <div className="flex gap-1 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setNewSkillStatus("experienced")}
+                    className={`px-2 py-0.5 rounded transition-all ${
+                      newSkillStatus === "experienced"
+                        ? "bg-indigo-600 text-white font-semibold"
+                        : "bg-slate-900 text-slate-400 hover:text-slate-200"
+                    }`}
                   >
-                    <span>{skill.name}</span>
-                    <button
-                      onClick={() => handleRemoveSkill(skill.id)}
-                      className="hover:bg-indigo-500/40 rounded p-0.5 text-indigo-300"
+                    実務経験あり
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewSkillStatus("learning")}
+                    className={`px-2 py-0.5 rounded transition-all ${
+                      newSkillStatus === "learning"
+                        ? "bg-purple-600 text-white font-semibold"
+                        : "bg-slate-900 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    独学・学習中
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1.5 bg-slate-950/60 rounded-lg border border-slate-800/80">
+                {draft.skills.map((skill) => {
+                  const isLearning = (skill.status ?? "experienced") !== "experienced";
+                  return (
+                    <Badge
+                      key={skill.id}
+                      variant="indigo"
+                      className={`text-xs pl-2 pr-1 py-0.5 flex items-center gap-1 border ${
+                        isLearning
+                          ? "bg-purple-500/20 text-purple-200 border-purple-500/40"
+                          : "bg-indigo-500/20 text-indigo-200 border-indigo-500/40"
+                      }`}
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
+                      <span>{skill.name}</span>
+                      {isLearning && (
+                        <span className="text-[9px] bg-purple-900/80 text-purple-300 px-1 rounded">学習中</span>
+                      )}
+                      <button
+                        onClick={() => handleRemoveSkill(skill.id)}
+                        className="hover:bg-slate-700/50 rounded p-0.5 text-slate-400 hover:text-rose-300"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
               </div>
               <div className="flex gap-2">
                 <Input
-                  placeholder="追加するスキル (例: Rust, GraphQL, Docker)..."
+                  placeholder={`追加するスキル (例: ${newSkillStatus === "experienced" ? "Go, AWS, Terraform" : "Rust, GraphQL"})...`}
                   value={newSkill}
                   onChange={(e) => setNewSkill(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddSkill()}
@@ -322,41 +432,142 @@ export const ProfileSettingsView: React.FC = () => {
               </div>
             </div>
 
-            {/* Certifications */}
+            {/* Certifications (Tabs: Acquired vs Planned) */}
             <div className="space-y-2 pt-2 border-t border-slate-800/60">
-              <label className="text-xs font-semibold text-slate-300">保有資格 (IPA / クラウド認定)</label>
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-slate-950/60 rounded-lg border border-slate-800/80">
-                {draft.certifications.map((cert) => (
-                  <Badge
-                    key={cert.id}
-                    variant="secondary"
-                    className="text-xs pl-2 pr-1 py-0.5 flex items-center gap-1 bg-purple-500/20 text-purple-200 border-purple-500/40"
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-300">認定資格 & 目標資格</label>
+                <div className="flex bg-slate-950 p-0.5 rounded border border-slate-800 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setActiveCertTab("acquired")}
+                    className={`px-2.5 py-0.5 rounded transition-all ${
+                      activeCertTab === "acquired"
+                        ? "bg-emerald-600 text-white font-semibold"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
                   >
-                    <span>{cert.name}</span>
-                    <button
-                      onClick={() => handleRemoveCert(cert.id)}
-                      className="hover:bg-purple-500/40 rounded p-0.5 text-purple-300"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
+                    取得済み ({acquiredCertifications.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveCertTab("planned")}
+                    className={`px-2.5 py-0.5 rounded transition-all ${
+                      activeCertTab === "planned"
+                        ? "bg-purple-600 text-white font-semibold"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    学習中・取得目標 ({plannedCertifications.length})
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="追加する資格 (例: AZ-400, AWS SAA, ネットワークスペシャリスト)..."
-                  value={newCert}
-                  onChange={(e) => setNewCert(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddCert()}
-                  className="h-8 text-xs"
-                />
-                <Button
-                  size="sm"
-                  onClick={handleAddCert}
-                  className="h-8 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
+
+              {/* List */}
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-slate-950/60 rounded-lg border border-slate-800/80">
+                {(activeCertTab === "acquired" ? acquiredCertifications : plannedCertifications).length === 0 ? (
+                  <span className="text-[11px] text-slate-500 py-1 px-2">
+                    {activeCertTab === "acquired" ? "取得済み資格はありません" : "現在学習中・取得目標の資格はありません"}
+                  </span>
+                ) : (
+                  (activeCertTab === "acquired" ? acquiredCertifications : plannedCertifications).map((cert) => {
+                    const isStudying = cert.status === "studying";
+                    return (
+                      <Badge
+                        key={cert.id}
+                        variant="secondary"
+                        className={`text-xs pl-2 pr-1 py-0.5 flex items-center gap-1 border ${
+                          activeCertTab === "acquired"
+                            ? "bg-emerald-500/15 text-emerald-200 border-emerald-500/30"
+                            : isStudying
+                            ? "bg-indigo-500/20 text-indigo-200 border-indigo-500/40"
+                            : "bg-purple-500/20 text-purple-200 border-purple-500/40"
+                        }`}
+                      >
+                        <span>{cert.name}</span>
+                        {cert.yearAcquired && (
+                          <span className="text-[9px] text-emerald-300/80 font-mono">({cert.yearAcquired}年)</span>
+                        )}
+                        {cert.targetPeriod && (
+                          <span className="text-[9px] bg-slate-900 text-purple-300 px-1 rounded">
+                            {cert.status === "studying" ? "学習中" : "目標"}: {cert.targetPeriod}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleRemoveCert(cert.id)}
+                          className="hover:bg-slate-700/50 rounded p-0.5 text-slate-400 hover:text-rose-300"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Add form */}
+              <div className="space-y-1.5 bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <Input
+                      placeholder={activeCertTab === "acquired" ? "資格名 (例: AWS SAA, 応用情報)..." : "目標資格名 (例: AZ-400, CKA)..."}
+                      value={newCertName}
+                      onChange={(e) => setNewCertName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddCert()}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      placeholder="発行元 (例: AWS, IPA)"
+                      value={newCertIssuer}
+                      onChange={(e) => setNewCertIssuer(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddCert()}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  {activeCertTab === "acquired" ? (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <Calendar className="h-3.5 w-3.5 text-slate-500" />
+                      <span>取得年:</span>
+                      <Input
+                        type="number"
+                        placeholder="2024"
+                        value={newCertYear}
+                        onChange={(e) => setNewCertYear(e.target.value)}
+                        className="h-7 w-20 text-xs font-mono"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs">
+                      <select
+                        value={newCertStatus}
+                        onChange={(e) => setNewCertStatus(e.target.value as "studying" | "planned")}
+                        className="h-7 bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-1.5"
+                      >
+                        <option value="studying">学習中・受験準備</option>
+                        <option value="planned">取得目標・予定</option>
+                      </select>
+                      <Input
+                        placeholder="目標時期 (例: 2026年Q3, 年内)"
+                        value={newCertPeriod}
+                        onChange={(e) => setNewCertPeriod(e.target.value)}
+                        className="h-7 text-xs flex-1"
+                      />
+                    </div>
+                  )}
+
+                  <Button
+                    size="sm"
+                    onClick={handleAddCert}
+                    className="h-7 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 shrink-0"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    資格を追加
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -541,34 +752,80 @@ export const ProfileSettingsView: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Gemini API Key */}
+          {/* Gemini API Key & Connection Test */}
           <Card className="border-indigo-500/20">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm text-indigo-300 flex items-center gap-2">
                 <Key className="h-4 w-4 text-indigo-400" />
-                Google Gemini API 設定 (NFR-101)
+                Google Gemini API 設定 & 接続テスト (NFR-101)
               </CardTitle>
               <CardDescription className="text-xs">
-                求人情報の構造化抽出および推論に使用する API キー
+                求人情報の構造化抽出および資格推薦推論に使用する API キー
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 pt-0">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Gemini API Key</label>
-                <Input
-                  type="password"
-                  placeholder="AIzaSy..."
-                  value={draft.apiSettings.geminiApiKey}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      apiSettings: { ...draft.apiSettings, geminiApiKey: e.target.value },
-                    })
-                  }
-                  className="font-mono text-xs h-9"
-                />
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-300">Gemini API Key</label>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    {draft.apiSettings.geminiModel || "gemini-1.5-flash"}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    placeholder="AIzaSy..."
+                    value={draft.apiSettings.geminiApiKey}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        apiSettings: { ...draft.apiSettings, geminiApiKey: e.target.value },
+                      })
+                    }
+                    className="font-mono text-xs h-9"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestApiKey}
+                    disabled={apiTestStatus.checking || !draft.apiSettings.geminiApiKey?.trim()}
+                    className="h-9 text-xs border-indigo-500/40 hover:bg-indigo-500/20 text-indigo-300 shrink-0 font-medium"
+                  >
+                    {apiTestStatus.checking ? (
+                      <span className="flex items-center gap-1">
+                        <Activity className="h-3.5 w-3.5 animate-spin" />
+                        テスト中...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <Activity className="h-3.5 w-3.5 text-indigo-400" />
+                        接続テスト
+                      </span>
+                    )}
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
+
+              {/* API Test Status Banner */}
+              {apiTestStatus.result && (
+                <div
+                  className={`text-xs p-2.5 rounded-lg border flex items-start gap-2 animate-in fade-in duration-200 ${
+                    apiTestStatus.result.ok
+                      ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-300"
+                      : "bg-rose-950/40 border-rose-500/30 text-rose-300"
+                  }`}
+                >
+                  {apiTestStatus.result.ok ? (
+                    <Check className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
+                  )}
+                  <span className="leading-relaxed">{apiTestStatus.result.message}</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 text-xs text-slate-500 pt-1">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
                 <span>ローカル暗号化ストレージにのみ保持され外部送信されません。</span>
               </div>
@@ -579,3 +836,5 @@ export const ProfileSettingsView: React.FC = () => {
     </div>
   );
 };
+
+export default ProfileSettingsView;

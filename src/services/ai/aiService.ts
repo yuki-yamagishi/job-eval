@@ -5,7 +5,7 @@ import { MockAiProvider } from "./mockAiProvider";
 import { GeminiAiProvider } from "./geminiProvider";
 
 export { MockAiProvider } from "./mockAiProvider";
-export { GeminiAiProvider } from "./geminiProvider";
+export { GeminiAiProvider, testGeminiConnection } from "./geminiProvider";
 export type { AiProvider } from "./aiProvider";
 
 const mockProvider: AiProvider = new MockAiProvider();

@@ -84,4 +84,21 @@ describe("PreviewPane Component", () => {
     expect(handleSave).toHaveBeenCalledTimes(1);
     expect(handleSave).toHaveBeenCalledWith(mockResult.markdownContent);
   });
+
+  it("renders qualification advice card when qualificationAdvice is present", () => {
+    const resultWithAdvice: JobAnalysisResult = {
+      ...mockResult,
+      qualificationAdvice: {
+        requiredCertifications: ["AWS SAA"],
+        recommendedCertifications: ["AWS SAP", "AZ-305"],
+        advice: "AWSの実務経験を資格でアピールすることを推奨。",
+      },
+    };
+
+    render(<PreviewPane analysisResult={resultWithAdvice} isAnalyzing={false} />);
+    expect(screen.getByText("資格・スキルギャップ補強アクション (求人最適化アドバイス)")).toBeDefined();
+    expect(screen.getByText("AWS SAA")).toBeDefined();
+    expect(screen.getByText("🎯 AWS SAP")).toBeDefined();
+    expect(screen.getByText(/AWSの実務経験を資格でアピールすることを推奨/)).toBeDefined();
+  });
 });

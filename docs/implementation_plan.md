@@ -1,43 +1,79 @@
-# Phase 5: 求人管理ダッシュボード & 複数比較 & 総合テスト 計画
+# Phase 6: スキル・資格ステータス管理 & 資格推薦AI & 状態同期・接続テスト 計画
 
-要件定義書（Requirement.md）の Phase 5 に基づき、保存済み求人ドキュメントの一覧テーブル・選考ステータス追跡・キーワード検索・フィルタリング、および複数求人の横並び比較マトリクスビューを実装し、全機能の総合テストを実施します。
+ユーザーからの追加要件（保有資格と学習中・目標資格の分離、求人に応じた必要資格・追加取得推奨資格のアドバイスAI）および、プロファイル保存時の状態同期不具合の解消、API接続テスト機能の実装を行います。
 
 ---
 
 ## 提案する変更点 (Proposed Changes)
 
-### 1. 求人管理フックの拡張
-#### [MODIFY] `src/hooks/useJobs.ts`
-- ステータス変更関数（`updateJobStatus(id, status)`）。
-- 求人削除機能、フィルタリング・ソートヘルパー。
+### 1. 型定義・デフォルトプロファイルの拡張
+#### [MODIFY] `src/types/profile.ts`
+- `CertificationItem` に `status: "acquired" | "studying" | "planned"`、`targetPeriod?: string` を追加。
+- `SkillItem` に `status: "experienced" | "learning" | "interested"` を追加。
+
+#### [MODIFY] `src/types/job.ts`
+- `JobAnalysisResult` に `qualificationAdvice: { requiredCertifications: string[]; recommendedCertifications: string[]; advice: string }` を追加。
+
+#### [MODIFY] `src/core/constants/defaultProfile.ts`
+- 初期プロファイルに新ステータスを反映。
 
 ---
 
-### 2. 求人ダッシュボード UI の本格実装
-#### [MODIFY] `src/components/dashboard/JobDashboard.tsx`
-- **求人一覧テーブル / カードビュー切り替え (FR-501)**: 企業名、職種、スコア、年収レンジ、ソース、ステータス、解析日の表示。
-- **選考ステータス追跡 (FR-502)**: 「未検討」「応募検討中」「応募済」「書類通過」「一次面接」「最終面接」「内定」「辞退」「見送り」のドロップダウン更新。
-- **リアルタイム検索 & 絞り込み**: 企業名・職種・タグのインクリメンタル検索、判定ランク（S/A/B/C）やステータスでのフィルター。
-- **複数求人比較マトリクス (FR-503)**: チェックボックスで 2〜3 件を選択し、スコア内訳・年収・勤務形態・必須要件・アピール点を横並びで比較するモーダル/ビュー。
+### 2. コアAIプロンプト & プロバイダ & Markdown生成の拡張
+#### [MODIFY] `src/core/prompt/jobAnalysisPrompt.ts`
+- プロンプト生成時に「取得済み資格/スキル」と「学習中・目標資格」を分けて注入。
+- AIに対し、求人票で求められる資格・実務経験不足を補うための推奨資格やアピール戦略を生成するよう指示。
+- `GEMINI_JOB_ANALYSIS_SCHEMA` に `qualification_advice` を追加。
+
+#### [MODIFY] `src/services/ai/geminiProvider.ts`
+- `qualification_advice` のパース・マッピング処理。
+- `testGeminiConnection(apiKey, model)` 関数を追加（APIキーの疎通・有効性テスト）。
+
+#### [MODIFY] `src/services/ai/mockAiProvider.ts`
+- `qualificationAdvice` のモックデータ生成処理を追加。
+
+#### [MODIFY] `src/core/markdown/markdownGenerator.ts`
+- Frontmatter に `recommendedCertifications` を追加。
+- Markdown 本文に「### 🎯 資格・スキルギャップ補強アクション」セクションを追加。
 
 ---
 
-### 3. 微小なファイル整理
-#### [DELETE] `src/services/aiService.ts`
-- サブフォルダ `src/services/ai/aiService.ts` への完全移行による重複ラッパーの削除。
+### 3. UI・状態管理の改修
+#### [MODIFY] `src/App.tsx`
+- `profile` および `saveProfile` を `ProfileSettingsView` に渡し、プロファイル保存時のグローバル同期を実現（即座に `✨ Gemini API 有効` に切り替わるよう修正）。
+
+#### [MODIFY] `src/features/profile/ProfileSettingsView.tsx`
+- Props として `profile`, `saveProfile` を受け取り同期。
+- スキル設定：ステータス選択（実務経験あり / 学習中・独学）とバッジ表示。
+- 資格設定：「取得済み資格」タブと「学習中・取得目標資格」タブの切り替え登録、目標時期（例: 2026年Q3）の入力。
+- Gemini API 設定：「接続テスト」ボタンを追加（ローディング・成功・失敗エラーメッセージ表示）。
+
+#### [MODIFY] `src/components/pane/PreviewPane.tsx`
+- リッチプレビューに「🎯 資格・スキルギャップ補強アドバイス」カードを追加（求人必要資格、推奨取得資格、戦略アドバイスの表示）。
 
 ---
 
-### 4. テストハーネスの拡充
-#### [NEW] `tests/features/JobDashboard.test.tsx`
-- 求人一覧表示、ステータス変更、検索フィルタ、比較マトリクス表示の UI 自動テスト。
+### 4. テストハーネスの更新
+#### [MODIFY] `tests/core/jobAnalysisPrompt.test.ts`
+- 資格ステータス分離プロンプトのテスト。
+
+#### [MODIFY] `tests/core/markdownGenerator.test.ts`
+- 資格アドバイスセクションを含むMarkdown生成テスト。
+
+#### [MODIFY] `tests/services/geminiProvider.test.ts`
+- `qualification_advice` の変換テスト。
+
+#### [MODIFY] `tests/features/ProfileSettingsView.test.tsx`
+- 資格ステータス切り替え、API接続テストボタンのUIテスト。
 
 ---
 
 ## 検証計画 (Verification Plan)
 
 ### 自動テスト
-- `npm run check` (tsc + vitest --coverage + vite build) による一括検証。
+- `npm.cmd run check` (シークレット検査 + tsc 型検査 + Vitest 全テスト & カバレッジ + Vite ビルド) による一括検証。
 
-### コミット & プッシュ
-- 接頭辞 `feat(phase5): ...` を付与してコミットおよびプッシュを実施。
+### 手動検証
+- プロファイル設定画面で API キーを入力し、「接続テスト」ボタンを押下して疎通を確認。
+- プロファイルを保存し、求人入力画面上部のバッジが即座に `✨ Gemini API 有効` になることを確認。
+- 求人解析を実行し、プレビュー画面に「資格・スキルギャップ補強アドバイス」が表示され、Markdown にも反映されることを確認。

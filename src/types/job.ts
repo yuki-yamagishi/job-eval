@@ -47,6 +47,11 @@ export interface JobAnalysisResult {
   concerns: string[];
   agentQuestions: string[];
   appealPoints: string[];
+  qualificationAdvice?: {
+    requiredCertifications: string[];
+    recommendedCertifications: string[];
+    advice: string;
+  };
   jobDetails: {
     mustRequirements: string[];
     wantRequirements: string[];

@@ -61,4 +61,22 @@ describe("GeminiAiProvider", () => {
     expect(result.metadata.judgment).toBe("B (要確認・検討)");
     expect(result.markdownContent).toBeDefined();
   });
+
+  it("extracts qualification_advice correctly into result and markdown", () => {
+    const rawWithAdvice = {
+      company: "テスト株式会社",
+      title: "クラウドエンジニア",
+      qualification_advice: {
+        required_certifications: ["AWS SAA"],
+        recommended_certifications: ["AWS SAP", "CKA"],
+        advice: "AWSの実務未経験を補うためプロフェッショナル資格の取得を推奨。",
+      },
+    };
+
+    const result = provider.transformToJobAnalysisResult(rawWithAdvice, "doda");
+    expect(result.qualificationAdvice).toBeDefined();
+    expect(result.qualificationAdvice?.requiredCertifications).toEqual(["AWS SAA"]);
+    expect(result.qualificationAdvice?.recommendedCertifications).toEqual(["AWS SAP", "CKA"]);
+    expect(result.markdownContent).toContain("## 🎯 資格・スキルギャップ補強アクション");
+  });
 });

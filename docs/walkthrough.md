@@ -1,62 +1,44 @@
-# 実装成果レポート (JobEval 開発ログ)
+# Phase 6: 実装成果レポート (Walkthrough)
 
-JobEval の全 5 フェーズ（Phase 1 〜 Phase 5）の自律実装および全機能の総合テスト・ビルド検証が完了いたしました。
+## 🎯 達成した実装概要
 
----
-
-## 完了フェーズ一覧
-
-### Phase 1: プロジェクト基盤構築
-- Tauri v2 + React 18 (TypeScript) + Vite + Tailwind CSS のスキャフォールディング
-- ダークモード対応 2 ペイン画面レイアウト (Header, InputPane, PreviewPane)
-- shadcn/ui スタイルの UI コンポーネント群 (Button, Card, Input, Textarea, Badge, Tabs)
-
-### Phase 2: プロファイル設定 & ローカルストレージ実装
-- 候補者プロファイル設定画面 (ProfileSettingsView)
-- スキル、認定資格、希望条件マトリクス、NG条件の動的編集 UI
-- LocalStorage / Tauri FS デュアルストレージアダプター (StorageAdapter)
-- Antigravity 開発・検証ハーネス (Vitest, npm run check)
-
-### Phase 3: AI解析エンジン & Gemini API プロンプト実装
-- プロンプトエンジニアリング & テキストクレンジング (jobAnalysisPrompt)
-- Gemini REST API クライアント (GeminiAiProvider) & 15秒タイムアウト制御
-- 外部依存のない完全ローカル Mock プロバイダー (MockAiProvider)
-- GitHub Actions CI パイプライン (.github/workflows/ci.yml)
-
-### Phase 4: Markdown生成 & リッチプレビュー & Vault保存
-- **Live Markdown Editor**: リッチ表示、スプリット編集（双方向同期）、生Markdownの 3 モード切替
-- **ワンクリックセクションコピー**: 「エージェント逆質問のみ」「アピールポイントのみ」「Markdown全文」の即時コピー
-- **Obsidian / Logseq Vault 保存**: File System Access API / UTF-8 Blob によるダイレクト書き出し
-- **ファイル名サニタイザー & Frontmatter パーサー**: 禁止文字の除去および YAML メタデータの安全な更新
-
-### Phase 5: 求人管理ダッシュボード & 複数比較 & 総合テスト
-- **求人一覧テーブル & グリッドビュー (FR-501)**: 企業名、職種、スコア、年収レンジ、ソース、ステータスの一覧表示
-- **選考ステータス追跡 (FR-502)**: 「未検討」「応募検討中」「応募済」「書類通過」「一次面接」「最終面接」「内定」「辞退」「見送り」の即時更新と Frontmatter 同期
-- **リアルタイム検索 & 絞り込み**: インクリメンタル検索、判定ランク別フィルター、選考ステータス別フィルター、ソート機能
-- **複数求人の比較マトリクスビュー (FR-503)**: チェックボックスで 2〜3 件を選択し、スコア内訳・年収・ポジティブ要素・懸念点を横並びで比較する全画面モーダル
-- **Tauri Windows 自動リリースワークフロー**: `.github/workflows/release.yml`
+本フェーズ（Phase 6）では、ユーザーからの追加要件に基づき、保有資格と学習中・目標資格の分離管理、求人票に応じた資格推薦AI、およびAPIキー保存時の状態同期不具合の修正とAPI接続テスト機能を実装・完了しました。
 
 ---
 
-## 総合品質ゲート検証結果 (`npm run check`)
+## 1. 主な変更点と新機能
 
-```text
-> job-eval@0.1.0 check
-> tsc --noEmit && vitest run --coverage && vite build
+### ① スキル & 認定資格のステータス分離管理
+- **データ構造の拡張 (`src/types/profile.ts`)**:
+  - `CertificationItem`: `status: "acquired" | "studying" | "planned"`、`targetPeriod?: string`（例: "2026年Q3"）を追加。
+  - `SkillItem`: `status: "experienced" | "learning" | "interested"` を追加。
+- **UI (`ProfileSettingsView.tsx`)**:
+  - 資格管理を **「取得済み資格」** と **「学習中・取得目標資格」** の切り替えタブとして直感的に分離。
+  - スキルも「実務経験あり」と「独学・学習中」を切り替えて登録・バッジ表示。
 
- ✓ tests/core/markdownGenerator.test.ts (4 tests)
- ✓ tests/services/geminiProvider.test.ts (2 tests)
- ✓ tests/core/scoringEngine.test.ts (2 tests)
- ✓ tests/core/jobAnalysisPrompt.test.ts (3 tests)
- ✓ tests/services/storageAdapter.test.ts (3 tests)
- ✓ tests/features/ProfileSettingsView.test.tsx (1 test)
- ✓ tests/features/JobDashboard.test.tsx (5 tests)
- ✓ tests/features/PreviewPane.test.tsx (5 tests)
- ✓ tests/core/pipelineIntegration.test.ts (2 tests)
+### ② 求人ごとの必要資格 ＆ 追加取得推奨資格のアドバイスAI
+- **AIプロンプト & Gemini JSON Schema (`jobAnalysisPrompt.ts`)**:
+  - 候補者の「実務経験/保有資格」と「学習中スキル/目標資格」をAIに分離伝達。
+  - 求人票で求められている資格、および実務未経験を補うためのアピール資格・ロードマップ（`qualification_advice`）をAIが自動推論。
+- **UIプレビュー (`PreviewPane.tsx`)**:
+  - 「🎯 資格・スキルギャップ補強アクション」カードを新設。求人指定資格、推奨取得資格、戦略アドバイス文を表示。
+- **Markdown出力 (`markdownGenerator.ts`)**:
+  - Obsidian Vault連携ファイルに「## 🎯 資格・スキルギャップ補強アクション」セクションを自動生成。
 
- テストファイル数: 9 passed (9)
- テストケース総数: 27 passed (27)
- テストカバレッジ: 82.11% (コアビジネスロジック層: 93%〜100%)
- TypeScript 型エラー: 0 件
- Vite 本番バンドルビルド: 成功
-```
+### ③ プロファイル状態同期の修正 ＆ Gemini API 接続テスト
+- **グローバル状態同期 (`App.tsx`)**:
+  - プロファイル設定画面で API キーを入力・保存した瞬間に、即座に `App.tsx` の内部状態が同期更新され、リロードなしで `✨ Gemini API 有効` に切り替わるよう修正。
+- **接続テスト機能 (`geminiProvider.ts`, `ProfileSettingsView.tsx`)**:
+  - プロファイル設定画面の API キー入力欄横に「接続テスト」ボタンを追加。
+  - ワンクリックで Gemini API との通信疎通とAPIキーの有効性を即座に確認可能（✓ 接続成功 / ❌ 認証エラー等の明快なフィードバック）。
+
+---
+
+## 2. 自動テスト & 品質ゲート検証結果
+
+`npm.cmd run check`（ワンショット品質・セキュリティゲート）を実行し、全件合格を確認：
+
+- **シークレットスキャン (`security-check`)**: ✅ PASSED (漏洩なし)
+- **TypeScript 型検査 (`tsc --noEmit`)**: ✅ PASSED (Strict型エラー 0件)
+- **単体・UI・統合テスト (`vitest run --coverage`)**: ✅ 10テストファイル / 32テスト全件合格
+- **本番ビルド (`vite build`)**: ✅ 正常終了 (`dist/` 出力確認)
