@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useProfile } from "@/hooks/useProfile";
 import { WorkStylePreference, RoleLevelPreference, UserProfile, CertificationItem, SkillItem } from "@/types/profile";
-import { testGeminiConnection } from "@/services/ai/aiService";
+import { testGeminiConnection, fetchAvailableGeminiModels } from "@/services/ai/aiService";
 
 const ROLE_OPTIONS: RoleLevelPreference[] = [
   "クラウドアーキテクト",
@@ -84,8 +84,11 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   // API Connection test state
   const [apiTestStatus, setApiTestStatus] = useState<{
     checking: boolean;
-    result: { ok: boolean; message: string } | null;
+    result: { ok: boolean; message: string; availableModels?: string[] } | null;
   }>({ checking: false, result: null });
+
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
 
   // Sync draft when profile loads
   useEffect(() => {
@@ -119,6 +122,33 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
     }
   };
 
+  const handleFetchModels = async () => {
+    const key = draft.apiSettings?.geminiApiKey?.trim();
+    if (!key) {
+      alert("APIキーを入力してからモデル一覧を取得してください。");
+      return;
+    }
+    setIsFetchingModels(true);
+    try {
+      const res = await fetchAvailableGeminiModels(key);
+      if (res.ok && res.models.length > 0) {
+        setAvailableModels(res.models);
+        // If current model is not in list, set to the first valid one
+        if (!res.models.includes(draft.apiSettings.geminiModel)) {
+          setDraft((prev) => ({
+            ...prev,
+            apiSettings: { ...prev.apiSettings, geminiModel: res.models[0] },
+          }));
+        }
+        showToast(`Googleから利用可能な ${res.models.length} 個のモデルを取得しました`);
+      } else {
+        alert(`モデル一覧の取得に失敗しました: ${res.message || "不明なエラー"}`);
+      }
+    } finally {
+      setIsFetchingModels(false);
+    }
+  };
+
   const handleTestApiKey = async () => {
     const key = draft.apiSettings?.geminiApiKey?.trim();
     if (!key) {
@@ -131,8 +161,11 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
 
     setApiTestStatus({ checking: true, result: null });
     try {
-      const res = await testGeminiConnection(key, draft.apiSettings?.geminiModel || "gemini-3.7-flash");
+      const res = await testGeminiConnection(key, draft.apiSettings?.geminiModel || "gemini-2.0-flash");
       setApiTestStatus({ checking: false, result: res });
+      if (res.availableModels && res.availableModels.length > 0) {
+        setAvailableModels(res.availableModels);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setApiTestStatus({ checking: false, result: { ok: false, message: `テスト失敗: ${msg}` } });
@@ -764,26 +797,6 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 pt-0">
-              {/* Model selection */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">使用 Gemini モデル</label>
-                <select
-                  value={draft.apiSettings.geminiModel || "gemini-3.7-flash"}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      apiSettings: { ...draft.apiSettings, geminiModel: e.target.value },
-                    })
-                  }
-                  className="w-full h-9 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 font-mono focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="gemini-3.7-flash">gemini-3.7-flash (最新・推奨・高速)</option>
-                  <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-                  <option value="gemini-1.5-flash">gemini-1.5-flash</option>
-                  <option value="gemini-1.5-pro">gemini-1.5-pro (高精度・推論)</option>
-                </select>
-              </div>
-
               {/* API Key input */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -816,7 +829,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                     {apiTestStatus.checking ? (
                       <span className="flex items-center gap-1">
                         <Activity className="h-3.5 w-3.5 animate-spin" />
-                        テスト中...
+                        接続確認中...
                       </span>
                     ) : (
                       <span className="flex items-center gap-1">
@@ -825,6 +838,69 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                       </span>
                     )}
                   </Button>
+                </div>
+              </div>
+
+              {/* Model selection */}
+              <div className="space-y-1.5 pt-1 border-t border-slate-800/60">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-300">使用 Gemini モデル</label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleFetchModels}
+                    disabled={isFetchingModels || !draft.apiSettings.geminiApiKey?.trim()}
+                    className="h-6 text-[11px] text-indigo-400 hover:text-indigo-200 p-1"
+                  >
+                    {isFetchingModels ? "モデル取得中..." : "🔄 Googleからモデル一覧を取得"}
+                  </Button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <select
+                    value={draft.apiSettings.geminiModel}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        apiSettings: { ...draft.apiSettings, geminiModel: e.target.value },
+                      })
+                    }
+                    className="w-full h-9 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 font-mono focus:outline-none focus:border-indigo-500"
+                  >
+                    {/* If available models fetched, show them */}
+                    {availableModels.length > 0 ? (
+                      availableModels.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="gemini-2.0-flash">gemini-2.0-flash (推奨・高速・最新)</option>
+                        <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite (軽量・超低遅延)</option>
+                        <option value="gemini-1.5-flash">gemini-1.5-flash (標準)</option>
+                        <option value="gemini-1.5-pro">gemini-1.5-pro (高精度推論)</option>
+                        <option value="gemini-3.7-flash">gemini-3.7-flash (カスタム)</option>
+                      </>
+                    )}
+                  </select>
+
+                  {/* Manual entry support */}
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="text-[11px] text-slate-500 shrink-0">直接指定:</span>
+                    <Input
+                      placeholder="モデル名直接入力 (例: gemini-2.0-flash)"
+                      value={draft.apiSettings.geminiModel}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          apiSettings: { ...draft.apiSettings, geminiModel: e.target.value },
+                        })
+                      }
+                      className="h-7 text-xs font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -842,7 +918,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                   ) : (
                     <AlertCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
                   )}
-                  <span className="leading-relaxed">{apiTestStatus.result.message}</span>
+                  <span className="leading-relaxed whitespace-pre-wrap">{apiTestStatus.result.message}</span>
                 </div>
               )}
 
