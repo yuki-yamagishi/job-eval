@@ -11,7 +11,8 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "security-check": "node scripts/securityCheck.js",
-    "check": "node scripts/securityCheck.js && tsc --noEmit && vitest run --coverage && vite build",
+    "doc-check": "node scripts/docCheck.js",
+    "check": "node scripts/securityCheck.js && node scripts/docCheck.js && tsc --noEmit && vitest run --coverage && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },
