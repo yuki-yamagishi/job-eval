@@ -133,7 +133,7 @@ export function App() {
   return (
     <div className="h-screen w-screen flex flex-col bg-background text-foreground overflow-hidden">
       {/* Top Header Navigation */}
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Header activeTab={activeTab} setActiveTab={setActiveTab} savedJobCount={jobs.length} />
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-hidden relative">

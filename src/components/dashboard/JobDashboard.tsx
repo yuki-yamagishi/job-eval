@@ -136,10 +136,15 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
       {/* Top Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <FileText className="h-5 w-5 text-indigo-400" />
-            求人ドキュメント & パイプライン管理
-          </h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+              <FileText className="h-5 w-5 text-indigo-400" />
+              求人ドキュメント & パイプライン管理
+            </h2>
+            <Badge variant="outline" className="bg-slate-900/90 text-indigo-300 border-indigo-500/40 text-xs font-mono font-semibold px-2 py-0.5">
+              全 {savedJobs.length} 件
+            </Badge>
+          </div>
           <p className="text-xs text-slate-400 mt-0.5">
             保存されたMarkdown求人の選考ステータス追跡・キーワード検索・複数比較 (FR-501, FR-502, FR-503)
           </p>
@@ -300,6 +305,30 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
             <option value="score">スコア順</option>
             <option value="salary">年収順</option>
           </select>
+        </div>
+      </div>
+
+      {/* Count & Filter Summary Bar */}
+      <div className="flex items-center justify-between text-xs px-1 text-slate-400">
+        <div className="flex items-center gap-2">
+          <span>
+            表示中: <strong className="text-white font-mono">{filteredJobs.length}</strong> 件
+            {savedJobs.length !== filteredJobs.length && (
+              <span className="text-slate-500 ml-1">（全 {savedJobs.length} 件中）</span>
+            )}
+          </span>
+          {(searchQuery || statusFilter !== "all" || rankFilter !== "all") && (
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setStatusFilter("all");
+                setRankFilter("all");
+              }}
+              className="text-indigo-400 hover:text-indigo-300 underline text-[11px] ml-2"
+            >
+              フィルターをリセット
+            </button>
+          )}
         </div>
       </div>
 

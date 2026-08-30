@@ -4,9 +4,10 @@ import { Sparkles, FileText, Settings, ShieldCheck } from "lucide-react";
 interface HeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  savedJobCount?: number;
 }
 
-export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
+export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, savedJobCount }) => {
   return (
     <header className="h-14 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-4 flex items-center justify-between z-30 select-none">
       {/* Brand Logo */}
@@ -47,6 +48,17 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab }) => {
         >
           <FileText className="h-3.5 w-3.5" />
           <span>求人ドキュメント一覧</span>
+          {savedJobCount !== undefined && savedJobCount > 0 && (
+            <span
+              className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
+                activeTab === "dashboard"
+                  ? "bg-white/20 text-white"
+                  : "bg-slate-800 text-indigo-300 border border-slate-700"
+              }`}
+            >
+              {savedJobCount}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab("roadmap")}
