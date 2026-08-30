@@ -64,12 +64,18 @@ function scanDirectory(dirPath) {
       try {
         const content = fs.readFileSync(fullPath, "utf-8");
         const relativePath = path.relative(rootDir, fullPath);
+        const lines = content.split(/\r?\n/);
         scannedFileCount++;
 
-        for (const pattern of SECRET_PATTERNS) {
-          if (pattern.regex.test(content)) {
-            console.error(`❌ [CRITICAL SECURITY ALERT] ${pattern.name} detected in: ${relativePath}`);
-            hasError = true;
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          for (const pattern of SECRET_PATTERNS) {
+            if (pattern.regex.test(line)) {
+              console.error(`❌ [CRITICAL SECURITY ALERT] ${pattern.name} detected at:`);
+              console.error(`   👉 File: ${relativePath}:${i + 1}`);
+              console.error(`   👉 Line: ${line.trim().slice(0, 30)}... [MASKED]`);
+              hasError = true;
+            }
           }
         }
       } catch (err) {
@@ -86,7 +92,8 @@ scanDirectory(rootDir);
 console.log(`🔍 Scanned ${scannedFileCount} files for secrets across entire workspace.`);
 
 if (hasError) {
-  console.error("❌ Security check FAILED! Real API keys or sensitive credentials detected. Remove them immediately.");
+  console.error("\n🚫 [ACTION REQUIRED] Security check FAILED: Commit blocked.");
+  console.error("💡 Recovery: Remove the API key / credential from the file(s) above (use environment variables or CLI arguments instead), then re-run your git commit.");
   process.exit(1);
 } else {
   console.log("✅ Security & Secret Check PASSED: 0 secrets found. Clean.");
