@@ -72,6 +72,10 @@ tests/                    # 自動テストハーネス (Vitest)
    - `docs/` 配下のすべての設計書・ADR・レポートは **完全日本語** で記述・更新してください。
 5. **ワンショット品質ゲートの一括パス**:
    - コミット・PR作成前には必ず `npm run check` を実行し、全項目 PASS を確認してください。
+6. **Windows PowerShell 環境での実行規約**:
+   - Windows 環境では PowerShell のスクリプト実行ポリシーを回避するため、必ず `npm.cmd`（`npm.cmd run check`、`npm.cmd install` 等）を使用してください。
+7. **共有 Git Hooks の自動有効化**:
+   - リポジトリの Git Hooks は `.githooks/` 配下でバージョン管理されており、初回またはクローン時には `npm run prepare`（`git config core.hooksPath .githooks`）により自動設定されます。
 
 ---
 

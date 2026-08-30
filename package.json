@@ -14,7 +14,8 @@
     "doc-check": "node scripts/docCheck.js",
     "check": "node scripts/securityCheck.js && node scripts/docCheck.js && tsc --noEmit && vitest run --coverage && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@radix-ui/react-tabs": "^1.1.0",
