@@ -18,11 +18,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { JobAnalysisResult, JobStatus, JudgmentRank } from "@/types/job";
+import { UserProfile, ScoringPresetKey, SCORING_PRESETS, DEFAULT_SCORING_WEIGHTS } from "@/types/profile";
+import { recalculateScoreWithWeights } from "@/core/scoring/scoringEngine";
 import { formatSalary } from "@/lib/utils";
 import { useJobComparison } from "@/hooks/useJobComparison";
 
 interface JobDashboardProps {
   savedJobs: JobAnalysisResult[];
+  userProfile?: UserProfile;
   onUpdateStatus?: (id: string, status: JobStatus, rejectReason?: string) => void;
   onDeleteJob?: (id: string) => void;
   onExportJob?: (job: JobAnalysisResult) => void;
@@ -44,6 +47,7 @@ const STATUS_LIST: JobStatus[] = [
 
 export const JobDashboard: React.FC<JobDashboardProps> = ({
   savedJobs,
+  userProfile,
   onUpdateStatus,
   onDeleteJob,
   onExportJob,
@@ -54,6 +58,7 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [rankFilter, setRankFilter] = useState<string>("all");
+  const [selectedLens, setSelectedLens] = useState<ScoringPresetKey | "current">("current");
   const [viewLayout, setViewLayout] = useState<"table" | "grid">("table");
   const [sortBy, setSortBy] = useState<"score" | "date" | "salary">("date");
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -68,9 +73,31 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
     canCompare,
   } = useJobComparison(savedJobs, 3);
 
+  // Dynamic lens weights
+  const profileWeights = userProfile?.conditions?.scoringWeights || DEFAULT_SCORING_WEIGHTS;
+  const activeWeights = selectedLens === "current"
+    ? profileWeights
+    : SCORING_PRESETS[selectedLens]?.weights || profileWeights;
+
   // Filter and sort jobs
   const filteredJobs = useMemo(() => {
     return savedJobs
+      .map((job) => {
+        const hasNg = job.concerns?.some((c) => c.includes("NG条件")) ?? false;
+        const recalculated = recalculateScoreWithWeights(job.scoreBreakdown, activeWeights, hasNg);
+        const effectiveScore = selectedLens === "current" && job.metadata.matchScore !== undefined
+          ? job.metadata.matchScore
+          : recalculated.totalScore;
+        const effectiveJudgment = selectedLens === "current" && job.metadata.judgment
+          ? job.metadata.judgment
+          : recalculated.judgment;
+
+        return {
+          ...job,
+          effectiveScore,
+          effectiveJudgment,
+        };
+      })
       .filter((job) => {
         const q = searchQuery.toLowerCase();
         const matchesQuery =
@@ -81,20 +108,20 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
 
         const matchesStatus = statusFilter === "all" || job.metadata.status === statusFilter;
         const matchesRank =
-          rankFilter === "all" || job.metadata.judgment.startsWith(rankFilter);
+          rankFilter === "all" || job.effectiveJudgment.startsWith(rankFilter);
 
         return matchesQuery && matchesStatus && matchesRank;
       })
       .sort((a, b) => {
         if (sortBy === "score") {
-          return b.metadata.matchScore - a.metadata.matchScore;
+          return b.effectiveScore - a.effectiveScore;
         }
         if (sortBy === "salary") {
           return (b.metadata.salaryMax || 0) - (a.metadata.salaryMax || 0);
         }
         return b.metadata.dateAnalyzed.localeCompare(a.metadata.dateAnalyzed);
       });
-  }, [savedJobs, searchQuery, statusFilter, rankFilter, sortBy]);
+  }, [savedJobs, searchQuery, statusFilter, rankFilter, sortBy, activeWeights, selectedLens]);
 
   const getRankBadgeVariant = (judgment?: JudgmentRank) => {
     if (!judgment) return "secondary";
@@ -206,7 +233,7 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
       {/* Filter & Search Bar */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-950/80 p-3 rounded-xl border border-slate-800">
         {/* Search Box */}
-        <div className="md:col-span-5 relative">
+        <div className="md:col-span-4 relative">
           <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-500" />
           <Input
             placeholder="企業名、職種、技術タグ（AWS, Go等）で検索..."
@@ -216,8 +243,23 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
           />
         </div>
 
-        {/* Status Filter */}
+        {/* Scoring Lens Selector */}
         <div className="md:col-span-3">
+          <select
+            value={selectedLens}
+            onChange={(e) => setSelectedLens(e.target.value as ScoringPresetKey | "current")}
+            className="w-full h-9 rounded-lg border border-indigo-500/40 bg-indigo-950/40 px-3 py-1.5 text-xs text-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+          >
+            <option value="current">🎯 保存時基準 ({profileWeights.skill}/{profileWeights.condition}/{profileWeights.growth}/{profileWeights.environment}%)</option>
+            <option value="standard">🎯 標準バランス型 (40/30/20/10%)</option>
+            <option value="reskilling">🚀 リスキリング重視 (成長45%/環境25%)</option>
+            <option value="wlb_culture">🌿 カルチャー重視 (環境40%)</option>
+            <option value="salary_first">💰 待遇最優先 (条件50%)</option>
+          </select>
+        </div>
+
+        {/* Status Filter */}
+        <div className="md:col-span-2">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -233,30 +275,30 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
         </div>
 
         {/* Rank Filter */}
-        <div className="md:col-span-2">
+        <div className="md:col-span-1.5">
           <select
             value={rankFilter}
             onChange={(e) => setRankFilter(e.target.value)}
             className="w-full h-9 rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            <option value="all">全判定ランク</option>
-            <option value="S">ランクS (即応募)</option>
-            <option value="A">ランクA (即応募)</option>
-            <option value="B">ランクB (要確認)</option>
-            <option value="C">ランクC (見送り)</option>
+            <option value="all">全ランク</option>
+            <option value="S">S (即応募)</option>
+            <option value="A">A (即応募)</option>
+            <option value="B">B (要確認)</option>
+            <option value="C">C (見送り)</option>
           </select>
         </div>
 
         {/* Sort By */}
-        <div className="md:col-span-2">
+        <div className="md:col-span-1.5">
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as "score" | "date" | "salary")}
             className="w-full h-9 rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            <option value="date">解析日 順</option>
-            <option value="score">スコア高い順</option>
-            <option value="salary">年収上限 順</option>
+            <option value="date">解析日順</option>
+            <option value="score">スコア順</option>
+            <option value="salary">年収順</option>
           </select>
         </div>
       </div>
@@ -316,11 +358,11 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                     {/* Rank & Score */}
                     <td className="p-3 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <Badge variant={getRankBadgeVariant(job.metadata.judgment)}>
-                          {job.metadata.judgment.split(" ")[0]}
+                        <Badge variant={getRankBadgeVariant(job.effectiveJudgment)}>
+                          {job.effectiveJudgment.split(" ")[0]}
                         </Badge>
                         <span className="font-mono font-bold text-sm text-indigo-400">
-                          {job.metadata.matchScore}点
+                          {job.effectiveScore}点
                         </span>
                       </div>
                     </td>
@@ -452,8 +494,8 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                         className="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
                         title="比較対象に選択"
                       />
-                      <Badge variant={getRankBadgeVariant(job.metadata.judgment)}>
-                        {job.metadata.judgment.split(" ")[0]}
+                      <Badge variant={getRankBadgeVariant(job.effectiveJudgment)}>
+                        {job.effectiveJudgment.split(" ")[0]}
                       </Badge>
                     </div>
                     {onSelectJobForPreview && (
@@ -477,7 +519,7 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                     </div>
                     <div className="text-right shrink-0">
                       <span className="text-xl font-extrabold text-indigo-400 font-mono">
-                        {job.metadata.matchScore}
+                        {job.effectiveScore}
                       </span>
                       <span className="text-[11px] text-slate-500 ml-1">点</span>
                     </div>

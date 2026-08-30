@@ -100,6 +100,52 @@ export function useJobs() {
     return await storageAdapter.exportMarkdownFile(filename, job.markdownContent);
   }, []);
 
+  const recalculateAllJobsWithWeights = useCallback(
+    async (weights: import("@/types/profile").ScoringWeights) => {
+      const { recalculateScoreWithWeights } = await import("@/core/scoring/scoringEngine");
+      
+      const currentJobs = await storageAdapter.loadJobs();
+      const updatedJobs: JobAnalysisResult[] = currentJobs.map((job) => {
+        const hasNg = job.concerns?.some((c) => c.includes("NG条件")) ?? false;
+        const { totalScore, judgment } = recalculateScoreWithWeights(job.scoreBreakdown, weights, hasNg);
+
+        const updatedMetadata = {
+          ...job.metadata,
+          matchScore: totalScore,
+          judgment,
+        };
+
+        let updatedMarkdown = job.markdownContent;
+        const parsed = parseJobMarkdown(job.markdownContent);
+        if (parsed.frontmatterRaw) {
+          let updatedFrontmatter = parsed.frontmatterRaw
+            .replace(/match_score:\s*\d+/, `match_score: ${totalScore}`)
+            .replace(/judgment:\s*"?[^"\n\r]*"?/, `judgment: "${judgment}"`);
+
+          let updatedBody = parsed.body
+            .replace(/# 【[^】]+】/, `# 【${judgment}】`)
+            .replace(/- \*\*総合スコア\*\*:\s*\*\*\d+\s*\/\s*100\*\*/, `- **総合スコア**: **${totalScore} / 100**`);
+
+          updatedMarkdown = `---\n${updatedFrontmatter}\n---\n\n${updatedBody.trim()}\n`;
+        }
+
+        return {
+          ...job,
+          metadata: updatedMetadata,
+          markdownContent: updatedMarkdown,
+        };
+      });
+
+      for (const updatedJob of updatedJobs) {
+        await storageAdapter.saveJob(updatedJob);
+      }
+
+      setJobs(updatedJobs);
+      return updatedJobs;
+    },
+    []
+  );
+
   return {
     jobs,
     isLoading,
@@ -109,5 +155,6 @@ export function useJobs() {
     importJobFromMarkdown,
     deleteJob,
     exportMarkdown,
+    recalculateAllJobsWithWeights,
   };
 }

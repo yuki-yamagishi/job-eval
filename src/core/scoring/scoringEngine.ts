@@ -1,4 +1,4 @@
-import { UserProfile } from "@/types/profile";
+import { UserProfile, ScoringWeights, DEFAULT_SCORING_WEIGHTS } from "@/types/profile";
 import { JudgmentRank } from "@/types/job";
 
 export interface ScoreInput {
@@ -12,15 +12,17 @@ export interface ScoreInput {
   jobDescriptionText: string;
 }
 
+export interface ScoreBreakdown {
+  skillMatchRatio: number; // 0 - 100
+  conditionMatchRatio: number; // 0 - 100
+  careerGrowthRatio: number; // 0 - 100
+  environmentRiskRatio: number; // 0 - 100 (higher means lower risk / safer)
+}
+
 export interface ScoreCalculationResult {
   totalScore: number;
   judgment: JudgmentRank;
-  breakdown: {
-    skillMatchRatio: number; // 0 - 100
-    conditionMatchRatio: number; // 0 - 100
-    careerGrowthRatio: number; // 0 - 100
-    environmentRiskRatio: number; // 0 - 100 (higher means lower risk / safer)
-  };
+  breakdown: ScoreBreakdown;
   details: {
     matchedSkills: string[];
     unmatchedSkills: string[];
@@ -29,7 +31,58 @@ export interface ScoreCalculationResult {
 }
 
 /**
- * Multi-axis scoring engine based on FR-302 & FR-303
+ * Determine Judgment Rank based on total score
+ */
+export function calculateJudgmentRank(totalScore: number): JudgmentRank {
+  if (totalScore >= 90) {
+    return "S (即応募推奨)";
+  } else if (totalScore >= 80) {
+    return "A (即応募推奨)";
+  } else if (totalScore >= 65) {
+    return "B (要確認・検討)";
+  } else {
+    return "C (見送り推奨)";
+  }
+}
+
+/**
+ * Pure calculation to recalculate totalScore and judgment given scoreBreakdown and weights
+ */
+export function recalculateScoreWithWeights(
+  breakdown: ScoreBreakdown,
+  weights: ScoringWeights = DEFAULT_SCORING_WEIGHTS,
+  hasNgPenalty: boolean = false
+): { totalScore: number; judgment: JudgmentRank } {
+  // Normalize weight factors (e.g. 40 -> 0.4)
+  const totalWeight = (weights.skill + weights.condition + weights.growth + weights.environment) || 100;
+  const wSkill = weights.skill / totalWeight;
+  const wCondition = weights.condition / totalWeight;
+  const wGrowth = weights.growth / totalWeight;
+  const wEnv = weights.environment / totalWeight;
+
+  let totalScore = Math.round(
+    breakdown.skillMatchRatio * wSkill +
+    breakdown.conditionMatchRatio * wCondition +
+    breakdown.careerGrowthRatio * wGrowth +
+    breakdown.environmentRiskRatio * wEnv
+  );
+
+  // Severe penalty if NG condition was triggered
+  if (hasNgPenalty) {
+    totalScore = Math.min(totalScore, 60);
+  }
+
+  totalScore = Math.max(10, Math.min(100, totalScore));
+  const judgment = calculateJudgmentRank(totalScore);
+
+  return {
+    totalScore,
+    judgment,
+  };
+}
+
+/**
+ * Multi-axis scoring engine based on FR-302 & FR-303 and ADR-0001 / ADR-0004
  */
 export function calculateJobMatchScore(
   input: ScoreInput,
@@ -39,7 +92,7 @@ export function calculateJobMatchScore(
   const userCerts = profile.certifications.map((c) => c.name.toLowerCase());
   const allUserTech = [...userSkillNames, ...userCerts];
 
-  // 1. Skill Match Ratio (Weight 40%)
+  // 1. Skill Match Ratio
   // Check required skills
   const matchedRequired = input.requiredSkills.filter((req) =>
     allUserTech.some((tech) => req.toLowerCase().includes(tech) || tech.includes(req.toLowerCase()))
@@ -70,7 +123,7 @@ export function calculateJobMatchScore(
     skillRatio = Math.min(95, Math.max(50, matchesInText.length * 20));
   }
 
-  // 2. Condition Match Ratio (Weight 30%)
+  // 2. Condition Match Ratio
   let conditionRatio = 70;
   // Salary matching
   if (input.salaryMax && profile.conditions.targetSalaryMin) {
@@ -92,13 +145,13 @@ export function calculateJobMatchScore(
   }
   conditionRatio = Math.min(100, Math.max(20, conditionRatio));
 
-  // 3. Career Growth (Weight 20%)
+  // 3. Career Growth
   let careerGrowthRatio = 80;
   const growthKeywords = ["刷新", "アーキテクチャ", "マイクロサービス", "新技術", "テックリード", "設計", "大規模", "新規事業", "リード"];
   const growthMatches = growthKeywords.filter((k) => input.jobDescriptionText.includes(k));
   careerGrowthRatio = Math.min(100, 65 + growthMatches.length * 7);
 
-  // 4. Environment / Risk Factor (Weight 10%)
+  // 4. Environment / Risk Factor
   let environmentRiskRatio = 90;
   const ngTriggered: string[] = [];
 
@@ -118,43 +171,25 @@ export function calculateJobMatchScore(
   }
   environmentRiskRatio = Math.min(100, Math.max(10, environmentRiskRatio));
 
-  // Calculate Weighted Total Score (100 Max)
-  // Skill: 40%, Condition: 30%, Career: 20%, Environment: 10%
-  let totalScore = Math.round(
-    skillRatio * 0.4 +
-    conditionRatio * 0.3 +
-    careerGrowthRatio * 0.2 +
-    environmentRiskRatio * 0.1
+  const breakdown: ScoreBreakdown = {
+    skillMatchRatio: skillRatio,
+    conditionMatchRatio: conditionRatio,
+    careerGrowthRatio,
+    environmentRiskRatio,
+  };
+
+  // Get active weights from profile or fallback to default
+  const activeWeights = profile.conditions.scoringWeights || DEFAULT_SCORING_WEIGHTS;
+  const { totalScore, judgment } = recalculateScoreWithWeights(
+    breakdown,
+    activeWeights,
+    ngTriggered.length > 0
   );
-
-  // Severe penalty if NG condition triggered
-  if (ngTriggered.length > 0) {
-    totalScore = Math.min(totalScore, 60);
-  }
-
-  totalScore = Math.max(10, Math.min(100, totalScore));
-
-  // Determine Judgment Rank
-  let judgment: JudgmentRank;
-  if (totalScore >= 90) {
-    judgment = "S (即応募推奨)";
-  } else if (totalScore >= 80) {
-    judgment = "A (即応募推奨)";
-  } else if (totalScore >= 65) {
-    judgment = "B (要確認・検討)";
-  } else {
-    judgment = "C (見送り推奨)";
-  }
 
   return {
     totalScore,
     judgment,
-    breakdown: {
-      skillMatchRatio: skillRatio,
-      conditionMatchRatio: conditionRatio,
-      careerGrowthRatio,
-      environmentRiskRatio,
-    },
+    breakdown,
     details: {
       matchedSkills: [...matchedRequired, ...matchedPreferred],
       unmatchedSkills: input.requiredSkills.filter((r) => !matchedRequired.includes(r)),

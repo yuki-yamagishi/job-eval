@@ -104,9 +104,10 @@ describe("JobDashboard Component", () => {
     const handleUpdateStatus = vi.fn();
     render(<JobDashboard savedJobs={mockJobs} onUpdateStatus={handleUpdateStatus} />);
 
-    const selects = screen.getAllByRole("combobox");
-    // Change first job's status
-    fireEvent.change(selects[3], { target: { value: "内定" } });
+    // Find the status select within the table row
+    const statusSelects = screen.getAllByDisplayValue("応募済");
+    expect(statusSelects.length).toBeGreaterThan(0);
+    fireEvent.change(statusSelects[0], { target: { value: "内定" } });
 
     expect(handleUpdateStatus).toHaveBeenCalledWith("job-001", "内定");
   });
@@ -135,6 +136,23 @@ describe("JobDashboard Component", () => {
     const previewButtons = screen.getAllByText("再表示");
     fireEvent.click(previewButtons[0]);
 
-    expect(handlePreview).toHaveBeenCalledWith(mockJobs[0]);
+    expect(handlePreview).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({ id: "job-001" })
+    }));
+  });
+
+  it("switches scoring lens in dashboard filter bar", () => {
+    render(<JobDashboard savedJobs={mockJobs} />);
+
+    // Find the lens selector by option text
+    const lensSelect = screen.getByDisplayValue(/保存時基準/);
+    expect(lensSelect).toBeDefined();
+
+    // Switch to Reskilling preset
+    fireEvent.change(lensSelect, { target: { value: "reskilling" } });
+
+    // Verify recalculated score is rendered for job-001 (breakdown: 95, 90, 90, 90)
+    // 95*0.1 + 90*0.2 + 90*0.45 + 90*0.25 = 9.5 + 18 + 40.5 + 22.5 = 90.5 -> 91点
+    expect(screen.getByText("91点")).toBeDefined();
   });
 });
