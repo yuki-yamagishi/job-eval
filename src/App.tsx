@@ -23,7 +23,7 @@ export function App() {
 
   // Custom Hooks for persistence
   const { profile, saveProfile, resetToDefault, isLoading, isSaving, lastSavedTime } = useProfile();
-  const { jobs, saveJob, updateJobStatus, importJobFromMarkdown, deleteJob, exportMarkdown } = useJobs();
+  const { jobs, fetchJobs, saveJob, updateJobStatus, importJobFromMarkdown, deleteJob, exportMarkdown } = useJobs();
 
   const handleAnalyze = async (text: string, source: AgentSource) => {
     setIsAnalyzing(true);
@@ -170,6 +170,7 @@ export function App() {
             profile={profile}
             onSelectJobForPreview={handleSelectJobForPreview}
             onUpdateStatus={updateJobStatus}
+            onRefreshJobs={fetchJobs}
           />
         )}
 

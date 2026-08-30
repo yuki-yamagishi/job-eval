@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
-import { CareerRoadmapView } from "@/features/roadmap/CareerRoadmapView";
+import { CareerRoadmapView, normalizeCertificationName } from "@/features/roadmap/CareerRoadmapView";
 import { JobAnalysisResult } from "@/types/job";
 import { TEST_MOCK_PROFILE } from "../fixtures/sampleProfile";
 
@@ -106,8 +106,8 @@ describe("CareerRoadmapView", () => {
     );
 
     expect(screen.getByText(/求人票から逆算された資格・スキル獲得ロードマップ/)).toBeDefined();
-    expect(screen.getByText("AWS SAP")).toBeDefined();
-    expect(screen.getByText("CKA")).toBeDefined();
+    expect(screen.getAllByText(/SAP/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/CKA/).length).toBeGreaterThan(0);
   });
 
   it("analyzes reject reasons and displays breakdown", () => {
@@ -150,5 +150,42 @@ describe("CareerRoadmapView", () => {
     expect(screen.getByText(/マルチクラウドIaC基盤設計/)).toBeDefined();
     expect(screen.getByText(/スタッフエンジニア \/ プリンシパル/)).toBeDefined();
     expect(screen.getByText("想定市場年収: 1,100万円 〜 1,450万円")).toBeDefined();
+  });
+
+  it("normalizes certification names accurately", () => {
+    expect(normalizeCertificationName("AWS SAA")).toContain("AWS 認定ソリューションアーキテクト - アソシエイト (SAA)");
+    expect(normalizeCertificationName("🎯 AWS Certified Solutions Architect - Associate")).toContain("AWS 認定ソリューションアーキテクト - アソシエイト (SAA)");
+    expect(normalizeCertificationName("AZ-305")).toContain("AZ-305");
+    expect(normalizeCertificationName("CKA")).toContain("CKA (認定Kubernetes管理者)");
+  });
+
+  it("displays company context badges (required vs recommended) for certifications", () => {
+    render(
+      <CareerRoadmapView
+        savedJobs={mockJobs}
+        profile={TEST_MOCK_PROFILE}
+      />
+    );
+
+    expect(screen.getAllByText("必須指定").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("推奨アピール").length).toBeGreaterThan(0);
+  });
+
+  it("handles manual refresh button click and triggers onRefreshJobs", async () => {
+    const handleRefresh = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CareerRoadmapView
+        savedJobs={mockJobs}
+        profile={TEST_MOCK_PROFILE}
+        onRefreshJobs={handleRefresh}
+      />
+    );
+
+    const refreshBtn = screen.getByText("🔄 データを再集計・更新");
+    await waitFor(async () => {
+      fireEvent.click(refreshBtn);
+    });
+
+    expect(handleRefresh).toHaveBeenCalled();
   });
 });
