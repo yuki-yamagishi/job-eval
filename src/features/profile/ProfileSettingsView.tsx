@@ -74,7 +74,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   const [activeCertTab, setActiveCertTab] = useState<"acquired" | "planned">("acquired");
   const [newCertName, setNewCertName] = useState("");
   const [newCertIssuer, setNewCertIssuer] = useState("");
-  const [newCertStatus, setNewCertStatus] = useState<"acquired" | "studying" | "planned">("acquired");
+  const [newCertStatus, setNewCertStatus] = useState<"studying" | "planned">("studying");
   const [newCertYear, setNewCertYear] = useState<string>(new Date().getFullYear().toString());
   const [newCertPeriod, setNewCertPeriod] = useState<string>("2026年Q3");
 
@@ -133,7 +133,6 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
       const res = await fetchAvailableGeminiModels(key);
       if (res.ok && res.models.length > 0) {
         setAvailableModels(res.models);
-        // If current model is not in list, set to the first valid one
         if (!res.models.includes(draft.apiSettings.geminiModel)) {
           setDraft((prev) => ({
             ...prev,
@@ -203,11 +202,17 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   const handleAddCert = () => {
     if (!newCertName.trim()) return;
 
+    // Determine status based strictly on the active tab
+    const certStatus: "acquired" | "studying" | "planned" = 
+      activeCertTab === "acquired" 
+        ? "acquired" 
+        : (newCertStatus === "planned" ? "planned" : "studying");
+
     const newCertItem: CertificationItem = {
       id: `c-${Date.now()}`,
       name: newCertName.trim(),
       issuer: newCertIssuer.trim() || "認定機関",
-      status: activeCertTab === "acquired" ? "acquired" : newCertStatus,
+      status: certStatus,
       yearAcquired: activeCertTab === "acquired" && newCertYear ? Number(newCertYear) || undefined : undefined,
       targetPeriod: activeCertTab === "planned" ? newCertPeriod.trim() : undefined,
     };
@@ -383,25 +388,25 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
           <CardHeader className="pb-3">
             <CardTitle className="text-sm text-indigo-300 flex items-center gap-2">
               <Award className="h-4 w-4 text-indigo-400" />
-              スキル & 認定資格 (取得済 / 学習中・目標)
+              スキル・保有資格 & 学習中目標 (FR-201)
             </CardTitle>
             <CardDescription className="text-xs">
-              AIが求人票のMust/Want要件と照合・不足資格推薦を行う技術情報
+              実務経験スキルと学習中資格を分離して登録
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-0">
             {/* Skills */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-300">技術スタック (言語・FW・インフラ)</label>
-                <div className="flex gap-1 text-[11px]">
+                <label className="text-xs font-semibold text-slate-300">スキルセット</label>
+                <div className="flex bg-slate-950 p-0.5 rounded border border-slate-800 text-[11px]">
                   <button
                     type="button"
                     onClick={() => setNewSkillStatus("experienced")}
                     className={`px-2 py-0.5 rounded transition-all ${
                       newSkillStatus === "experienced"
                         ? "bg-indigo-600 text-white font-semibold"
-                        : "bg-slate-900 text-slate-400 hover:text-slate-200"
+                        : "text-slate-400 hover:text-slate-200"
                     }`}
                   >
                     実務経験あり
@@ -412,7 +417,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                     className={`px-2 py-0.5 rounded transition-all ${
                       newSkillStatus === "learning"
                         ? "bg-purple-600 text-white font-semibold"
-                        : "bg-slate-900 text-slate-400 hover:text-slate-200"
+                        : "text-slate-400 hover:text-slate-200"
                     }`}
                   >
                     独学・学習中
@@ -721,7 +726,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                       className={`text-[11px] px-2.5 py-1 rounded-md transition-all ${
                         isSelected
                           ? "bg-indigo-600/90 text-white font-semibold border border-indigo-500"
-                          : "bg-slate-900 text-slate-400 border border-slate-800 hover:bg-slate-800"
+                          : "bg-slate-950 text-slate-400 border border-slate-800 hover:bg-slate-800"
                       }`}
                     >
                       {isSelected ? "✓ " : "+ "}
@@ -868,7 +873,6 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                     }
                     className="w-full h-9 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 font-mono focus:outline-none focus:border-indigo-500"
                   >
-                    {/* If available models fetched, show them */}
                     {availableModels.length > 0 ? (
                       availableModels.map((m) => (
                         <option key={m} value={m}>

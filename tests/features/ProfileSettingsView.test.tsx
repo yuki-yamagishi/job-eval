@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ProfileSettingsView } from "@/features/profile/ProfileSettingsView";
 
 describe("ProfileSettingsView Component", () => {
@@ -16,7 +16,7 @@ describe("ProfileSettingsView Component", () => {
 
     // Check section headings
     expect(await screen.findByText("基本プロファイル")).toBeDefined();
-    expect(await screen.findByText(/スキル & 認定資格/)).toBeDefined();
+    expect(await screen.findByText(/スキル・保有資格 & 学習中目標/)).toBeDefined();
     expect(await screen.findByText(/転職希望条件マトリクス/)).toBeDefined();
     expect(await screen.findByText(/NG条件・除外キーワード/)).toBeDefined();
     expect(await screen.findByText(/Google Gemini API 設定/)).toBeDefined();
@@ -27,5 +27,23 @@ describe("ProfileSettingsView Component", () => {
     expect(await screen.findByText("接続テスト")).toBeDefined();
     expect(await screen.findByText("設定を保存")).toBeDefined();
     expect(await screen.findByText("初期値に戻す")).toBeDefined();
+  });
+
+  it("allows switching tabs and adding planned certification to target list", async () => {
+    render(<ProfileSettingsView />);
+
+    // Switch to planned tab
+    const plannedTab = await screen.findByText(/学習中・取得目標/);
+    fireEvent.click(plannedTab);
+
+    // Input target cert
+    const input = screen.getByPlaceholderText(/目標資格名/);
+    fireEvent.change(input, { target: { value: "AZ-400 DevOps Expert" } });
+
+    const addBtn = screen.getByRole("button", { name: /資格を追加/ });
+    fireEvent.click(addBtn);
+
+    // Verify it is displayed
+    expect(await screen.findByText("AZ-400 DevOps Expert")).toBeDefined();
   });
 });
