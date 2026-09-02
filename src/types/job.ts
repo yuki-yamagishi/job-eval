@@ -27,6 +27,7 @@ export interface JobMetadata {
   agentSource: AgentSource;
   url?: string;
   dateAnalyzed: string;
+  updatedAt?: string;
   salaryMin?: number;
   salaryMax?: number;
   matchScore: number;

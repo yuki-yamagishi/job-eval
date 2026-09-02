@@ -6,8 +6,13 @@
 import { UserProfile } from "@/types/profile";
 import { JobAnalysisResult } from "@/types/job";
 import { CloudSyncConfig, SyncStatusInfo, DEFAULT_SYNC_CONFIG } from "@/types/sync";
+import { mergeJobs, mergeProfile } from "@/core/sync/smartMerge";
 
 const SYNC_CONFIG_KEY = "jobeval_cloud_sync_config_v1";
+const STORAGE_KEYS = {
+  PROFILE: "jobeval_user_profile_v1",
+  JOBS: "jobeval_saved_jobs_v1",
+};
 
 type JobListener = (jobs: JobAnalysisResult[]) => void;
 type ProfileListener = (profile: UserProfile) => void;
@@ -71,9 +76,33 @@ export class CloudSyncService {
           }
 
           if (type === "JOBS_UPDATED" && Array.isArray(payload)) {
-            this.notifyJobListeners(payload);
+            // Smart merge with local storage jobs
+            let localJobs: JobAnalysisResult[] = [];
+            try {
+              const raw = localStorage.getItem(STORAGE_KEYS.JOBS);
+              if (raw) localJobs = JSON.parse(raw);
+            } catch (e) {
+              console.warn("Failed to read local jobs for merge", e);
+            }
+
+            const merged = mergeJobs(localJobs, payload);
+            localStorage.setItem(STORAGE_KEYS.JOBS, JSON.stringify(merged));
+            this.notifyJobListeners(merged);
+            this.updateStatus({ lastSyncedAt: new Date() });
           } else if (type === "PROFILE_UPDATED" && payload) {
-            this.notifyProfileListeners(payload);
+            // Smart merge with local storage profile
+            let localProfile: UserProfile | null = null;
+            try {
+              const raw = localStorage.getItem(STORAGE_KEYS.PROFILE);
+              if (raw) localProfile = JSON.parse(raw);
+            } catch (e) {
+              console.warn("Failed to read local profile for merge", e);
+            }
+
+            const merged = localProfile ? mergeProfile(localProfile, payload) : payload;
+            localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(merged));
+            this.notifyProfileListeners(merged);
+            this.updateStatus({ lastSyncedAt: new Date() });
           }
         };
       }
