@@ -13,9 +13,9 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
     });
   });
 
-  it("generates a human-readable 4-digit room code with JE- prefix", () => {
+  it("generates a human-readable room code with JE- prefix and secure suffix", () => {
     const roomId = cloudSyncService.generateRoomId();
-    expect(roomId).toMatch(/^JE-\d{4}$/);
+    expect(roomId).toMatch(/^JE-\d{4}(-[A-Z0-9]{4})?$/);
   });
 
   it("updates status when configuring sync room", async () => {

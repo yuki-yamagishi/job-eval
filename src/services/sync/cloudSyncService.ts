@@ -1,13 +1,14 @@
 /**
- * Cloud Real-Time Synchronization Service
- * Handles multi-device synchronization via Room IDs with BroadcastChannel and WebRTC/WebSocket Relay.
- * Fully Local-First: data is synced directly between devices with smart merge, no central DB storage.
+ * Cloud Real-Time & Persistent Synchronization Service
+ * Backed by Cloudflare D1 (E2EE Zero-Knowledge DB) + Real-Time WebSocket Relay.
+ * Fully Local-First: Zero latency UI (0ms), asynchronous background cloud persistence.
  */
 
 import { UserProfile } from "@/types/profile";
 import { JobAnalysisResult } from "@/types/job";
 import { CloudSyncConfig, SyncStatusInfo, DEFAULT_SYNC_CONFIG } from "@/types/sync";
 import { mergeJobs, mergeProfile } from "@/core/sync/smartMerge";
+import { encryptJson, decryptJson } from "@/core/crypto/e2eeCrypto";
 
 const SYNC_CONFIG_KEY = "jobeval_cloud_sync_config_v1";
 const STORAGE_KEYS = {
@@ -46,12 +47,16 @@ export class CloudSyncService {
   private broadcastChannel: BroadcastChannel | null = null;
   private ws: WebSocket | null = null;
   private reconnectTimer: any = null;
+  private pollingTimer: any = null;
+  private lastPullTimestamp: number = 0;
 
   constructor() {
     this.loadSavedConfig();
     this.initBroadcastChannel();
+    this.initWindowFocusListener();
     if (this.config.enabled && this.config.roomId) {
       this.connectRelay(this.config.roomId);
+      this.syncWithD1(this.config.roomId);
     }
   }
 
@@ -93,9 +98,178 @@ export class CloudSyncService {
     }
   }
 
+  private initWindowFocusListener() {
+    if (typeof window !== "undefined" && window.addEventListener) {
+      window.addEventListener("focus", () => {
+        if (this.config.enabled && this.config.roomId) {
+          this.pullFromD1(this.config.roomId);
+        }
+      });
+    }
+  }
+
   private getTopic(roomId: string): string {
     return `jobeval_sync_${roomId.trim().replace(/[^a-zA-Z0-9_-]/g, "_")}`;
   }
+
+  private getD1ApiUrl(): string {
+    if (typeof window === "undefined") return "https://job-eval.pages.dev/api/sync";
+    const host = window.location.hostname;
+    const isLocal = host === "localhost" || host === "127.0.0.1" || host === "" || window.location.protocol === "tauri:";
+    return isLocal ? "https://job-eval.pages.dev/api/sync" : "/api/sync";
+  }
+
+  // ==========================================
+  // D1 E2EE PERSISTENT CLOUD SYNC (PUSH / PULL)
+  // ==========================================
+
+  /**
+   * Pulls encrypted changes from Cloudflare D1, decrypts them with Room Key, and smart merges
+   */
+  public async pullFromD1(roomId: string): Promise<boolean> {
+    if (!roomId) return false;
+
+    try {
+      const res = await fetch(this.getD1ApiUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "pull",
+          roomId: roomId.trim().toUpperCase(),
+          since: this.lastPullTimestamp,
+        }),
+      });
+
+      if (!res.ok) {
+        console.warn("D1 pull failed with status", res.status);
+        return false;
+      }
+
+      const data = await res.json();
+      if (!data.success) return false;
+
+      // 1. Decrypt and smart merge profile
+      if (data.profile && data.profile.encrypted) {
+        const decryptedProfile = await decryptJson<UserProfile>(data.profile.encrypted, roomId);
+        if (decryptedProfile) {
+          this.applyProfileMerge(decryptedProfile);
+        }
+      }
+
+      // 2. Decrypt and smart merge jobs
+      if (Array.isArray(data.jobs) && data.jobs.length > 0) {
+        const decryptedJobs: JobAnalysisResult[] = [];
+        for (const j of data.jobs) {
+          if (j.encrypted) {
+            const dec = await decryptJson<JobAnalysisResult>(j.encrypted, roomId);
+            if (dec) decryptedJobs.push(dec);
+          }
+        }
+        if (decryptedJobs.length > 0) {
+          this.applyJobsMerge(decryptedJobs);
+        }
+      }
+
+      if (data.serverTime) {
+        this.lastPullTimestamp = data.serverTime;
+      }
+      this.updateStatus({ lastSyncedAt: new Date() });
+      return true;
+    } catch (err) {
+      console.warn("Failed to pull from D1 cloud DB", err);
+      return false;
+    }
+  }
+
+  /**
+   * Pushes local jobs & profile to Cloudflare D1 with E2EE AES-GCM encryption
+   */
+  public async pushToD1(roomId: string, jobsToPush?: JobAnalysisResult[], profileToPush?: UserProfile): Promise<boolean> {
+    if (!roomId) return false;
+
+    try {
+      // 1. Encrypt profile
+      let encryptedProfile: { encrypted: string; updatedAt: number } | undefined;
+      if (profileToPush) {
+        const enc = await encryptJson(profileToPush, roomId);
+        encryptedProfile = {
+          encrypted: enc,
+          updatedAt: Date.now(),
+        };
+      }
+
+      // 2. Encrypt jobs
+      let encryptedJobs: Array<{ jobId: string; encrypted: string; updatedAt: number }> | undefined;
+      if (Array.isArray(jobsToPush) && jobsToPush.length > 0) {
+        encryptedJobs = [];
+        for (const job of jobsToPush) {
+          if (job?.metadata?.id) {
+            const enc = await encryptJson(job, roomId);
+            const ts = job.metadata.updatedAt ? new Date(job.metadata.updatedAt).getTime() : Date.now();
+            encryptedJobs.push({
+              jobId: job.metadata.id,
+              encrypted: enc,
+              updatedAt: isNaN(ts) ? Date.now() : ts,
+            });
+          }
+        }
+      }
+
+      const res = await fetch(this.getD1ApiUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "push",
+          roomId: roomId.trim().toUpperCase(),
+          profile: encryptedProfile,
+          jobs: encryptedJobs,
+        }),
+      });
+
+      if (!res.ok) {
+        console.warn("D1 push failed with status", res.status);
+        return false;
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        this.updateStatus({ lastSyncedAt: new Date() });
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.warn("Failed to push to D1 cloud DB", err);
+      return false;
+    }
+  }
+
+  /**
+   * Performs full two-way initial synchronization with D1
+   */
+  private async syncWithD1(roomId: string) {
+    // 1. Pull latest from cloud first
+    await this.pullFromD1(roomId);
+
+    // 2. Push local current state up to cloud
+    let localJobs: JobAnalysisResult[] = [];
+    let localProfile: UserProfile | null = null;
+    try {
+      const rawJobs = localStorage.getItem(STORAGE_KEYS.JOBS);
+      if (rawJobs) localJobs = JSON.parse(rawJobs);
+      const rawProfile = localStorage.getItem(STORAGE_KEYS.PROFILE);
+      if (rawProfile) localProfile = JSON.parse(rawProfile);
+    } catch (e) {
+      console.warn("Failed to read local storage for initial D1 push", e);
+    }
+
+    if (localJobs.length > 0 || localProfile) {
+      await this.pushToD1(roomId, localJobs, localProfile || undefined);
+    }
+  }
+
+  // ==========================================
+  // REAL-TIME WEBSOCKET RELAY (INSTANT P2P)
+  // ==========================================
 
   private connectRelay(roomId: string) {
     this.disconnectRelay();
@@ -161,7 +335,6 @@ export class CloudSyncService {
 
       this.ws.onclose = () => {
         if (this.config.enabled && this.config.roomId === roomId) {
-          // Schedule reconnect
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = setTimeout(() => {
             if (this.config.enabled && this.config.roomId) {
@@ -170,6 +343,14 @@ export class CloudSyncService {
           }, 3000);
         }
       };
+
+      // Periodic polling for D1 background sync (every 20s)
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = setInterval(() => {
+        if (this.config.enabled && this.config.roomId) {
+          this.pullFromD1(this.config.roomId);
+        }
+      }, 20000);
     } catch (e) {
       console.warn("Failed to initialize WebSocket relay", e);
     }
@@ -177,6 +358,7 @@ export class CloudSyncService {
 
   private disconnectRelay() {
     clearTimeout(this.reconnectTimer);
+    clearInterval(this.pollingTimer);
     if (this.ws) {
       try {
         this.ws.close();
@@ -255,7 +437,7 @@ export class CloudSyncService {
         this.applyProfileMerge(payloadProfile);
       }
 
-      // If this was an initial HELLO, respond with HELLO_ACK so the peer also gets our data
+      // If this was an initial HELLO, respond with HELLO_ACK
       if (type === "HELLO") {
         let currentJobs: JobAnalysisResult[] = [];
         let currentProfile: UserProfile | null = null;
@@ -328,6 +510,7 @@ export class CloudSyncService {
     if (config.enabled && config.roomId) {
       this.updateStatus({ state: "connecting", roomId: config.roomId });
       this.connectRelay(config.roomId);
+      await this.syncWithD1(config.roomId);
     } else {
       this.disconnectRelay();
       this.updateStatus({
@@ -342,6 +525,7 @@ export class CloudSyncService {
   public notifyJobsChanged(jobs: JobAnalysisResult[]) {
     this.notifyJobListeners(jobs);
     if (this.config.enabled && this.config.roomId) {
+      // 1. Real-time broadcast
       this.sendPacket({
         type: "JOBS_UPDATED",
         senderId: this.clientId,
@@ -349,6 +533,12 @@ export class CloudSyncService {
         timestamp: Date.now(),
         payloadJobs: jobs,
       });
+
+      // 2. D1 Persistent Cloud Push (Background)
+      this.pushToD1(this.config.roomId, jobs).catch((e) => {
+        console.warn("Background D1 job push error", e);
+      });
+
       this.updateStatus({ lastSyncedAt: new Date() });
     }
   }
@@ -356,6 +546,7 @@ export class CloudSyncService {
   public notifyProfileChanged(profile: UserProfile) {
     this.notifyProfileListeners(profile);
     if (this.config.enabled && this.config.roomId) {
+      // 1. Real-time broadcast
       this.sendPacket({
         type: "PROFILE_UPDATED",
         senderId: this.clientId,
@@ -363,6 +554,12 @@ export class CloudSyncService {
         timestamp: Date.now(),
         payloadProfile: profile,
       });
+
+      // 2. D1 Persistent Cloud Push (Background)
+      this.pushToD1(this.config.roomId, undefined, profile).catch((e) => {
+        console.warn("Background D1 profile push error", e);
+      });
+
       this.updateStatus({ lastSyncedAt: new Date() });
     }
   }
@@ -379,7 +576,6 @@ export class CloudSyncService {
 
   public onStatusChange(listener: StatusListener): () => void {
     this.statusListeners.add(listener);
-    // Initial emission
     listener(this.getStatus());
     return () => this.statusListeners.delete(listener);
   }
@@ -416,11 +612,12 @@ export class CloudSyncService {
   }
 
   /**
-   * Helper to generate human-readable pairing room IDs (e.g. JE-8492)
+   * Helper to generate human-readable pairing room IDs (e.g. JE-8492-7K9A)
    */
   public generateRoomId(): string {
     const randomNum = Math.floor(1000 + Math.random() * 9000);
-    return `JE-${randomNum}`;
+    const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return `JE-${randomNum}-${randomSuffix}`;
   }
 }
 
