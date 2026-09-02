@@ -4,8 +4,13 @@ import { storageAdapter } from "@/services/storage/storageAdapter";
 import { DEFAULT_USER_PROFILE } from "@/core/constants/defaultProfile";
 
 describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await cloudSyncService.configure({
+      enabled: false,
+      roomId: "",
+      autoSync: false,
+    });
   });
 
   it("generates a human-readable 4-digit room code with JE- prefix", () => {
@@ -75,6 +80,56 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
 
     await storageAdapter.deleteJob("sync-job-1");
     expect(jobCallback).toHaveBeenCalledWith([]);
+
+    unsubscribe();
+  });
+
+  it("correctly handles incoming peer messages and smart merges them", async () => {
+    const activeRoom = "JE-8888";
+    await cloudSyncService.configure({
+      enabled: true,
+      roomId: activeRoom,
+      autoSync: true,
+    });
+
+    // Setup local initial job
+    const localJob: any = {
+      metadata: {
+        id: "job-local-1",
+        company: "PC Company",
+        title: "Tech Lead",
+        updatedAt: "2026-09-01T10:00:00Z",
+      },
+    };
+    localStorage.setItem("jobeval_saved_jobs_v1", JSON.stringify([localJob]));
+
+    const remoteJob: any = {
+      metadata: {
+        id: "job-remote-2",
+        company: "Mobile Company",
+        title: "Architect",
+        updatedAt: "2026-09-02T12:00:00Z",
+      },
+    };
+
+    const jobListener = vi.fn();
+    const unsubscribe = cloudSyncService.onJobsChange(jobListener);
+
+    // Trigger incoming packet simulation via handleIncomingPacket
+    (cloudSyncService as any).handleIncomingPacket({
+      type: "JOBS_UPDATED",
+      senderId: "remote-client-123",
+      roomId: activeRoom,
+      timestamp: Date.now(),
+      payloadJobs: [remoteJob],
+    });
+
+    const savedRaw = localStorage.getItem("jobeval_saved_jobs_v1");
+    expect(savedRaw).not.toBeNull();
+    const parsed = JSON.parse(savedRaw!);
+    expect(parsed).toHaveLength(2);
+    expect(parsed.map((j: any) => j.metadata.id)).toContain("job-local-1");
+    expect(parsed.map((j: any) => j.metadata.id)).toContain("job-remote-2");
 
     unsubscribe();
   });

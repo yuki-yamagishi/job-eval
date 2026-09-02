@@ -42,8 +42,20 @@ export const SyncModal: React.FC<SyncModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentOrigin = typeof window !== "undefined" ? window.location.origin : "https://job-eval.pages.dev";
-  const shareableUrl = inputRoomId ? `${currentOrigin}?sync=${encodeURIComponent(inputRoomId)}` : "";
+  // Ensure shareable URL points to the public cloud deployment (job-eval.pages.dev)
+  // even when the user is running on localhost, 127.0.0.1, or Tauri desktop app.
+  const getShareableUrl = (roomId: string): string => {
+    if (!roomId) return "";
+    const publicCloudOrigin = "https://job-eval.pages.dev";
+    if (typeof window === "undefined") return `${publicCloudOrigin}?sync=${encodeURIComponent(roomId)}`;
+    
+    const host = window.location.hostname;
+    const isLocal = host === "localhost" || host === "127.0.0.1" || host === "" || window.location.protocol === "tauri:";
+    const origin = isLocal ? publicCloudOrigin : window.location.origin;
+    return `${origin}?sync=${encodeURIComponent(roomId)}`;
+  };
+
+  const shareableUrl = inputRoomId ? getShareableUrl(inputRoomId) : "";
 
   const handleCopyUrl = async () => {
     if (!shareableUrl) return;
