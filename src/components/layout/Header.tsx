@@ -1,13 +1,24 @@
 import React from "react";
-import { Sparkles, FileText, Settings, ShieldCheck } from "lucide-react";
+import { Sparkles, FileText, Settings, ShieldCheck, Radio } from "lucide-react";
+import { SyncStatusInfo } from "@/types/sync";
 
 interface HeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   savedJobCount?: number;
+  syncStatus?: SyncStatusInfo;
+  onOpenSyncModal?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, savedJobCount }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  activeTab, 
+  setActiveTab, 
+  savedJobCount,
+  syncStatus,
+  onOpenSyncModal,
+}) => {
+  const isSyncConnected = syncStatus?.state === "connected" && Boolean(syncStatus.roomId);
+
   return (
     <header className="h-14 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-2 sm:px-4 flex items-center justify-between z-30 select-none">
       {/* Brand Logo */}
@@ -93,8 +104,26 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, savedJo
       </div>
 
       {/* Right Controls */}
-      <div className="hidden sm:flex items-center gap-2 shrink-0">
-        <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2.5 py-1 rounded-full">
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Real-time Sync Status Button */}
+        {onOpenSyncModal && (
+          <button
+            onClick={onOpenSyncModal}
+            className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${
+              isSyncConnected
+                ? "bg-emerald-950/60 border-emerald-700/80 text-emerald-300 hover:bg-emerald-900/60 shadow-sm"
+                : "bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+            }`}
+            title={isSyncConnected ? `同期ルーム: ${syncStatus?.roomId}` : "端末間リアルタイム同期を設定"}
+          >
+            <Radio className={`h-3.5 w-3.5 ${isSyncConnected ? "text-emerald-400 animate-pulse" : "text-slate-500"}`} />
+            <span className="text-[11px] font-medium hidden sm:inline">
+              {isSyncConnected ? `${syncStatus?.roomId}` : "端末同期"}
+            </span>
+          </button>
+        )}
+
+        <div className="hidden sm:flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2.5 py-1 rounded-full">
           <ShieldCheck className="h-3.5 w-3.5" />
           <span className="hidden lg:inline">Local First</span>
         </div>

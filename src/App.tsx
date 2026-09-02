@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/layout/Header";
 import { InputPane } from "@/components/pane/InputPane";
 import { PreviewPane } from "@/components/pane/PreviewPane";
 import { JobDashboard } from "@/components/dashboard/JobDashboard";
 import { CareerRoadmapView } from "@/features/roadmap/CareerRoadmapView";
 import { ProfileSettingsView } from "@/features/profile/ProfileSettingsView";
+import { SyncModal } from "@/components/sync/SyncModal";
 import { 
   analyzeJobWithProfile, 
   reEvaluateJobWithProfile, 
@@ -13,6 +14,7 @@ import {
 import { generateJobMarkdown } from "@/core/markdown/markdownGenerator";
 import { useProfile } from "@/hooks/useProfile";
 import { useJobs } from "@/hooks/useJobs";
+import { useCloudSync } from "@/hooks/useCloudSync";
 import { JobAnalysisResult, AgentSource } from "@/types/job";
 
 export function App() {
@@ -20,6 +22,31 @@ export function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isReEvaluating, setIsReEvaluating] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<JobAnalysisResult | null>(null);
+
+  // Cloud sync hook
+  const {
+    syncStatus,
+    syncConfig,
+    isModalOpen: isSyncModalOpen,
+    setIsModalOpen: setIsSyncModalOpen,
+    updateConfig: updateSyncConfig,
+    generateNewRoomId,
+  } = useCloudSync();
+
+  // Check URL parameters for one-click pairing (?sync=JE-XXXX)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const syncParam = params.get("sync");
+      if (syncParam && syncParam.trim() && syncParam !== syncConfig.roomId) {
+        updateSyncConfig({
+          ...syncConfig,
+          enabled: true,
+          roomId: syncParam.trim().toUpperCase(),
+        });
+      }
+    }
+  }, [syncConfig, updateSyncConfig]);
 
   // Custom Hooks for persistence
   const { profile, saveProfile, resetToDefault, isLoading, isSaving, lastSavedTime } = useProfile();
@@ -142,7 +169,13 @@ export function App() {
   return (
     <div className="h-[100dvh] w-screen flex flex-col bg-background text-foreground overflow-hidden">
       {/* Top Header Navigation */}
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} savedJobCount={jobs.length} />
+      <Header
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        savedJobCount={jobs.length}
+        syncStatus={syncStatus}
+        onOpenSyncModal={() => setIsSyncModalOpen(true)}
+      />
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto lg:overflow-hidden relative">
@@ -217,6 +250,16 @@ export function App() {
           </div>
         )}
       </main>
+
+      {/* Cloud Sync Modal */}
+      <SyncModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        syncStatus={syncStatus}
+        syncConfig={syncConfig}
+        onUpdateConfig={updateSyncConfig}
+        onGenerateRoomId={generateNewRoomId}
+      />
     </div>
   );
 }

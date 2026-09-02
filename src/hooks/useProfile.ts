@@ -9,7 +9,7 @@ export function useProfile() {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
 
-  // Initial load
+  // Initial load & real-time sync subscription
   useEffect(() => {
     let isMounted = true;
     const fetchProfile = async () => {
@@ -26,8 +26,21 @@ export function useProfile() {
       }
     };
     fetchProfile();
+
+    // Subscribe to real-time updates from other devices / tabs
+    let unsubscribe: (() => void) | undefined;
+    if (storageAdapter.subscribeProfile) {
+      unsubscribe = storageAdapter.subscribeProfile((updatedProfile) => {
+        if (isMounted) {
+          setProfile(updatedProfile);
+          setLastSavedTime(new Date(updatedProfile.updatedAt || new Date().toISOString()));
+        }
+      });
+    }
+
     return () => {
       isMounted = false;
+      unsubscribe?.();
     };
   }, []);
 

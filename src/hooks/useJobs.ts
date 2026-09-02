@@ -34,6 +34,16 @@ export function useJobs() {
 
   useEffect(() => {
     fetchJobs();
+
+    // Subscribe to real-time updates from other devices / tabs
+    if (storageAdapter.subscribeJobs) {
+      const unsubscribe = storageAdapter.subscribeJobs((updatedJobs) => {
+        setJobs(updatedJobs);
+      });
+      return () => {
+        unsubscribe();
+      };
+    }
   }, [fetchJobs]);
 
   const saveJob = useCallback(async (job: JobAnalysisResult) => {

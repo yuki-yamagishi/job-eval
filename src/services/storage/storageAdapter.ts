@@ -1,7 +1,9 @@
 import { UserProfile } from "@/types/profile";
 import { JobAnalysisResult } from "@/types/job";
 import { StorageAdapter } from "@/types/storage";
+import { SyncStatusInfo, CloudSyncConfig } from "@/types/sync";
 import { DEFAULT_USER_PROFILE } from "@/core/constants/defaultProfile";
+import { cloudSyncService } from "@/services/sync/cloudSyncService";
 
 const STORAGE_KEYS = {
   PROFILE: "jobeval_user_profile_v1",
@@ -9,7 +11,7 @@ const STORAGE_KEYS = {
 };
 
 /**
- * Web LocalStorage implementation of StorageAdapter with File System Access API
+ * Web LocalStorage implementation of StorageAdapter with File System Access API & Real-time Cloud Sync
  */
 export class LocalStorageAdapter implements StorageAdapter {
   async loadProfile(): Promise<UserProfile> {
@@ -33,6 +35,7 @@ export class LocalStorageAdapter implements StorageAdapter {
         updatedAt: new Date().toISOString(),
       };
       localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(payload));
+      cloudSyncService.notifyProfileChanged(payload);
     } catch (e) {
       console.error("Failed to save profile to localStorage", e);
       throw new Error("プロファイルの保存に失敗しました");
@@ -67,12 +70,35 @@ export class LocalStorageAdapter implements StorageAdapter {
     }
 
     localStorage.setItem(STORAGE_KEYS.JOBS, JSON.stringify(jobs));
+    cloudSyncService.notifyJobsChanged(jobs);
   }
 
   async deleteJob(id: string): Promise<void> {
     const jobs = await this.loadJobs();
     const filtered = jobs.filter((j) => j.metadata.id !== id);
     localStorage.setItem(STORAGE_KEYS.JOBS, JSON.stringify(filtered));
+    cloudSyncService.notifyJobsChanged(filtered);
+  }
+
+  // Real-time synchronization methods
+  subscribeJobs(callback: (jobs: JobAnalysisResult[]) => void): () => void {
+    return cloudSyncService.onJobsChange(callback);
+  }
+
+  subscribeProfile(callback: (profile: UserProfile) => void): () => void {
+    return cloudSyncService.onProfileChange(callback);
+  }
+
+  getSyncStatus(): SyncStatusInfo {
+    return cloudSyncService.getStatus();
+  }
+
+  async configureSync(config: CloudSyncConfig): Promise<void> {
+    return cloudSyncService.configure(config);
+  }
+
+  subscribeSyncStatus(callback: (status: SyncStatusInfo) => void): () => void {
+    return cloudSyncService.onStatusChange(callback);
   }
 
   /**
