@@ -22,3 +22,6 @@
 | [ADR-0002](file:///docs/adr/0002-dual-storage-and-markdown-persistence.md) | Tauri FS / Web Dual Storage と Frontmatter Markdown 永続化の採用 | **Accepted** | 2026-08-30 |
 | [ADR-0003](file:///docs/adr/0003-pluggable-ai-providers.md) | MockAiProvider & GeminiAiProvider のプラグイン型 AI 設計の採用 | **Accepted** | 2026-08-30 |
 | [ADR-0004](file:///docs/adr/0004-dynamic-weighting-scoring.md) | 動的重み付けプロファイル (Dynamic Weighting Profile) および高速再計算エンジンの採用 | **Accepted** | 2026-08-30 |
+| [ADR-0005](file:///docs/adr/0005-job-reevaluation-and-history-tracking.md) | 求人元データからの個別/順次バッチAI再評価および適合度評価履歴タイムラインの採用 | **Accepted** | 2026-08-31 |
+| [ADR-0006](file:///docs/adr/0006-cloud-realtime-sync.md) | クラウドデータベースによる複数端末間双方向リアルタイム同期とオフライン耐性 | **Accepted** | 2026-09-02 |
+| [ADR-0007](file:///docs/adr/0007-smart-merge-and-conflict-resolution.md) | IDベースの決定論的スマートマージとLast-Write-Winsによるコンフリクト解消 | **Accepted** | 2026-09-02 |
