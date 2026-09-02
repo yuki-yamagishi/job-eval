@@ -25,3 +25,4 @@
 | [ADR-0005](file:///docs/adr/0005-job-reevaluation-and-history-tracking.md) | 求人元データからの個別/順次バッチAI再評価および適合度評価履歴タイムラインの採用 | **Accepted** | 2026-08-31 |
 | [ADR-0006](file:///docs/adr/0006-cloud-realtime-sync.md) | クラウドデータベースによる複数端末間双方向リアルタイム同期とオフライン耐性 | **Accepted** | 2026-09-02 |
 | [ADR-0007](file:///docs/adr/0007-smart-merge-and-conflict-resolution.md) | IDベースの決定論的スマートマージとLast-Write-Winsによるコンフリクト解消 | **Accepted** | 2026-09-02 |
+| [ADR-0008](file:///docs/adr/0008-webrtc-p2p-cross-device-realtime-sync.md) | WebRTC P2P 通信によるクロスネットワーク複数端末リアルタイム同期と本番共有URLの標準化 | **Accepted** | 2026-09-02 |
