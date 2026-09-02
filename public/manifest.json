@@ -1,0 +1,20 @@
+{
+  "name": "JobEval - 転職求人適合度AI評価",
+  "short_name": "JobEval",
+  "description": "転職求人の要件定義・4軸適合度スコアリング＆クロスデバイス同期ツール",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "categories": ["productivity", "utilities", "business"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
