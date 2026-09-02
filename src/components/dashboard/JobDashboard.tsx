@@ -427,8 +427,8 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
         </Card>
       ) : viewLayout === "table" ? (
         /* Table View (FR-501) */
-        <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-900/40 shadow-xl">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="border border-slate-800 rounded-xl overflow-x-auto bg-slate-900/40 shadow-xl">
+          <table className="w-full min-w-[680px] text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold">
                 <th className="p-3 w-10 text-center">比較</th>
@@ -925,8 +925,8 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
             </div>
 
             {/* Matrix Comparison Table */}
-            <div className="flex-1 overflow-auto p-6">
-              <div className={`grid grid-cols-${selectedJobs.length} gap-4`}>
+            <div className="flex-1 overflow-auto p-3 sm:p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {selectedJobs.map((job) => (
                   <div
                     key={job.metadata.id}
