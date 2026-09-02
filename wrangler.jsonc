@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "job-eval",
+  "pages_build_output_dir": "dist",
+  "compatibility_date": "2026-09-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "job-eval-db",
+      "database_id": "35ef1c2d-1ff3-489e-83e6-6d5ee2da85ee"
+    }
+  ]
+}
