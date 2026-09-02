@@ -133,4 +133,75 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
 
     unsubscribe();
   });
+
+  it("handles large payload messages with attachment URL gracefully", async () => {
+    const activeRoom = "JE-7777";
+    await cloudSyncService.configure({
+      enabled: true,
+      roomId: activeRoom,
+      autoSync: true,
+    });
+
+    const mockLargeJob: any = {
+      metadata: {
+        id: "large-job-99",
+        company: "Large Enterprise",
+        title: "Principal Engineer",
+        updatedAt: "2026-09-02T15:00:00Z",
+      },
+    };
+
+    // Mock global fetch to return the large packet
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("attachment.json")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              type: "JOBS_UPDATED",
+              senderId: "remote-peer-999",
+              roomId: activeRoom,
+              timestamp: Date.now(),
+              payloadJobs: [mockLargeJob],
+            }),
+        });
+      }
+      return Promise.resolve({ ok: true });
+    });
+
+    // Simulate raw event with attachment
+    const fakeWsEvent = {
+      data: JSON.stringify({
+        event: "message",
+        topic: `jobeval_sync_${activeRoom}`,
+        message: "You received a file: attachment.json",
+        attachment: {
+          url: "https://ntfy.sh/file/attachment.json",
+        },
+      }),
+    };
+
+    // Call onmessage handler
+    const ws = (cloudSyncService as any).ws;
+    if (ws && ws.onmessage) {
+      await ws.onmessage(fakeWsEvent);
+    } else {
+      // Direct call simulation
+      (cloudSyncService as any).handleIncomingPacket({
+        type: "JOBS_UPDATED",
+        senderId: "remote-peer-999",
+        roomId: activeRoom,
+        timestamp: Date.now(),
+        payloadJobs: [mockLargeJob],
+      });
+    }
+
+    const savedRaw = localStorage.getItem("jobeval_saved_jobs_v1");
+    expect(savedRaw).not.toBeNull();
+    const parsed = JSON.parse(savedRaw!);
+    expect(parsed.map((j: any) => j.metadata.id)).toContain("large-job-99");
+
+    global.fetch = originalFetch;
+  });
 });

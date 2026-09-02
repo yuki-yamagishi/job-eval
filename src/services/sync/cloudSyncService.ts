@@ -122,13 +122,34 @@ export class CloudSyncService {
         this.sendInitialHello(roomId);
       };
 
-      this.ws.onmessage = (event) => {
+      this.ws.onmessage = async (event) => {
         try {
           const raw = JSON.parse(event.data);
-          // ntfy.sh wraps messages in an event object: { event: "message", message: "..." }
+
+          // 1. Handle large payloads stored as ntfy attachments (e.g. > 4KB jobs/markdown)
+          if (raw.attachment && raw.attachment.url) {
+            try {
+              const res = await fetch(raw.attachment.url);
+              if (res.ok) {
+                const packet: SyncPacket = await res.json();
+                this.handleIncomingPacket(packet);
+                return;
+              }
+            } catch (attachErr) {
+              console.warn("Failed to fetch sync packet attachment", attachErr);
+            }
+          }
+
+          // 2. Handle standard inline JSON message
           const messageContent = raw.message || raw;
-          const packet: SyncPacket = typeof messageContent === "string" ? JSON.parse(messageContent) : messageContent;
-          this.handleIncomingPacket(packet);
+          if (typeof messageContent === "string") {
+            if (messageContent.startsWith("{")) {
+              const packet: SyncPacket = JSON.parse(messageContent);
+              this.handleIncomingPacket(packet);
+            }
+          } else if (messageContent && typeof messageContent === "object") {
+            this.handleIncomingPacket(messageContent as SyncPacket);
+          }
         } catch (e) {
           // Ignore keepalive or non-JSON messages
         }

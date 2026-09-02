@@ -33,20 +33,21 @@ export function App() {
     generateNewRoomId,
   } = useCloudSync();
 
-  // Check URL parameters for one-click pairing (?sync=JE-XXXX)
+  // Check URL parameters for one-click pairing (?sync=JE-XXXX) on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const syncParam = params.get("sync");
-      if (syncParam && syncParam.trim() && syncParam !== syncConfig.roomId) {
+      if (syncParam && syncParam.trim()) {
+        const targetRoom = syncParam.trim().toUpperCase();
         updateSyncConfig({
           ...syncConfig,
           enabled: true,
-          roomId: syncParam.trim().toUpperCase(),
+          roomId: targetRoom,
         });
       }
     }
-  }, [syncConfig, updateSyncConfig]);
+  }, []);
 
   // Custom Hooks for persistence
   const { profile, saveProfile, resetToDefault, isLoading, isSaving, lastSavedTime } = useProfile();
