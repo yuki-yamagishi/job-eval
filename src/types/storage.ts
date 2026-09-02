@@ -1,5 +1,6 @@
 import { UserProfile } from "./profile";
 import { JobAnalysisResult } from "./job";
+import { SyncStatusInfo, CloudSyncConfig } from "./sync";
 
 export interface StorageAdapter {
   // Profile methods
@@ -14,4 +15,11 @@ export interface StorageAdapter {
 
   // Export / Import
   exportMarkdownFile(filename: string, content: string): Promise<boolean>;
+
+  // Real-time synchronization methods (Optional/Pluggable)
+  subscribeJobs?: (callback: (jobs: JobAnalysisResult[]) => void) => () => void;
+  subscribeProfile?: (callback: (profile: UserProfile) => void) => () => void;
+  getSyncStatus?: () => SyncStatusInfo;
+  configureSync?: (config: CloudSyncConfig) => Promise<void>;
+  subscribeSyncStatus?: (callback: (status: SyncStatusInfo) => void) => () => void;
 }
