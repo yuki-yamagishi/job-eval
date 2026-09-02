@@ -181,32 +181,32 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
       )}
 
       {/* Top Bar Actions */}
-      <div className="h-12 border-b border-slate-800 px-4 flex items-center justify-between bg-slate-900/70 backdrop-blur-sm shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="min-h-12 border-b border-slate-800 px-3 sm:px-4 py-1.5 flex flex-wrap items-center justify-between gap-2 bg-slate-900/70 backdrop-blur-sm shrink-0">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
           <Badge variant={getRankBadgeVariant(displayJudgment)}>
             {displayJudgment}
           </Badge>
-          <div className="flex items-center gap-1.5 text-xs text-slate-300">
-            <span className="font-semibold text-slate-200 truncate max-w-[200px]">
+          <div className="flex items-center gap-1.5 text-xs text-slate-300 min-w-0">
+            <span className="font-semibold text-slate-200 truncate max-w-[130px] sm:max-w-[200px]">
               {metadata.company}
             </span>
             <span className="text-slate-500">•</span>
-            <span className="text-[11px] font-mono text-slate-400 truncate max-w-[180px]">
+            <span className="text-[11px] font-mono text-slate-400 truncate max-w-[110px] sm:max-w-[180px]">
               {standardFilename}
             </span>
           </div>
-          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-md font-medium">
+          <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-md font-medium shrink-0">
             <CheckCircle2 className="h-3 w-3" />
             ローカル保存済
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap ml-auto">
           {/* View Mode Toggle */}
           <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
             <button
               onClick={() => setViewMode("rich")}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+              className={`px-2 py-1 rounded-md text-xs font-medium transition-all ${
                 viewMode === "rich" ? "bg-indigo-600 text-white shadow-sm font-semibold" : "text-slate-400 hover:text-slate-200"
               }`}
             >
@@ -214,7 +214,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
             </button>
             <button
               onClick={() => setViewMode("split")}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${
+              className={`px-2 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${
                 viewMode === "split" ? "bg-indigo-600 text-white shadow-sm font-semibold" : "text-slate-400 hover:text-slate-200"
               }`}
             >
@@ -223,7 +223,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
             </button>
             <button
               onClick={() => setViewMode("raw")}
-              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${
+              className={`px-2 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${
                 viewMode === "raw" ? "bg-indigo-600 text-white shadow-sm font-semibold" : "text-slate-400 hover:text-slate-200"
               }`}
             >
@@ -237,7 +237,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
             variant="outline"
             size="sm"
             onClick={handleCopyFull}
-            className="h-8 text-xs border-slate-700 hover:bg-slate-800 text-slate-300"
+            className="h-8 px-2.5 text-xs border-slate-700 hover:bg-slate-800 text-slate-300"
           >
             <Copy className="h-3.5 w-3.5 mr-1" />
             全文コピー
@@ -260,7 +260,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                   setIsProfileReEvaluating(false);
                 }
               }}
-              className="h-8 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md font-semibold"
+              className="h-8 px-2.5 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md font-semibold"
               title="求人票元データと最新のプロファイル設定を用いて再評価"
             >
               {isProfileReEvaluating ? (
@@ -276,7 +276,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
           <Button
             size="sm"
             onClick={handleSave}
-            className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white shadow-md font-semibold"
+            className="h-8 px-2.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white shadow-md font-semibold"
           >
             <Download className="h-3.5 w-3.5 mr-1" />
             Obsidian/Vault保存
@@ -342,11 +342,13 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
             {/* AI Summary Header Card */}
             <Card className="border-indigo-500/20 bg-gradient-to-r from-slate-900/90 via-slate-900/95 to-slate-950/90">
               <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 text-xs text-indigo-400 font-medium mb-1">
-                      <Building2 className="h-3.5 w-3.5" />
-                      <span>{metadata.agentSource} 求人票</span>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-indigo-400 font-medium mb-1">
+                      <div className="flex items-center gap-1">
+                        <Building2 className="h-3.5 w-3.5" />
+                        <span>{metadata.agentSource} 求人票</span>
+                      </div>
                       <span>•</span>
                       <span>解析日: {metadata.dateAnalyzed}</span>
                       {selectedLens !== "current" && (
@@ -355,15 +357,15 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                         </span>
                       )}
                     </div>
-                    <h2 className="text-lg font-bold text-white tracking-tight">
+                    <h2 className="text-base sm:text-lg font-bold text-white tracking-tight break-words">
                       {metadata.title}
                     </h2>
-                    <p className="text-xs text-slate-300 font-medium">
+                    <p className="text-xs text-slate-300 font-medium mt-0.5">
                       {metadata.company}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <div className="text-xs text-slate-400 font-medium flex items-center justify-end gap-1.5">
+                  <div className="text-left sm:text-right shrink-0">
+                    <div className="text-xs text-slate-400 font-medium flex items-center sm:justify-end gap-1.5">
                       <span>{selectedLens === "current" ? "総合適合スコア" : "シミュレーションスコア"}</span>
                       {/* Score diff badge from previous evaluation */}
                       {analysisResult.evaluationHistory && analysisResult.evaluationHistory.length > 0 && selectedLens === "current" && (() => {
@@ -385,7 +387,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                         );
                       })()}
                     </div>
-                    <div className="text-3xl font-extrabold text-indigo-400 font-mono tracking-tight">
+                    <div className="text-2xl sm:text-3xl font-extrabold text-indigo-400 font-mono tracking-tight">
                       {displayScore}
                       <span className="text-sm font-normal text-slate-400"> / 100</span>
                     </div>
@@ -393,21 +395,21 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                 </div>
 
                 {/* Score Breakdown Bar */}
-                <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-800/80 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80 text-xs">
                   <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                    <span className="text-slate-400 block text-[11px]">スキル合致 ({activeWeights.skill}%)</span>
+                    <span className="text-slate-400 block text-[11px] truncate">スキル合致 ({activeWeights.skill}%)</span>
                     <span className="font-bold text-emerald-400 font-mono text-sm">{scoreBreakdown.skillMatchRatio}%</span>
                   </div>
                   <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                    <span className="text-slate-400 block text-[11px]">希望条件 ({activeWeights.condition}%)</span>
+                    <span className="text-slate-400 block text-[11px] truncate">希望条件 ({activeWeights.condition}%)</span>
                     <span className="font-bold text-indigo-400 font-mono text-sm">{scoreBreakdown.conditionMatchRatio}%</span>
                   </div>
                   <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                    <span className="text-slate-400 block text-[11px]">キャリア成長 ({activeWeights.growth}%)</span>
+                    <span className="text-slate-400 block text-[11px] truncate">キャリア成長 ({activeWeights.growth}%)</span>
                     <span className="font-bold text-cyan-400 font-mono text-sm">{scoreBreakdown.careerGrowthRatio}%</span>
                   </div>
                   <div className="bg-slate-950/60 p-2 rounded-lg border border-slate-800/60">
-                    <span className="text-slate-400 block text-[11px]">環境・リスク ({activeWeights.environment}%)</span>
+                    <span className="text-slate-400 block text-[11px] truncate">環境・リスク ({activeWeights.environment}%)</span>
                     <span className="font-bold text-amber-400 font-mono text-sm">{scoreBreakdown.environmentRiskRatio}%</span>
                   </div>
                 </div>
@@ -574,7 +576,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
             </Card>
 
             {/* Positives & Concerns */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Card className="border-emerald-500/20 bg-emerald-950/10">
                 <CardHeader className="p-3 pb-2 border-emerald-500/20">
                   <CardTitle className="text-xs text-emerald-300 flex items-center gap-1.5">
@@ -903,7 +905,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
 
         {/* Mode 2: Live Split Editor Mode (FR-402) */}
         {viewMode === "split" && (
-          <div className="grid grid-cols-2 gap-4 h-[calc(100vh-140px)]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[500px] h-full">
             <div className="flex flex-col h-full space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-indigo-300">
