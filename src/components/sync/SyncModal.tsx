@@ -238,12 +238,21 @@ export const SyncModal: React.FC<SyncModalProps> = ({
             </div>
           )}
 
-          {/* Safety & Local First Guarantee */}
-          <div className="flex items-start gap-2 p-2.5 text-[11px] text-slate-400 bg-slate-950/30 rounded-lg border border-slate-800/60">
-            <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-            <p>
-              端末間同期はルームID単位で暗号化・保護されます。オフライン時や切断時でも各端末のローカルキャッシュで安全に動作します。
-            </p>
+          {/* Safety & Local First Guarantee & PWA Offline Boot */}
+          <div className="space-y-2">
+            <div className="flex items-start gap-2 p-2.5 text-[11px] text-slate-400 bg-slate-950/30 rounded-lg border border-slate-800/60">
+              <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+              <p>
+                端末間同期はルームID単位で E2EE 完全暗号化（AES-GCM）されます。PC の電源を切った後でもスマホで最新データが自動復元されます。
+              </p>
+            </div>
+
+            <div className="flex items-start gap-2 p-2.5 text-[11px] text-indigo-300 bg-indigo-950/20 rounded-lg border border-indigo-900/40">
+              <Smartphone className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
+              <p>
+                <span className="font-semibold text-white">📲 スマホのホーム画面に追加:</span> Safari / Chrome の「ホーム画面に追加」を行うと、地下鉄や機内モード（完全圏外）でも 0秒で即起動して求人を閲覧・操作できます。
+              </p>
+            </div>
           </div>
         </div>
 
