@@ -155,4 +155,26 @@ describe("JobDashboard Component", () => {
     // 95*0.1 + 90*0.2 + 90*0.45 + 90*0.25 = 9.5 + 18 + 40.5 + 22.5 = 90.5 -> 91点
     expect(screen.getByText("91点")).toBeDefined();
   });
+
+  it("displays total job count and filtered job count properly", () => {
+    render(<JobDashboard savedJobs={mockJobs} />);
+
+    // Total count in header badge
+    expect(screen.getByText("全 2 件")).toBeDefined();
+
+    // Summary bar before filtering
+    expect(screen.getByText("2")).toBeDefined();
+
+    // Filter by search query
+    const searchInput = screen.getByPlaceholderText(/企業名、職種、技術タグ/);
+    fireEvent.change(searchInput, { target: { value: "アルファ" } });
+
+    // Summary bar after filtering
+    expect(screen.getByText("（全 2 件中）")).toBeDefined();
+    expect(screen.getByText("フィルターをリセット")).toBeDefined();
+
+    // Reset filter
+    fireEvent.click(screen.getByText("フィルターをリセット"));
+    expect(screen.getByText("株式会社ベータ")).toBeDefined();
+  });
 });

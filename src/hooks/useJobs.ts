@@ -1,11 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
-import { JobAnalysisResult, JobStatus } from "@/types/job";
+import { JobAnalysisResult, JobStatus, EvaluationTriggerReason } from "@/types/job";
+import { UserProfile } from "@/types/profile";
 import { storageAdapter } from "@/services/storage/storageAdapter";
 import {
   getStandardMarkdownFilename,
   parseJobMarkdown,
   parseJobMarkdownToJobResult,
 } from "@/core/markdown/markdownGenerator";
+import { reEvaluateJobFromOriginalText } from "@/services/ai/aiService";
+
+export interface BatchReEvaluationProgress {
+  currentJobId: string;
+  currentIndex: number;
+  total: number;
+  completedJobs: JobAnalysisResult[];
+  failedJobIds: string[];
+}
 
 export function useJobs() {
   const [jobs, setJobs] = useState<JobAnalysisResult[]>([]);
@@ -100,6 +110,87 @@ export function useJobs() {
     return await storageAdapter.exportMarkdownFile(filename, job.markdownContent);
   }, []);
 
+  /**
+   * Re-evaluates a single job with the latest profile and persists changes immediately.
+   */
+  const reEvaluateJob = useCallback(
+    async (
+      jobId: string,
+      profile: UserProfile,
+      triggerReason: EvaluationTriggerReason = "profile_update",
+      summaryNote?: string
+    ): Promise<JobAnalysisResult> => {
+      const currentJobs = await storageAdapter.loadJobs();
+      const target = currentJobs.find((j) => j.metadata.id === jobId) || jobs.find((j) => j.metadata.id === jobId);
+      if (!target) {
+        throw new Error(`求人ID '${jobId}' が見つかりません。`);
+      }
+
+      const updated = await reEvaluateJobFromOriginalText(target, profile, triggerReason, summaryNote);
+      await saveJob(updated);
+      return updated;
+    },
+    [jobs, saveJob]
+  );
+
+  /**
+   * Re-evaluates multiple jobs sequentially (1 request per job, max 5)
+   * with realtime progress notifications and safe incremental saves.
+   */
+  const reEvaluateBatchJobs = useCallback(
+    async (
+      jobIds: string[],
+      profile: UserProfile,
+      onProgress?: (progress: BatchReEvaluationProgress) => void,
+      triggerReason: EvaluationTriggerReason = "profile_update",
+      shouldCancel?: () => boolean
+    ): Promise<{ completed: JobAnalysisResult[]; failed: string[] }> => {
+      const completed: JobAnalysisResult[] = [];
+      const failed: string[] = [];
+
+      // Limit to 5 jobs max for rate limiting safety
+      const targetIds = jobIds.slice(0, 5);
+
+      for (let i = 0; i < targetIds.length; i++) {
+        if (shouldCancel && shouldCancel()) {
+          break;
+        }
+
+        const jobId = targetIds[i];
+        if (onProgress) {
+          onProgress({
+            currentJobId: jobId,
+            currentIndex: i + 1,
+            total: targetIds.length,
+            completedJobs: completed,
+            failedJobIds: failed,
+          });
+        }
+
+        try {
+          const updated = await reEvaluateJob(jobId, profile, triggerReason);
+          completed.push(updated);
+        } catch (err) {
+          console.error(`Batch re-evaluation failed for job ${jobId}:`, err);
+          failed.push(jobId);
+        }
+
+        if (onProgress) {
+          onProgress({
+            currentJobId: jobId,
+            currentIndex: i + 1,
+            total: targetIds.length,
+            completedJobs: completed,
+            failedJobIds: failed,
+          });
+        }
+      }
+
+      return { completed, failed };
+    },
+    [reEvaluateJob]
+  );
+
   const recalculateAllJobsWithWeights = useCallback(
     async (weights: import("@/types/profile").ScoringWeights) => {
       const { recalculateScoreWithWeights } = await import("@/core/scoring/scoringEngine");
@@ -156,5 +247,7 @@ export function useJobs() {
     deleteJob,
     exportMarkdown,
     recalculateAllJobsWithWeights,
+    reEvaluateJob,
+    reEvaluateBatchJobs,
   };
 }

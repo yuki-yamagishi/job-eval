@@ -31,7 +31,9 @@ export function App() {
     importJobFromMarkdown, 
     deleteJob, 
     exportMarkdown, 
-    recalculateAllJobsWithWeights 
+    recalculateAllJobsWithWeights,
+    reEvaluateJob,
+    reEvaluateBatchJobs
   } = useJobs();
 
   const handleAnalyze = async (text: string, source: AgentSource) => {
@@ -48,6 +50,12 @@ export function App() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleReEvaluateWithProfile = async () => {
+    if (!analysisResult) return;
+    const updated = await reEvaluateJob(analysisResult.metadata.id, profile, "profile_update");
+    setAnalysisResult(updated);
   };
 
   const handleReEvaluate = async (userFeedback: string) => {
@@ -79,6 +87,7 @@ export function App() {
         appealPoints: job.appealPoints,
         qualificationAdvice: job.qualificationAdvice,
         careerTrajectory: trajectory,
+        evaluationHistory: job.evaluationHistory,
         mustRequirements: job.jobDetails.mustRequirements,
         wantRequirements: job.jobDetails.wantRequirements,
         jobDescription: job.jobDetails.jobDescription,
@@ -131,16 +140,16 @@ export function App() {
   const hasApiKey = Boolean(profile.apiSettings?.geminiApiKey?.trim());
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-background text-foreground overflow-hidden">
+    <div className="h-[100dvh] w-screen flex flex-col bg-background text-foreground overflow-hidden">
       {/* Top Header Navigation */}
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Header activeTab={activeTab} setActiveTab={setActiveTab} savedJobCount={jobs.length} />
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-hidden relative">
+      <main className="flex-1 overflow-y-auto lg:overflow-hidden relative">
         {activeTab === "input" && (
-          <div className="h-full grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+          <div className="min-h-full lg:h-full grid grid-cols-1 lg:grid-cols-12 overflow-y-auto lg:overflow-hidden">
             {/* Left Pane: Input (5 cols) */}
-            <div className="lg:col-span-5 border-r border-slate-800/80 h-full overflow-hidden bg-slate-950/40">
+            <div className="lg:col-span-5 border-b lg:border-b-0 lg:border-r border-slate-800/80 min-h-[480px] lg:h-full overflow-y-auto bg-slate-950/40 shrink-0">
               <InputPane
                 onAnalyze={handleAnalyze}
                 isAnalyzing={isAnalyzing}
@@ -149,7 +158,7 @@ export function App() {
             </div>
 
             {/* Right Pane: AI Score & Markdown Preview (7 cols) */}
-            <div className="lg:col-span-7 h-full overflow-hidden">
+            <div className="lg:col-span-7 min-h-[500px] lg:h-full overflow-y-auto">
               <PreviewPane
                 analysisResult={analysisResult}
                 isAnalyzing={isAnalyzing}
@@ -157,6 +166,7 @@ export function App() {
                 userProfile={profile}
                 onSaveMarkdown={handleSaveMarkdown}
                 onReEvaluate={handleReEvaluate}
+                onReEvaluateWithProfile={handleReEvaluateWithProfile}
                 onGenerateCareerTrajectory={handleGenerateCareerTrajectory}
               />
             </div>
@@ -164,37 +174,47 @@ export function App() {
         )}
 
         {activeTab === "dashboard" && (
-          <JobDashboard
-            savedJobs={jobs}
-            userProfile={profile}
-            onUpdateStatus={updateJobStatus}
-            onDeleteJob={deleteJob}
-            onExportJob={exportMarkdown}
-            onSelectJobForPreview={handleSelectJobForPreview}
-            onImportMarkdown={handleImportMarkdown}
-          />
+          <div className="h-full overflow-y-auto">
+            <JobDashboard
+              savedJobs={jobs}
+              userProfile={profile}
+              onUpdateStatus={updateJobStatus}
+              onDeleteJob={deleteJob}
+              onExportJob={exportMarkdown}
+              onSelectJobForPreview={handleSelectJobForPreview}
+              onImportMarkdown={handleImportMarkdown}
+              onReEvaluateJob={(id) => reEvaluateJob(id, profile, "profile_update")}
+              onReEvaluateBatchJobs={(ids, onProg, shouldCancel) =>
+                reEvaluateBatchJobs(ids, profile, onProg, "profile_update", shouldCancel)
+              }
+            />
+          </div>
         )}
 
         {activeTab === "roadmap" && (
-          <CareerRoadmapView
-            savedJobs={jobs}
-            profile={profile}
-            onSelectJobForPreview={handleSelectJobForPreview}
-            onUpdateStatus={updateJobStatus}
-            onRefreshJobs={fetchJobs}
-          />
+          <div className="h-full overflow-y-auto">
+            <CareerRoadmapView
+              savedJobs={jobs}
+              profile={profile}
+              onSelectJobForPreview={handleSelectJobForPreview}
+              onUpdateStatus={updateJobStatus}
+              onRefreshJobs={fetchJobs}
+            />
+          </div>
         )}
 
         {activeTab === "profile" && (
-          <ProfileSettingsView
-            profile={profile}
-            onSaveProfile={saveProfile}
-            onResetProfile={resetToDefault}
-            onRecalculateAllJobs={recalculateAllJobsWithWeights}
-            isLoading={isLoading}
-            isSaving={isSaving}
-            lastSavedTime={lastSavedTime}
-          />
+          <div className="h-full overflow-y-auto">
+            <ProfileSettingsView
+              profile={profile}
+              onSaveProfile={saveProfile}
+              onResetProfile={resetToDefault}
+              onRecalculateAllJobs={recalculateAllJobsWithWeights}
+              isLoading={isLoading}
+              isSaving={isSaving}
+              lastSavedTime={lastSavedTime}
+            />
+          </div>
         )}
       </main>
     </div>

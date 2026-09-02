@@ -349,7 +349,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   const plannedCertifications = draft.certifications.filter((c) => (c.status ?? "acquired") !== "acquired");
 
   return (
-    <div className="h-full p-6 space-y-6 overflow-y-auto max-w-5xl mx-auto pb-16">
+    <div className="h-full p-3 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto max-w-5xl mx-auto pb-16">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -359,10 +359,10 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
       )}
 
       {/* Top Header & Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Sliders className="h-5 w-5 text-indigo-400" />
+          <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            <Sliders className="h-5 w-5 text-indigo-400 shrink-0" />
             求職者プロファイル & 判定マトリクス設定
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
@@ -370,9 +370,9 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
           {lastSavedTime && (
-            <span className="text-[11px] text-slate-500 font-mono mr-2">
+            <span className="text-[11px] text-slate-500 font-mono mr-1 hidden sm:inline">
               最終保存: {lastSavedTime.toLocaleTimeString()}
             </span>
           )}
