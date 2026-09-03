@@ -25,8 +25,8 @@ describe("ProfileSettingsView Component", () => {
     expect(await screen.findByText(/取得済み/)).toBeDefined();
     expect(await screen.findByText(/学習中・取得目標/)).toBeDefined();
     expect(await screen.findByText("接続テスト")).toBeDefined();
-    expect(await screen.findByText("設定を保存")).toBeDefined();
-    expect(await screen.findByText("初期値に戻す")).toBeDefined();
+    expect((await screen.findAllByText("設定を保存")).length).toBeGreaterThanOrEqual(1);
+    expect((await screen.findAllByText(/初期値に戻す|リセット/)).length).toBeGreaterThanOrEqual(1);
   });
 
   it("allows switching tabs and adding planned certification to target list", async () => {
@@ -74,12 +74,57 @@ describe("ProfileSettingsView Component", () => {
       />
     );
 
-    const saveBtn = await screen.findByText("設定を保存");
-    fireEvent.click(saveBtn);
+    const saveBtns = await screen.findAllByText("設定を保存");
+    fireEvent.click(saveBtns[0]);
 
     await waitFor(() => {
       expect(handleSave).toHaveBeenCalledTimes(1);
       expect(handleRecalculate).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("protects user edits from being overridden by background sync (isDirty guard)", async () => {
+    const initialProfile = {
+      id: "user-1",
+      name: "元々の名前",
+      title: "エンジニア",
+      yearsOfExperience: 5,
+      summary: "要約",
+      skills: [],
+      certifications: [],
+      conditions: {
+        targetSalaryMin: 800,
+        targetSalaryMax: 1000,
+        preferredWorkStyle: "フルリモート" as const,
+        preferredLocation: "東京",
+        maxCommuteMinutes: 60,
+        preferredRoles: [],
+        ngConditions: [],
+      },
+      apiSettings: {
+        geminiApiKey: "mock-key",
+        geminiModel: "gemini-3.6-flash",
+      },
+      updatedAt: "2026-09-01T10:00:00Z",
+    };
+
+    const { rerender } = render(<ProfileSettingsView profile={initialProfile} />);
+
+    // User modifies name (triggers isDirty = true)
+    const nameInput = await screen.findByDisplayValue("元々の名前");
+    fireEvent.change(nameInput, { target: { value: "編集中の新しい名前" } });
+    expect(screen.getByDisplayValue("編集中の新しい名前")).toBeDefined();
+
+    // Background sync arrives with older or different name
+    const syncedProfile = {
+      ...initialProfile,
+      name: "同期で降ってきた古い名前",
+      updatedAt: "2026-09-01T10:05:00Z",
+    };
+    rerender(<ProfileSettingsView profile={syncedProfile} />);
+
+    // Edited name MUST NOT be overwritten!
+    expect(screen.getByDisplayValue("編集中の新しい名前")).toBeDefined();
+    expect(screen.queryByDisplayValue("同期で降ってきた古い名前")).toBeNull();
   });
 });

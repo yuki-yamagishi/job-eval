@@ -17,7 +17,8 @@ import {
   Laptop,
   Calendar,
   Activity,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -75,8 +76,15 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   const isSaving = propIsSaving ?? hookState.isSaving;
   const lastSavedTime = propLastSavedTime ?? hookState.lastSavedTime;
 
-  // Local editable draft state
+  // Local editable draft state & dirty tracking
   const [draft, setDraft] = useState<UserProfile>(profile);
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Update draft and mark dirty to block external sync overrides
+  const updateDraft = (updater: UserProfile | ((prev: UserProfile) => UserProfile)) => {
+    setIsDirty(true);
+    setDraft(updater);
+  };
   
   // Skill inputs
   const [newSkill, setNewSkill] = useState("");
@@ -103,9 +111,9 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
 
-  // Sync draft when profile loads
+  // Sync draft when profile loads (BLOCKED while user is editing)
   useEffect(() => {
-    if (profile) {
+    if (profile && !isDirty) {
       // Ensure scoringWeights exists
       const initialWeights = profile.conditions?.scoringWeights || DEFAULT_SCORING_WEIGHTS;
       const initialPreset = profile.conditions?.scoringPreset || "standard";
@@ -118,14 +126,14 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
         },
       });
     }
-  }, [profile]);
+  }, [profile, isDirty]);
 
   const activePreset = draft.conditions?.scoringPreset || "standard";
   const activeWeights = draft.conditions?.scoringWeights || DEFAULT_SCORING_WEIGHTS;
 
   const handleSelectPreset = (presetKey: ScoringPresetKey) => {
     const preset = SCORING_PRESETS[presetKey];
-    setDraft((prev) => ({
+    updateDraft((prev) => ({
       ...prev,
       conditions: {
         ...prev.conditions,
@@ -137,7 +145,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
 
   const handleWeightChange = (key: keyof ScoringWeights, value: number) => {
     const clamped = Math.max(0, Math.min(100, value));
-    setDraft((prev) => {
+    updateDraft((prev) => {
       const current = prev.conditions.scoringWeights || DEFAULT_SCORING_WEIGHTS;
       return {
         ...prev,
@@ -165,6 +173,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
     } else {
       await hookState.saveProfile(draft);
     }
+    setIsDirty(false);
 
     if (shouldRecalculateAllJobs && onRecalculateAllJobs) {
       try {
@@ -175,11 +184,12 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
         console.error("Recalculate all jobs error", err);
       }
     }
-    showToast("プロファイル設定をローカルへ保存しました");
+    showToast("プロファイル設定を保存しました");
   };
 
   const handleReset = async () => {
     if (window.confirm("プロファイル設定をデフォルト初期値にリセットしますか？")) {
+      setIsDirty(false);
       if (onResetProfile) {
         await onResetProfile();
       } else {
@@ -251,7 +261,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
       status: newSkillStatus,
     };
 
-    setDraft((prev) => ({
+    updateDraft((prev) => ({
       ...prev,
       skills: [...prev.skills, newSkillItem],
     }));
@@ -259,7 +269,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   };
 
   const handleRemoveSkill = (id: string) => {
-    setDraft((prev) => ({
+    updateDraft((prev) => ({
       ...prev,
       skills: prev.skills.filter((s) => s.id !== id),
     }));
@@ -284,7 +294,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
       targetPeriod: activeCertTab === "planned" ? newCertPeriod.trim() : undefined,
     };
 
-    setDraft((prev) => ({
+    updateDraft((prev) => ({
       ...prev,
       certifications: [...prev.certifications, newCertItem],
     }));
@@ -294,7 +304,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   };
 
   const handleRemoveCert = (id: string) => {
-    setDraft((prev) => ({
+    updateDraft((prev) => ({
       ...prev,
       certifications: prev.certifications.filter((c) => c.id !== id),
     }));
@@ -303,7 +313,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   // NG Condition handlers
   const handleAddNgCondition = () => {
     if (!newNgCondition.trim()) return;
-    setDraft((prev) => ({
+    updateDraft((prev) => ({
       ...prev,
       conditions: {
         ...prev.conditions,
@@ -314,7 +324,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   };
 
   const handleRemoveNgCondition = (index: number) => {
-    setDraft((prev) => ({
+    updateDraft((prev) => ({
       ...prev,
       conditions: {
         ...prev.conditions,
@@ -326,7 +336,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   // Role toggle
   const handleToggleRole = (role: RoleLevelPreference) => {
     const exists = draft.conditions.preferredRoles.includes(role);
-    setDraft((prev) => ({
+    updateDraft((prev) => ({
       ...prev,
       conditions: {
         ...prev.conditions,
@@ -349,10 +359,10 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
   const plannedCertifications = draft.certifications.filter((c) => (c.status ?? "acquired") !== "acquired");
 
   return (
-    <div className="h-full p-3 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto max-w-5xl mx-auto pb-16">
+    <div className="h-full p-3 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto max-w-5xl mx-auto pb-28 sm:pb-32">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="fixed bottom-20 right-4 sm:bottom-20 sm:right-6 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
           <Check className="h-4 w-4" />
           <span className="text-xs font-semibold">{toastMessage}</span>
         </div>
@@ -414,7 +424,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
               <label className="text-xs font-semibold text-slate-300">氏名 / 呼称</label>
               <Input
                 value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                onChange={(e) => updateDraft({ ...draft, name: e.target.value })}
                 className="h-9 text-xs"
               />
             </div>
@@ -423,7 +433,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                 <label className="text-xs font-semibold text-slate-300">専門職種 / 役職</label>
                 <Input
                   value={draft.title}
-                  onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                  onChange={(e) => updateDraft({ ...draft, title: e.target.value })}
                   className="h-9 text-xs"
                 />
               </div>
@@ -433,7 +443,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                   type="number"
                   value={draft.yearsOfExperience}
                   onChange={(e) =>
-                    setDraft({ ...draft, yearsOfExperience: Number(e.target.value) || 0 })
+                    updateDraft({ ...draft, yearsOfExperience: Number(e.target.value) || 0 })
                   }
                   className="h-9 text-xs"
                 />
@@ -443,7 +453,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
               <label className="text-xs font-semibold text-slate-300">職歴・強みの要約</label>
               <Textarea
                 value={draft.summary}
-                onChange={(e) => setDraft({ ...draft, summary: e.target.value })}
+                onChange={(e) => updateDraft({ ...draft, summary: e.target.value })}
                 className="h-20 text-xs resize-none"
               />
             </div>
@@ -703,7 +713,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                     type="number"
                     value={draft.conditions.targetSalaryMin}
                     onChange={(e) =>
-                      setDraft({
+                      updateDraft({
                         ...draft,
                         conditions: {
                           ...draft.conditions,
@@ -720,7 +730,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                     type="number"
                     value={draft.conditions.targetSalaryMax}
                     onChange={(e) =>
-                      setDraft({
+                      updateDraft({
                         ...draft,
                         conditions: {
                           ...draft.conditions,
@@ -745,7 +755,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                   <button
                     key={ws}
                     onClick={() =>
-                      setDraft({
+                      updateDraft({
                         ...draft,
                         conditions: { ...draft.conditions, preferredWorkStyle: ws },
                       })
@@ -771,7 +781,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
               <Input
                 value={draft.conditions.preferredLocation}
                 onChange={(e) =>
-                  setDraft({
+                  updateDraft({
                     ...draft,
                     conditions: { ...draft.conditions, preferredLocation: e.target.value },
                   })
@@ -1084,11 +1094,11 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                   <Input
                     type="password"
                     placeholder="AIzaSy..."
-                    value={draft.apiSettings.geminiApiKey}
+                    value={draft.apiSettings?.geminiApiKey || ""}
                     onChange={(e) =>
-                      setDraft({
+                      updateDraft({
                         ...draft,
-                        apiSettings: { ...draft.apiSettings, geminiApiKey: e.target.value },
+                        apiSettings: { ...(draft.apiSettings || { geminiModel: "gemini-3.6-flash" }), geminiApiKey: e.target.value },
                       })
                     }
                     className="font-mono text-xs h-9"
@@ -1098,7 +1108,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                     variant="outline"
                     size="sm"
                     onClick={handleTestApiKey}
-                    disabled={apiTestStatus.checking || !draft.apiSettings.geminiApiKey?.trim()}
+                    disabled={apiTestStatus.checking || !draft.apiSettings?.geminiApiKey?.trim()}
                     className="h-9 text-xs border-indigo-500/40 hover:bg-indigo-500/20 text-indigo-300 shrink-0 font-medium"
                   >
                     {apiTestStatus.checking ? (
@@ -1125,7 +1135,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={handleFetchModels}
-                    disabled={isFetchingModels || !draft.apiSettings.geminiApiKey?.trim()}
+                    disabled={isFetchingModels || !draft.apiSettings?.geminiApiKey?.trim()}
                     className="h-6 text-[11px] text-indigo-400 hover:text-indigo-200 p-1"
                   >
                     {isFetchingModels ? "モデル取得中..." : "🔄 Googleからモデル一覧を取得"}
@@ -1134,11 +1144,11 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
 
                 <div className="space-y-1.5">
                   <select
-                    value={draft.apiSettings.geminiModel}
+                    value={draft.apiSettings?.geminiModel || "gemini-3.6-flash"}
                     onChange={(e) =>
-                      setDraft({
+                      updateDraft({
                         ...draft,
-                        apiSettings: { ...draft.apiSettings, geminiModel: e.target.value },
+                        apiSettings: { ...(draft.apiSettings || { geminiApiKey: "" }), geminiModel: e.target.value },
                       })
                     }
                     className="w-full h-9 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 font-mono focus:outline-none focus:border-indigo-500"
@@ -1164,11 +1174,11 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                     <span className="text-[11px] text-slate-500 shrink-0">直接指定:</span>
                     <Input
                       placeholder="モデル名直接入力 (例: gemini-2.0-flash)"
-                      value={draft.apiSettings.geminiModel}
+                      value={draft.apiSettings?.geminiModel || ""}
                       onChange={(e) =>
-                        setDraft({
+                        updateDraft({
                           ...draft,
-                          apiSettings: { ...draft.apiSettings, geminiModel: e.target.value },
+                          apiSettings: { ...(draft.apiSettings || { geminiApiKey: "" }), geminiModel: e.target.value },
                         })
                       }
                       className="h-7 text-xs font-mono"
@@ -1201,6 +1211,62 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
               </div>
             </CardContent>
           </Card>
+        </div>
+      </div>
+
+      {/* Sticky Bottom Floating Action Bar for Mobile & Quick Save */}
+      <div className="fixed bottom-0 left-0 right-0 p-3 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 z-40 shadow-2xl">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3 px-2 sm:px-4">
+          <div className="flex items-center gap-2 min-w-0">
+            {isDirty ? (
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-400 bg-amber-950/70 border border-amber-800/80 px-2.5 py-1 rounded-full animate-pulse">
+                <span className="h-2 w-2 rounded-full bg-amber-400"></span>
+                未保存の変更あり
+              </span>
+            ) : lastSavedTime ? (
+              <span className="text-[11px] text-slate-400 truncate">
+                最終保存: {lastSavedTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-500">変更はありません</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReset}
+              disabled={isSaving}
+              className="h-9 px-3 text-xs border-slate-700 hover:bg-slate-800 text-slate-300"
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1" />
+              リセット
+            </Button>
+
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className={`h-9 px-4 text-xs font-semibold shadow-lg transition-all flex items-center gap-1.5 ${
+                isDirty
+                  ? "bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white ring-2 ring-indigo-400/40"
+                  : "bg-indigo-600 hover:bg-indigo-500 text-white"
+              }`}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-indigo-200" />
+                  <span>保存中...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-1" />
+                  <span>設定を保存</span>
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
