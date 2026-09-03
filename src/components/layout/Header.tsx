@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles, FileText, Settings, ShieldCheck, Radio } from "lucide-react";
+import { Sparkles, FileText, Settings, ShieldCheck, Radio, Briefcase } from "lucide-react";
 import { SyncStatusInfo } from "@/types/sync";
 
 interface HeaderProps {
@@ -87,6 +87,19 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="text-xs shrink-0">🗺️</span>
           <span className="hidden md:inline">転職ロードマップ</span>
           <span className="inline md:hidden text-[11px]">マップ</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("career")}
+          title="職務経歴・プロジェクト実績"
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md font-medium transition-all shrink-0 ${
+            activeTab === "career"
+              ? "bg-indigo-600 text-white shadow-sm font-semibold"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          <Briefcase className="h-3.5 w-3.5 shrink-0" />
+          <span className="hidden md:inline">職務経歴・実績</span>
+          <span className="inline md:hidden text-[11px]">経歴</span>
         </button>
         <button
           onClick={() => setActiveTab("profile")}

@@ -51,6 +51,25 @@ export function buildJobAnalysisPrompt(
 
   const ngConditionsList = profile.conditions.ngConditions.map((ng) => `- ${ng}`).join("\n");
 
+  // Format career experience & projects (STAR)
+  const formattedExperiences = (profile.companies || [])
+    .map((comp) => {
+      const compPeriod = `${comp.startDate} 〜 ${comp.isCurrent ? "現在" : comp.endDate || ""}`;
+      const projectDetails = (comp.projects || []).map((proj) => {
+        const projPeriod = `${proj.startDate} 〜 ${proj.isCurrent ? "参画中" : proj.endDate || ""}`;
+        return `    * 【PJ】${proj.title} (${projPeriod})
+      - 役割: ${proj.role} / 規模: ${proj.teamSize || "記載なし"} / 技術: ${proj.skills.join(", ") || "記載なし"}
+      - 課題(S): ${proj.situation || "記載なし"}
+      - 工夫(A): ${proj.action || "記載なし"}
+      - 成果(R): ${proj.result || "記載なし"}`;
+      }).join("\n");
+
+      return `  - 企業: ${comp.companyName} (${compPeriod}, ${comp.employmentType || "正社員"})
+    部署/役職: ${comp.department || "未記載"}
+${projectDetails || "    * プロジェクト登録なし"}`;
+    })
+    .join("\n\n");
+
   const weights = profile.conditions.scoringWeights || { skill: 40, condition: 30, growth: 20, environment: 10 };
   const presetKey = profile.conditions.scoringPreset || "standard";
   const presetDescriptions: Record<string, string> = {
@@ -63,7 +82,10 @@ export function buildJobAnalysisPrompt(
   const presetLabel = presetDescriptions[presetKey] || "標準";
 
   const systemInstruction = `あなたはIT・ソフトウェア業界の求職活動を支援する最高峰のAI転職アドバイザーです。
-提供された「求人票テキスト」を精密に構造化解析し、候補者の「職務経歴・実務スキル・学習中スキル・保有資格・学習中/目標資格・希望条件・NG条件・評価重視方針」と照合して、客観的でバイアスのない適合度判定、資格・スキルギャップ補強アクション、およびアクション提案（逆質問・アピール点）をJSON形式で出力してください。
+提供された「求人票テキスト」を精密に構造化解析し、候補者の「職務経歴・実務スキル・学習中スキル・保有資格・学習中/目標資格・希望条件・NG条件・評価重視方針・過去のプロジェクト実績(STAR)」と照合して、客観的でバイアスのない適合度判定、資格・スキルギャップ補強アクション、およびアクション提案（逆質問・アピール点）をJSON形式で出力してください。
+
+【職務経歴・過去実績の活用指針】
+- 候補者の【主要プロジェクト実績 (STAR)】を照合し、過去の具体的な課題解決行動(Action)や定量的成果(Result)が、本求人の業務内容や求める人物像にどのように直結するかを positives（好材料）や appeal_points（自己PR点）に具体的に盛り込んでください。
 
 【候補者の評価重視方針】
 - 重視スタイル: ${presetLabel}
@@ -102,6 +124,9 @@ export function buildJobAnalysisPrompt(
 - 評価重視方針: ${presetLabel} (スキル ${weights.skill}% / 条件 ${weights.condition}% / 成長 ${weights.growth}% / 環境 ${weights.environment}%)
 - NG条件 / 除外キーワード:
 ${ngConditionsList || "なし"}
+
+【職務経歴・主要プロジェクト実績 (STAR)】
+${formattedExperiences || "登録なし"}
 
 ---
 【求人情報】
