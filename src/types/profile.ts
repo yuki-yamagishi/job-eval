@@ -118,6 +118,29 @@ export interface ApiSettings {
   customInstructions?: string;
 }
 
+// 代表的な開発工程の選択肢
+export const DEVELOPMENT_PHASES = [
+  "要件定義",
+  "基本設計 / アーキテクチャ",
+  "詳細設計",
+  "実装・コーディング",
+  "テスト・QA",
+  "リリース・CI/CD",
+  "運用・保守",
+  "PM / 進捗管理",
+] as const;
+
+export type DevelopmentPhase = typeof DEVELOPMENT_PHASES[number];
+
+// STAR実績エピソード（案件内の個別課題・成果単位）
+export interface StarEpisode {
+  id: string;
+  theme?: string;       // 実績テーマ (例: "DBボトルネック解消とレイテンシ改善", "CI/CD自動化と日次リリース")
+  situation: string;   // 📌 状況・課題 (Situation & Task)
+  action: string;      // 💡 自身が取った行動・技術的工夫 (Action)
+  result: string;      // 🏆 達成した成果・定量的インパクト (Result)
+}
+
 // プロジェクト実績（案件単位）
 export interface ProjectExperience {
   id: string;
@@ -128,9 +151,11 @@ export interface ProjectExperience {
   endDate?: string;       // 終了年月 (例: "2024-03" / 空欄・"現在" で参画中)
   isCurrent?: boolean;    // 現在も参画中か
   skills: string[];       // 使用技術・スキルスタック (例: ["Go", "React", "TypeScript", "AWS", "Docker"])
-  situation?: string;     // 📌 直面した課題・背景 (Situation & Task)
-  action?: string;        // 💡 自身が取った行動・技術的工夫 (Action)
-  result?: string;        // 🏆 達成した成果・定量的インパクト (Result)
+  phases?: string[];      // 担当開発工程 (例: ["要件定義", "基本設計 / アーキテクチャ", "実装・コーディング"])
+  starEpisodes?: StarEpisode[]; // 複数のSTAR実績エピソード群
+  situation?: string;     // 📌 直面した課題・背景 (単一エピソード・後方互換用)
+  action?: string;        // 💡 自身が取った行動・技術的工夫
+  result?: string;        // 🏆 達成した成果・定量的インパクト
 }
 
 // 所属企業 / 経歴単位
