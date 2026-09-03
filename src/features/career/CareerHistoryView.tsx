@@ -234,10 +234,26 @@ export const CareerHistoryView: React.FC<CareerHistoryViewProps> = ({
       return;
     }
 
+    // Auto-commit any unsaved skill input before saving
+    let finalSkills = [...editingProject.skills];
+    if (projectSkillInput.trim()) {
+      const pendingSkills = projectSkillInput
+        .trim()
+        .split(/[,、\n]+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      pendingSkills.forEach((s) => {
+        if (!finalSkills.includes(s)) {
+          finalSkills.push(s);
+        }
+      });
+    }
+
     // Set backward compatibility fields from first episode
     const firstEp = editingProject.starEpisodes?.[0];
     const projectToSave: ProjectExperience = {
       ...editingProject,
+      skills: finalSkills,
       situation: firstEp ? firstEp.situation : editingProject.situation || "",
       action: firstEp ? firstEp.action : editingProject.action || "",
       result: firstEp ? firstEp.result : editingProject.result || "",
@@ -254,6 +270,7 @@ export const CareerHistoryView: React.FC<CareerHistoryViewProps> = ({
       })
     );
 
+    setProjectSkillInput("");
     setIsProjectModalOpen(false);
     setEditingProject(null);
     setActiveCompanyIdForProject(null);
@@ -280,17 +297,33 @@ export const CareerHistoryView: React.FC<CareerHistoryViewProps> = ({
     setEditingProject({ ...editingProject, phases: updated });
   };
 
-  // Skills Tags
-  const handleAddSkillTag = () => {
-    if (!projectSkillInput.trim() || !editingProject) return;
-    const skill = projectSkillInput.trim();
-    if (!editingProject.skills.includes(skill)) {
-      setEditingProject({
-        ...editingProject,
-        skills: [...editingProject.skills, skill],
-      });
+  // Skills Tags (Supports comma-separation and quick selection)
+  const handleAddSkillTag = (customSkill?: string) => {
+    if (!editingProject) return;
+    const rawInput = (customSkill ?? projectSkillInput).trim();
+    if (!rawInput) return;
+
+    const newSkills = rawInput
+      .split(/[,、\n]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    if (newSkills.length === 0) return;
+
+    const updated = [...editingProject.skills];
+    newSkills.forEach((s) => {
+      if (!updated.includes(s)) {
+        updated.push(s);
+      }
+    });
+
+    setEditingProject({
+      ...editingProject,
+      skills: updated,
+    });
+    if (!customSkill) {
+      setProjectSkillInput("");
     }
-    setProjectSkillInput("");
   };
 
   const handleRemoveSkillTag = (skillToRemove: string) => {
@@ -1103,29 +1136,45 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
                 </div>
               </div>
 
-              {/* Skills Tags */}
-              <div className="space-y-1.5">
-                <label className="text-slate-300 font-semibold flex items-center gap-1.5">
-                  <Code2 className="h-3.5 w-3.5 text-indigo-400" />
-                  使用技術・スキルスタック
-                </label>
-                <div className="flex flex-wrap gap-1 p-1.5 bg-slate-950 rounded border border-slate-800 min-h-9 items-center">
-                  {editingProject.skills.map((skill) => (
-                    <Badge
-                      key={skill}
-                      variant="indigo"
-                      className="text-[11px] pl-2 pr-1 py-0.5 flex items-center gap-1 bg-indigo-950/70 border border-indigo-700/60 text-indigo-300"
-                    >
-                      <span>{skill}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSkillTag(skill)}
-                        className="hover:bg-slate-700/50 rounded p-0.5 text-slate-400 hover:text-rose-300"
+              {/* Skills Tags (資格・スキル設定準拠UI) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-200 font-semibold flex items-center gap-1.5">
+                    <Code2 className="h-3.5 w-3.5 text-indigo-400" />
+                    使用技術・スキルスタック ({editingProject.skills.length})
+                  </label>
+                  <span className="text-[10px] text-slate-500">カンマ区切りで複数一括登録可</span>
+                </div>
+
+                {/* スキル一覧表示エリア */}
+                <div className="flex flex-wrap gap-1.5 min-h-[40px] max-h-28 overflow-y-auto p-2 bg-slate-950/80 rounded-lg border border-slate-800">
+                  {editingProject.skills.length === 0 ? (
+                    <span className="text-[11px] text-slate-500 py-0.5 px-1">
+                      使用技術・スキルがまだ登録されていません
+                    </span>
+                  ) : (
+                    editingProject.skills.map((skill) => (
+                      <Badge
+                        key={skill}
+                        variant="indigo"
+                        className="text-xs pl-2.5 pr-1.5 py-0.5 flex items-center gap-1 bg-indigo-950/80 text-indigo-200 border border-indigo-700/60"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
+                        <span>{skill}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSkillTag(skill)}
+                          className="hover:bg-slate-700/50 rounded p-0.5 text-slate-400 hover:text-rose-300"
+                          title={`${skill} を削除`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))
+                  )}
+                </div>
+
+                {/* 入力欄 ＋ 独立した「＋ 追加」ボタン */}
+                <div className="flex gap-2">
                   <Input
                     value={projectSkillInput}
                     onChange={(e) => setProjectSkillInput(e.target.value)}
@@ -1135,10 +1184,42 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
                         handleAddSkillTag();
                       }
                     }}
-                    placeholder="スキル名入力後 Enter (例: Go, AWS)..."
-                    className="h-7 text-xs border-0 bg-transparent focus-visible:ring-0 flex-1 min-w-[140px]"
+                    placeholder="追加するスキル (例: Go, AWS, Docker / カンマ区切り可)..."
+                    className="h-8 text-xs bg-slate-950 border-slate-700 flex-1"
                   />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => handleAddSkillTag()}
+                    className="h-8 px-3 text-xs bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1 shrink-0 font-medium"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>追加</span>
+                  </Button>
                 </div>
+
+                {/* クイック候補チップ（保有スキルからワンタップ追加） */}
+                {profile.skills && profile.skills.length > 0 && (
+                  <div className="space-y-1 pt-0.5">
+                    <div className="text-[10px] text-slate-400">💡 登録済みスキルからワンタップ追加:</div>
+                    <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                      {profile.skills
+                        .filter((s) => !editingProject.skills.includes(s.name))
+                        .slice(0, 15)
+                        .map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => handleAddSkillTag(s.name)}
+                            className="text-[10px] px-2 py-0.5 bg-slate-900/90 hover:bg-indigo-950 border border-slate-800 hover:border-indigo-600 text-slate-300 hover:text-indigo-200 rounded transition-all flex items-center gap-0.5"
+                          >
+                            <Plus className="h-2.5 w-2.5 text-indigo-400" />
+                            {s.name}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Multiple STAR Episodes */}
