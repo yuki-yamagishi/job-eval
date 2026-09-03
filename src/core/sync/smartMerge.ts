@@ -99,8 +99,9 @@ export function mergeJobs(
 }
 
 /**
- * Smartly merge two UserProfiles.
- * Merges skill sets and certifications without loss, and preserves API keys.
+ * Smartly merge two UserProfiles with Last-Write-Wins (LWW) conflict resolution.
+ * Respects deletions in skills and certifications by strictly adopting the latest profile's state,
+ * while safely preserving Gemini API keys across devices.
  */
 export function mergeProfile(
   localProfile: UserProfile,
@@ -112,29 +113,28 @@ export function mergeProfile(
   const localTime = localProfile.updatedAt ? new Date(localProfile.updatedAt).getTime() : 0;
   const remoteTime = remoteProfile.updatedAt ? new Date(remoteProfile.updatedAt).getTime() : 0;
 
-  // Choose the newer profile as the base
+  // Choose the newer profile as the authoritative base
   const baseProfile = remoteTime > localTime ? remoteProfile : localProfile;
   const secondaryProfile = remoteTime > localTime ? localProfile : remoteProfile;
 
-  // Merge Skills without duplicates (by name/id)
-  const skillMap = new Map<string, SkillItem>();
-  for (const skill of [...(secondaryProfile.skills || []), ...(baseProfile.skills || [])]) {
-    const key = (skill.name || skill.id || "").toLowerCase().trim();
-    if (key) {
-      skillMap.set(key, skill);
-    }
-  }
+  let finalSkills = baseProfile.skills || [];
+  let finalCertifications = baseProfile.certifications || [];
 
-  // Merge Certifications without duplicates (by name/id)
-  const certMap = new Map<string, CertificationItem>();
-  for (const cert of [
-    ...(secondaryProfile.certifications || []),
-    ...(baseProfile.certifications || []),
-  ]) {
-    const key = (cert.name || cert.id || "").toLowerCase().trim();
-    if (key) {
-      certMap.set(key, cert);
+  // Fallback: If timestamps are completely identical (rare simultaneous edit), do a safe union
+  if (localTime === remoteTime) {
+    const skillMap = new Map<string, SkillItem>();
+    for (const skill of [...(secondaryProfile.skills || []), ...(baseProfile.skills || [])]) {
+      const key = (skill.name || skill.id || "").toLowerCase().trim();
+      if (key) skillMap.set(key, skill);
     }
+    finalSkills = Array.from(skillMap.values());
+
+    const certMap = new Map<string, CertificationItem>();
+    for (const cert of [...(secondaryProfile.certifications || []), ...(baseProfile.certifications || [])]) {
+      const key = (cert.name || cert.id || "").toLowerCase().trim();
+      if (key) certMap.set(key, cert);
+    }
+    finalCertifications = Array.from(certMap.values());
   }
 
   // Preserve Gemini API key if present on either device
@@ -145,8 +145,8 @@ export function mergeProfile(
 
   return {
     ...baseProfile,
-    skills: Array.from(skillMap.values()),
-    certifications: Array.from(certMap.values()),
+    skills: finalSkills,
+    certifications: finalCertifications,
     apiSettings: {
       ...baseProfile.apiSettings,
       geminiApiKey: mergedApiKey,
