@@ -51,17 +51,33 @@ export function buildJobAnalysisPrompt(
 
   const ngConditionsList = profile.conditions.ngConditions.map((ng) => `- ${ng}`).join("\n");
 
-  // Format career experience & projects (STAR)
+  // Format career experience & projects (Phases & Multi-STAR)
   const formattedExperiences = (profile.companies || [])
     .map((comp) => {
       const compPeriod = `${comp.startDate} 〜 ${comp.isCurrent ? "現在" : comp.endDate || ""}`;
       const projectDetails = (comp.projects || []).map((proj) => {
         const projPeriod = `${proj.startDate} 〜 ${proj.isCurrent ? "参画中" : proj.endDate || ""}`;
+        const phasesStr = proj.phases && proj.phases.length > 0 ? ` / 担当工程: ${proj.phases.join(", ")}` : "";
+        const skillsStr = proj.skills && proj.skills.length > 0 ? ` / 技術: ${proj.skills.join(", ")}` : "";
+
+        let episodesStr = "";
+        if (proj.starEpisodes && proj.starEpisodes.length > 0) {
+          episodesStr = proj.starEpisodes.map((ep, idx) => {
+            const themeLabel = ep.theme ? ` [${ep.theme}]` : "";
+            return `      * 成果エピソード ${idx + 1}${themeLabel}:
+        - 課題(S): ${ep.situation || "記載なし"}
+        - 行動(A): ${ep.action || "記載なし"}
+        - 成果(R): ${ep.result || "記載なし"}`;
+          }).join("\n");
+        } else {
+          episodesStr = `      * 課題(S): ${proj.situation || "記載なし"}
+      * 行動(A): ${proj.action || "記載なし"}
+      * 成果(R): ${proj.result || "記載なし"}`;
+        }
+
         return `    * 【PJ】${proj.title} (${projPeriod})
-      - 役割: ${proj.role} / 規模: ${proj.teamSize || "記載なし"} / 技術: ${proj.skills.join(", ") || "記載なし"}
-      - 課題(S): ${proj.situation || "記載なし"}
-      - 工夫(A): ${proj.action || "記載なし"}
-      - 成果(R): ${proj.result || "記載なし"}`;
+      - 役割: ${proj.role} / 規模: ${proj.teamSize || "記載なし"}${phasesStr}${skillsStr}
+${episodesStr}`;
       }).join("\n");
 
       return `  - 企業: ${comp.companyName} (${compPeriod}, ${comp.employmentType || "正社員"})

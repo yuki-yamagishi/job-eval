@@ -18,14 +18,21 @@ import {
   FileText,
   Loader2,
   Building2,
-  X
+  X,
+  Layers,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { UserProfile, CompanyExperience, ProjectExperience } from "@/types/profile";
+import {
+  UserProfile,
+  CompanyExperience,
+  ProjectExperience,
+  StarEpisode,
+  DEVELOPMENT_PHASES,
+} from "@/types/profile";
 import { useProfile } from "@/hooks/useProfile";
 
 interface CareerHistoryViewProps {
@@ -68,8 +75,8 @@ export const CareerHistoryView: React.FC<CareerHistoryViewProps> = ({
   const [editingProject, setEditingProject] = useState<ProjectExperience | null>(null);
   const [projectSkillInput, setProjectSkillInput] = useState("");
 
-  // AI Polish state
-  const [isPolishing, setIsPolishing] = useState(false);
+  // AI Polish state per episode ID
+  const [polishingEpisodeId, setPolishingEpisodeId] = useState<string | null>(null);
 
   // Markdown Export Modal
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -152,6 +159,33 @@ export const CareerHistoryView: React.FC<CareerHistoryViewProps> = ({
     }
   };
 
+  // Helper to normalize starEpisodes from project
+  const normalizeEpisodes = (proj: ProjectExperience): StarEpisode[] => {
+    if (proj.starEpisodes && proj.starEpisodes.length > 0) {
+      return proj.starEpisodes.map((ep) => ({ ...ep }));
+    }
+    if (proj.situation || proj.action || proj.result) {
+      return [
+        {
+          id: `star-init-${Date.now()}`,
+          theme: "主要な課題解決と成果",
+          situation: proj.situation || "",
+          action: proj.action || "",
+          result: proj.result || "",
+        },
+      ];
+    }
+    return [
+      {
+        id: `star-init-${Date.now()}`,
+        theme: "",
+        situation: "",
+        action: "",
+        result: "",
+      },
+    ];
+  };
+
   // Project CRUD
   const handleOpenAddProject = (companyId: string) => {
     setActiveCompanyIdForProject(companyId);
@@ -162,7 +196,17 @@ export const CareerHistoryView: React.FC<CareerHistoryViewProps> = ({
       teamSize: "",
       startDate: new Date().toISOString().slice(0, 7),
       isCurrent: true,
+      phases: ["基本設計 / アーキテクチャ", "実装・コーディング"],
       skills: [],
+      starEpisodes: [
+        {
+          id: `star-${Date.now()}`,
+          theme: "",
+          situation: "",
+          action: "",
+          result: "",
+        },
+      ],
       situation: "",
       action: "",
       result: "",
@@ -173,7 +217,12 @@ export const CareerHistoryView: React.FC<CareerHistoryViewProps> = ({
 
   const handleOpenEditProject = (companyId: string, project: ProjectExperience) => {
     setActiveCompanyIdForProject(companyId);
-    setEditingProject({ ...project, skills: [...project.skills] });
+    setEditingProject({
+      ...project,
+      phases: project.phases ? [...project.phases] : [],
+      skills: [...project.skills],
+      starEpisodes: normalizeEpisodes(project),
+    });
     setProjectSkillInput("");
     setIsProjectModalOpen(true);
   };
@@ -185,13 +234,22 @@ export const CareerHistoryView: React.FC<CareerHistoryViewProps> = ({
       return;
     }
 
+    // Set backward compatibility fields from first episode
+    const firstEp = editingProject.starEpisodes?.[0];
+    const projectToSave: ProjectExperience = {
+      ...editingProject,
+      situation: firstEp ? firstEp.situation : editingProject.situation || "",
+      action: firstEp ? firstEp.action : editingProject.action || "",
+      result: firstEp ? firstEp.result : editingProject.result || "",
+    };
+
     updateCompanies((prev) =>
       prev.map((c) => {
         if (c.id !== activeCompanyIdForProject) return c;
-        const exists = c.projects.some((p) => p.id === editingProject.id);
+        const exists = c.projects.some((p) => p.id === projectToSave.id);
         const updatedProjects = exists
-          ? c.projects.map((p) => (p.id === editingProject.id ? editingProject : p))
-          : [editingProject, ...c.projects];
+          ? c.projects.map((p) => (p.id === projectToSave.id ? projectToSave : p))
+          : [projectToSave, ...c.projects];
         return { ...c, projects: updatedProjects };
       })
     );
@@ -212,6 +270,17 @@ export const CareerHistoryView: React.FC<CareerHistoryViewProps> = ({
     }
   };
 
+  // Phases toggle
+  const handleTogglePhase = (phase: string) => {
+    if (!editingProject) return;
+    const currentPhases = editingProject.phases || [];
+    const updated = currentPhases.includes(phase)
+      ? currentPhases.filter((p) => p !== phase)
+      : [...currentPhases, phase];
+    setEditingProject({ ...editingProject, phases: updated });
+  };
+
+  // Skills Tags
   const handleAddSkillTag = () => {
     if (!projectSkillInput.trim() || !editingProject) return;
     const skill = projectSkillInput.trim();
@@ -232,37 +301,74 @@ export const CareerHistoryView: React.FC<CareerHistoryViewProps> = ({
     });
   };
 
-  // AI Polish using Gemini
-  const handleAiPolishProject = async () => {
+  // STAR Episodes handlers
+  const handleAddStarEpisode = () => {
+    if (!editingProject) return;
+    const newEp: StarEpisode = {
+      id: `star-${Date.now()}`,
+      theme: "",
+      situation: "",
+      action: "",
+      result: "",
+    };
+    setEditingProject({
+      ...editingProject,
+      starEpisodes: [...(editingProject.starEpisodes || []), newEp],
+    });
+  };
+
+  const handleUpdateStarEpisode = (episodeId: string, field: keyof StarEpisode, value: string) => {
+    if (!editingProject) return;
+    const updated = (editingProject.starEpisodes || []).map((ep) =>
+      ep.id === episodeId ? { ...ep, [field]: value } : ep
+    );
+    setEditingProject({ ...editingProject, starEpisodes: updated });
+  };
+
+  const handleDeleteStarEpisode = (episodeId: string) => {
+    if (!editingProject) return;
+    if ((editingProject.starEpisodes || []).length <= 1) {
+      alert("少なくとも1つのSTARエピソードが必要です。");
+      return;
+    }
+    const updated = (editingProject.starEpisodes || []).filter((ep) => ep.id !== episodeId);
+    setEditingProject({ ...editingProject, starEpisodes: updated });
+  };
+
+  // AI Polish for a specific episode using Gemini
+  const handleAiPolishEpisode = async (episode: StarEpisode) => {
     if (!editingProject) return;
     const apiKey = profile.apiSettings?.geminiApiKey?.trim();
     if (!apiKey) {
-      alert("AI文章整形を利用するには、「プロファイル設定」画面で Gemini API キーを設定してください。");
+      alert("AI文章整形を利用するには、「プロファイル条件設定」画面で Gemini API キーを設定してください。");
       return;
     }
 
-    setIsPolishing(true);
+    setPolishingEpisodeId(episode.id);
     try {
       const model = profile.apiSettings?.geminiModel || "gemini-3.6-flash";
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
       const prompt = `あなたはIT業界のプロフェッショナルな職務経歴書コンサルタントです。
-以下のエンジニアのプロジェクト実績の下書き（状況・課題、自身の工夫や行動、成果）を読み、
+以下のエンジニアのプロジェクト実績エピソード（状況・課題、自身の工夫や行動、成果）を読み、
 STAR法（Situation & Task, Action, Result）に基づいた、説得力とビジネスインパクトのある簡潔明瞭な文章にブラッシュアップしてください。
 
-【プロジェクト情報】
+【プロジェクト基本情報】
 - プロジェクト名: ${editingProject.title}
 - 担当役割/ポジション: ${editingProject.role}
+- 担当工程: ${(editingProject.phases || []).join(", ") || "未指定"}
 - チーム規模: ${editingProject.teamSize || "未記載"}
 - 使用技術スタック: ${editingProject.skills.join(", ") || "未記載"}
 
-【現状の入力メモ】
-- 状況・課題 (Situation): ${editingProject.situation || "（未記入）"}
-- 行動・工夫 (Action): ${editingProject.action || "（未記入）"}
-- 成果・インパクト (Result): ${editingProject.result || "（未記入）"}
+【エピソード下書き】
+- テーマ/課題概要: ${episode.theme || "（未記入）"}
+- 状況・課題 (Situation): ${episode.situation || "（未記入）"}
+- 行動・工夫 (Action): ${episode.action || "（未記入）"}
+- 成果・インパクト (Result): ${episode.result || "（未記入）"}
 
 必ず以下のJSON形式のみを出力してください（Markdownのコードフェンスは含めないでください）。
 {
+  "theme": "テーマ（20文字程度の簡潔で魅力的な見出し）",
   "situation": "ブラッシュアップされた課題・背景文（2〜3文程度）",
   "action": "ブラッシュアップされた自身の工夫・主導した施策（2〜3文程度）",
   "result": "ブラッシュアップされた定量的成果・ビジネス貢献度（2〜3文程度）"
@@ -292,12 +398,18 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
 
       setEditingProject((prev) => {
         if (!prev) return prev;
-        return {
-          ...prev,
-          situation: parsed.situation || prev.situation,
-          action: parsed.action || prev.action,
-          result: parsed.result || prev.result,
-        };
+        const updated = (prev.starEpisodes || []).map((ep) =>
+          ep.id === episode.id
+            ? {
+                ...ep,
+                theme: parsed.theme || ep.theme,
+                situation: parsed.situation || ep.situation,
+                action: parsed.action || ep.action,
+                result: parsed.result || ep.result,
+              }
+            : ep
+        );
+        return { ...prev, starEpisodes: updated };
       });
       showToast("✨ AIによるSTAR文章のブラッシュアップが完了しました！");
     } catch (err: unknown) {
@@ -305,7 +417,7 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
       const msg = err instanceof Error ? err.message : String(err);
       alert(`AI整形エラー: ${msg}`);
     } finally {
-      setIsPolishing(false);
+      setPolishingEpisodeId(null);
     }
   };
 
@@ -353,10 +465,28 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
           md += `#### 【PJ.${projIdx + 1}】${proj.title} (${projPeriod})\n`;
           md += `- **役割・ポジション**: ${proj.role}\n`;
           if (proj.teamSize) md += `- **チーム規模**: ${proj.teamSize}\n`;
-          if (proj.skills && proj.skills.length > 0) md += `- **使用技術**: ${proj.skills.join(", ")}\n`;
-          if (proj.situation) md += `- **📌 直面した課題・背景 (Situation)**:\n  ${proj.situation}\n`;
-          if (proj.action) md += `- **💡 自身の行動・工夫 (Action)**:\n  ${proj.action}\n`;
-          if (proj.result) md += `- **🏆 達成した成果 (Result)**:\n  ${proj.result}\n`;
+          if (proj.phases && proj.phases.length > 0) {
+            md += `- **担当開発工程**: ${proj.phases.join(", ")}\n`;
+          }
+          if (proj.skills && proj.skills.length > 0) {
+            md += `- **使用技術スタック**: ${proj.skills.join(", ")}\n`;
+          }
+
+          const episodes = proj.starEpisodes && proj.starEpisodes.length > 0
+            ? proj.starEpisodes
+            : (proj.situation || proj.action || proj.result)
+            ? [{ id: "fallback", theme: "", situation: proj.situation || "", action: proj.action || "", result: proj.result || "" }]
+            : [];
+
+          if (episodes.length > 0) {
+            episodes.forEach((ep, epIdx) => {
+              const epHeader = ep.theme ? `【成果エピソード ${epIdx + 1}: ${ep.theme}】` : `【成果エピソード ${epIdx + 1}】`;
+              md += `\n${epHeader}\n`;
+              if (ep.situation) md += `- **📌 直面した課題 (Situation)**: ${ep.situation}\n`;
+              if (ep.action) md += `- **💡 自身の工夫・行動 (Action)**: ${ep.action}\n`;
+              if (ep.result) md += `- **🏆 達成成果 (Result)**: ${ep.result}\n`;
+            });
+          }
           md += `\n`;
         });
       }
@@ -396,7 +526,7 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
   };
 
   const handleResetToDefault = () => {
-    if (window.confirm("職務経歴をデフォルトのサンプルデータにリセットしますか？")) {
+    if (window.confirm("職務経歴を初期値のサンプルデータにリセットしますか？")) {
       const defaultComps = hookState.profile?.companies || [];
       setDraftCompanies(defaultComps);
       setIsDirty(false);
@@ -427,11 +557,11 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight flex items-center gap-2">
             <Briefcase className="h-5 w-5 text-indigo-400 shrink-0" />
-            職務経歴・プロジェクト実績 (STAR法)
+            職務経歴・プロジェクト実績 (工程・複数STAR対応)
           </h2>
           <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-            1つの会社で携わった複数プロジェクトの年月・ポジション・使用スキル・課題・成果を管理。
-            AI求人適合度判定に自動連携され、職務経歴書Markdownの一括出力にも対応します。
+            1社複数プロジェクト、担当開発工程（要件定義〜運用保守）、および1案件内の複数STAR成果エピソードを管理。
+            AI求人適合度判定に自動注入され、職務経歴書Markdownの一括出力にも対応します。
           </p>
         </div>
 
@@ -462,7 +592,7 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
           <Building2 className="h-10 w-10 text-slate-600 mx-auto mb-3" />
           <h3 className="text-sm font-semibold text-slate-300">職務経歴が登録されていません</h3>
           <p className="text-xs text-slate-500 mt-1 mb-4">
-            所属企業を追加し、その中で担当したプロジェクト実績を登録しましょう。
+            所属企業を追加し、その中で担当したプロジェクト実績や開発工程を登録しましょう。
           </p>
           <Button size="sm" onClick={handleOpenAddCompany} className="text-xs bg-indigo-600 hover:bg-indigo-500">
             <Plus className="h-3.5 w-3.5 mr-1" />
@@ -587,11 +717,16 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
                       ) : (
                         company.projects.map((proj, pIndex) => {
                           const projPeriod = `${proj.startDate} 〜 ${proj.isCurrent ? "参画中" : proj.endDate || ""}`;
+                          const episodes = proj.starEpisodes && proj.starEpisodes.length > 0
+                            ? proj.starEpisodes
+                            : (proj.situation || proj.action || proj.result)
+                            ? [{ id: "fb", theme: "主要実績", situation: proj.situation || "", action: proj.action || "", result: proj.result || "" }]
+                            : [];
 
                           return (
                             <div
                               key={proj.id}
-                              className="bg-slate-950/70 border border-slate-800/80 rounded-lg p-3 sm:p-3.5 space-y-2 relative group hover:border-slate-700 transition-all"
+                              className="bg-slate-950/70 border border-slate-800/80 rounded-lg p-3 sm:p-3.5 space-y-2.5 relative group hover:border-slate-700 transition-all"
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div>
@@ -628,6 +763,7 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
                                     size="sm"
                                     onClick={() => handleOpenEditProject(company.id, proj)}
                                     className="h-7 w-7 p-0 text-slate-400 hover:text-slate-200"
+                                    title="プロジェクトを編集"
                                   >
                                     <Edit2 className="h-3.5 w-3.5" />
                                   </Button>
@@ -636,16 +772,34 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
                                     size="sm"
                                     onClick={() => handleDeleteProject(company.id, proj.id)}
                                     className="h-7 w-7 p-0 text-slate-400 hover:text-rose-400"
+                                    title="プロジェクトを削除"
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
                                 </div>
                               </div>
 
+                              {/* Phases (担当開発工程) */}
+                              {proj.phases && proj.phases.length > 0 && (
+                                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                  <Layers className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                                  <span className="text-[10px] text-slate-400 font-medium">担当工程:</span>
+                                  {proj.phases.map((phase) => (
+                                    <span
+                                      key={phase}
+                                      className="text-[10px] bg-cyan-950/60 text-cyan-300 border border-cyan-800/60 px-1.5 py-0.2 rounded"
+                                    >
+                                      {phase}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
                               {/* Skills */}
                               {proj.skills && proj.skills.length > 0 && (
                                 <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                                  <Code2 className="h-3 w-3 text-slate-500 shrink-0" />
+                                  <Code2 className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                                  <span className="text-[10px] text-slate-400 font-medium">技術:</span>
                                   {proj.skills.map((skill) => (
                                     <span
                                       key={skill}
@@ -657,38 +811,58 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
                                 </div>
                               )}
 
-                              {/* STAR Breakdown */}
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1.5 text-xs">
-                                {proj.situation && (
-                                  <div className="bg-slate-900/60 p-2 rounded border border-slate-800/60 space-y-1">
-                                    <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
-                                      <span>📌</span> 状況・課題 (S)
-                                    </span>
-                                    <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">
-                                      {proj.situation}
-                                    </p>
+                              {/* STAR Episodes Cards */}
+                              <div className="space-y-2 pt-1">
+                                {episodes.map((ep, eIdx) => (
+                                  <div
+                                    key={ep.id}
+                                    className="bg-slate-900/50 border border-slate-800/70 rounded-md p-2.5 space-y-1.5"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-bold text-indigo-300 bg-indigo-950/80 border border-indigo-800/60 px-1.5 rounded">
+                                        成果エピソード {eIdx + 1}
+                                      </span>
+                                      {ep.theme && (
+                                        <span className="text-xs font-semibold text-slate-200 truncate">
+                                          {ep.theme}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1 text-xs">
+                                      {ep.situation && (
+                                        <div className="bg-slate-950/60 p-2 rounded border border-slate-800/60 space-y-1">
+                                          <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
+                                            <span>📌</span> 課題 (S)
+                                          </span>
+                                          <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">
+                                            {ep.situation}
+                                          </p>
+                                        </div>
+                                      )}
+                                      {ep.action && (
+                                        <div className="bg-slate-950/60 p-2 rounded border border-slate-800/60 space-y-1">
+                                          <span className="text-[10px] font-bold text-indigo-400 flex items-center gap-1">
+                                            <span>💡</span> 工夫・行動 (A)
+                                          </span>
+                                          <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">
+                                            {ep.action}
+                                          </p>
+                                        </div>
+                                      )}
+                                      {ep.result && (
+                                        <div className="bg-slate-950/60 p-2 rounded border border-slate-800/60 space-y-1">
+                                          <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                                            <span>🏆</span> 成果 (R)
+                                          </span>
+                                          <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">
+                                            {ep.result}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                )}
-                                {proj.action && (
-                                  <div className="bg-slate-900/60 p-2 rounded border border-slate-800/60 space-y-1">
-                                    <span className="text-[10px] font-bold text-indigo-400 flex items-center gap-1">
-                                      <span>💡</span> 自身の行動・工夫 (A)
-                                    </span>
-                                    <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">
-                                      {proj.action}
-                                    </p>
-                                  </div>
-                                )}
-                                {proj.result && (
-                                  <div className="bg-slate-900/60 p-2 rounded border border-slate-800/60 space-y-1">
-                                    <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                                      <span>🏆</span> 達成成果・インパクト (R)
-                                    </span>
-                                    <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">
-                                      {proj.result}
-                                    </p>
-                                  </div>
-                                )}
+                                ))}
                               </div>
                             </div>
                           );
@@ -807,7 +981,7 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
                 <Button variant="outline" size="sm" onClick={() => setIsCompanyModalOpen(false)} className="h-8 text-xs">
                   キャンセル
                 </Button>
-                <Button size="sm" onClick={handleSaveCompanyModal} className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500">
+                <Button size="sm" onClick={handleSaveCompanyModal} className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 font-semibold">
                   確定
                 </Button>
               </div>
@@ -819,36 +993,18 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
       {/* Modal: Add/Edit Project */}
       {isProjectModalOpen && editingProject && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
-          <Card className="w-full max-w-2xl border-slate-800 bg-slate-900 shadow-2xl max-h-[90vh] flex flex-col my-auto">
+          <Card className="w-full max-w-3xl border-slate-800 bg-slate-900 shadow-2xl max-h-[92vh] flex flex-col my-auto">
             <CardHeader className="pb-3 border-b border-slate-800 flex flex-row items-center justify-between shrink-0">
               <CardTitle className="text-sm font-bold text-slate-100 flex items-center gap-2">
                 <Target className="h-4 w-4 text-indigo-400" />
-                プロジェクト実績の編集 (STAR法誘導)
+                プロジェクト実績の編集（工程・複数STAR対応）
               </CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAiPolishProject}
-                disabled={isPolishing}
-                className="h-7 text-[11px] bg-purple-950/60 border-purple-700/80 text-purple-300 hover:bg-purple-900/60 flex items-center gap-1"
-              >
-                {isPolishing ? (
-                  <>
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    AI文章整形中...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-3 w-3 text-purple-400" />
-                    ✨ AI文章整形
-                  </>
-                )}
-              </Button>
             </CardHeader>
 
-            <CardContent className="space-y-3 pt-3 text-xs overflow-y-auto flex-1">
+            <CardContent className="space-y-4 pt-3 text-xs overflow-y-auto flex-1 pr-3">
+              {/* Basic Project Info */}
               <div className="space-y-1">
-                <label className="text-slate-300 font-semibold">プロジェクト名 / 案件概要 <span className="text-rose-400">*</span></label>
+                <label className="text-slate-300 font-semibold">プロジェクト名 / 業務概要 <span className="text-rose-400">*</span></label>
                 <Input
                   value={editingProject.title}
                   onChange={(e) => setEditingProject({ ...editingProject, title: e.target.value })}
@@ -863,7 +1019,7 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
                   <Input
                     value={editingProject.role}
                     onChange={(e) => setEditingProject({ ...editingProject, role: e.target.value })}
-                    placeholder="例: テックリード / 設計・実装・コードレビュー"
+                    placeholder="例: テックリード / 設計・実装・レビュー"
                     className="h-8 text-xs"
                   />
                 </div>
@@ -916,9 +1072,43 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
                 </div>
               </div>
 
+              {/* Development Phases (担当開発工程) */}
+              <div className="space-y-1.5 p-2.5 bg-slate-950/60 rounded-lg border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-200 font-semibold flex items-center gap-1.5">
+                    <Layers className="h-3.5 w-3.5 text-cyan-400" />
+                    担当開発工程（フェーズ）
+                  </label>
+                  <span className="text-[10px] text-slate-500">ワンタップで複数選択</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {DEVELOPMENT_PHASES.map((phase) => {
+                    const isSelected = (editingProject.phases || []).includes(phase);
+                    return (
+                      <button
+                        key={phase}
+                        type="button"
+                        onClick={() => handleTogglePhase(phase)}
+                        className={`text-[11px] px-2.5 py-1 rounded-md border transition-all font-medium flex items-center gap-1 ${
+                          isSelected
+                            ? "bg-cyan-950 border-cyan-600 text-cyan-200 shadow-sm"
+                            : "bg-slate-900/80 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
+                        }`}
+                      >
+                        {isSelected && <Check className="h-3 w-3 text-cyan-300" />}
+                        {phase}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Skills Tags */}
               <div className="space-y-1.5">
-                <label className="text-slate-300 font-semibold">使用技術・スキルスタック</label>
+                <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                  <Code2 className="h-3.5 w-3.5 text-indigo-400" />
+                  使用技術・スキルスタック
+                </label>
                 <div className="flex flex-wrap gap-1 p-1.5 bg-slate-950 rounded border border-slate-800 min-h-9 items-center">
                   {editingProject.skills.map((skill) => (
                     <Badge
@@ -951,42 +1141,132 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
                 </div>
               </div>
 
-              {/* STAR Form Fields */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <div className="space-y-1">
-                  <label className="text-amber-400 font-semibold flex items-center gap-1">
-                    <span>📌</span> 状況・課題 (Situation & Task)
-                  </label>
-                  <Textarea
-                    value={editingProject.situation || ""}
-                    onChange={(e) => setEditingProject({ ...editingProject, situation: e.target.value })}
-                    placeholder="例: モノリスAPIが秒間1,000リクエストのスパイク時にレイテンシが2.5秒超へ悪化し、DB接続枯渇が発生していた。"
-                    className="h-16 text-xs resize-none"
-                  />
+              {/* Multiple STAR Episodes */}
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                      <span>🎯</span>
+                      実績エピソード (STAR法誘導)
+                      <span className="text-[11px] font-mono text-indigo-400 font-normal">
+                        ({(editingProject.starEpisodes || []).length}件)
+                      </span>
+                    </h4>
+                    <p className="text-[10px] text-slate-400">
+                      1つのプロジェクト内で解決した複数の課題や異なる成果を個別に記録できます
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddStarEpisode}
+                    className="h-7 text-[11px] border-indigo-500/40 text-indigo-300 hover:bg-indigo-950/40 flex items-center gap-1"
+                  >
+                    <Plus className="h-3 w-3" />
+                    エピソードを追加
+                  </Button>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-indigo-400 font-semibold flex items-center gap-1">
-                    <span>💡</span> 自身の行動・技術的工夫 (Action)
-                  </label>
-                  <Textarea
-                    value={editingProject.action || ""}
-                    onChange={(e) => setEditingProject({ ...editingProject, action: e.target.value })}
-                    placeholder="例: ドメイン駆動設計に基づきサービス境界を分離。Go言語による軽量マイクロサービスへ移行し、TerraformとEKSによる基盤刷新を主導。"
-                    className="h-16 text-xs resize-none"
-                  />
-                </div>
+                <div className="space-y-3">
+                  {(editingProject.starEpisodes || []).map((episode, epIndex) => {
+                    const isPolishingThis = polishingEpisodeId === episode.id;
 
-                <div className="space-y-1">
-                  <label className="text-emerald-400 font-semibold flex items-center gap-1">
-                    <span>🏆</span> 達成した成果・定量的インパクト (Result)
-                  </label>
-                  <Textarea
-                    value={editingProject.result || ""}
-                    onChange={(e) => setEditingProject({ ...editingProject, result: e.target.value })}
-                    placeholder="例: APIレスポンス速度を92%短縮（p99で180ms）。インフラコスト月額28%削減、年間重大障害件数ゼロを達成。"
-                    className="h-16 text-xs resize-none"
-                  />
+                    return (
+                      <div
+                        key={episode.id}
+                        className="p-3 bg-slate-950/80 rounded-lg border border-slate-800 space-y-2.5 relative shadow-sm"
+                      >
+                        {/* Episode Card Header */}
+                        <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="text-[10px] font-mono font-bold bg-indigo-950 text-indigo-300 border border-indigo-800/80 px-1.5 py-0.5 rounded shrink-0">
+                              エピソード #{epIndex + 1}
+                            </span>
+                            <Input
+                              value={episode.theme || ""}
+                              onChange={(e) => handleUpdateStarEpisode(episode.id, "theme", e.target.value)}
+                              placeholder="実績テーマ (例: DBコネクション枯渇解消とレイテンシ改善)"
+                              className="h-7 text-xs flex-1 bg-slate-900 border-slate-700 font-semibold text-slate-200"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleAiPolishEpisode(episode)}
+                              disabled={isPolishingThis}
+                              className="h-7 text-[11px] bg-purple-950/60 border-purple-700/80 text-purple-300 hover:bg-purple-900/60 flex items-center gap-1"
+                            >
+                              {isPolishingThis ? (
+                                <>
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  AI文章整形中...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="h-3 w-3 text-purple-400" />
+                                  ✨ AI文章整形
+                                </>
+                              )}
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteStarEpisode(episode.id)}
+                              className="h-7 w-7 p-0 text-slate-400 hover:text-rose-400"
+                              title="このエピソードを削除"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* STAR Inputs */}
+                        <div className="space-y-2">
+                          <div className="space-y-1">
+                            <label className="text-amber-400 font-semibold flex items-center gap-1">
+                              <span>📌</span> 状況・課題 (Situation & Task)
+                            </label>
+                            <Textarea
+                              value={episode.situation || ""}
+                              onChange={(e) => handleUpdateStarEpisode(episode.id, "situation", e.target.value)}
+                              placeholder="例: 秒間1,000reqのアクセス急増時にAPIレイテンシが2.5秒超へ悪化し、DB接続枯渇が発生していた。"
+                              className="h-14 text-xs resize-none"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-indigo-400 font-semibold flex items-center gap-1">
+                              <span>💡</span> 自身の工夫・技術的行動 (Action)
+                            </label>
+                            <Textarea
+                              value={episode.action || ""}
+                              onChange={(e) => handleUpdateStarEpisode(episode.id, "action", e.target.value)}
+                              placeholder="例: DDDに基づきサービス境界を分離しGo製マイクロサービスへ移行。pgBouncerとコネクションプール最適化を主導。"
+                              className="h-14 text-xs resize-none"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-emerald-400 font-semibold flex items-center gap-1">
+                              <span>🏆</span> 達成した定量的成果 (Result)
+                            </label>
+                            <Textarea
+                              value={episode.result || ""}
+                              onChange={(e) => handleUpdateStarEpisode(episode.id, "result", e.target.value)}
+                              placeholder="例: APIレスポンスを92%短縮（p99で180ms）。インフラ費用月額28%削減、障害ゼロを達成。"
+                              className="h-14 text-xs resize-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </CardContent>
@@ -1014,7 +1294,7 @@ STAR法（Situation & Task, Action, Result）に基づいた、説得力とビ�
                   職務経歴書 (Markdown) プレビュー & 出力
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  登録した全社・全プロジェクト実績から生成された職務経歴書テキストです
+                  全社・全プロジェクト・担当工程・複数STARエピソードから生成された職務経歴書テキストです
                 </CardDescription>
               </div>
               <Button
