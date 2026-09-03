@@ -4,6 +4,7 @@ import { InputPane } from "@/components/pane/InputPane";
 import { PreviewPane } from "@/components/pane/PreviewPane";
 import { JobDashboard } from "@/components/dashboard/JobDashboard";
 import { CareerRoadmapView } from "@/features/roadmap/CareerRoadmapView";
+import { CareerHistoryView } from "@/features/career/CareerHistoryView";
 import { ProfileSettingsView } from "@/features/profile/ProfileSettingsView";
 import { SyncModal } from "@/components/sync/SyncModal";
 import { 
@@ -233,6 +234,18 @@ export function App() {
               onSelectJobForPreview={handleSelectJobForPreview}
               onUpdateStatus={updateJobStatus}
               onRefreshJobs={fetchJobs}
+            />
+          </div>
+        )}
+
+        {activeTab === "career" && (
+          <div className="h-full overflow-y-auto">
+            <CareerHistoryView
+              profile={profile}
+              onSaveProfile={saveProfile}
+              isLoading={isLoading}
+              isSaving={isSaving}
+              lastSavedTime={lastSavedTime}
             />
           </div>
         )}

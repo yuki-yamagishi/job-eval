@@ -118,6 +118,34 @@ export interface ApiSettings {
   customInstructions?: string;
 }
 
+// プロジェクト実績（案件単位）
+export interface ProjectExperience {
+  id: string;
+  title: string;          // プロジェクト名 / 業務概要 (例: ECサイト大規模マイクロサービス刷新)
+  role: string;           // ポジション・役割 (例: テックリード / バックエンドエンジニア)
+  teamSize?: string;      // チーム規模 (例: 8名 (フロント3, バック4, PM1))
+  startDate: string;      // 開始年月 (例: "2023-04")
+  endDate?: string;       // 終了年月 (例: "2024-03" / 空欄・"現在" で参画中)
+  isCurrent?: boolean;    // 現在も参画中か
+  skills: string[];       // 使用技術・スキルスタック (例: ["Go", "React", "TypeScript", "AWS", "Docker"])
+  situation?: string;     // 📌 直面した課題・背景 (Situation & Task)
+  action?: string;        // 💡 自身が取った行動・技術的工夫 (Action)
+  result?: string;        // 🏆 達成した成果・定量的インパクト (Result)
+}
+
+// 所属企業 / 経歴単位
+export interface CompanyExperience {
+  id: string;
+  companyName: string;    // 会社名 (例: 株式会社テクノロジー)
+  employmentType?: "正社員" | "契約社員" | "業務委託" | "フリーランス" | "その他";
+  startDate: string;      // 入社・開始年月 (例: "2021-04")
+  endDate?: string;       // 退社・終了年月 (例: "2024-03")
+  isCurrent?: boolean;    // 在籍中か
+  department?: string;    // 所属部署 / 役職
+  description?: string;   // 企業概要・事業内容
+  projects: ProjectExperience[]; // 当該企業での参画プロジェクト群 (複数対応)
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -128,5 +156,6 @@ export interface UserProfile {
   certifications: CertificationItem[];
   conditions: ConditionMatrix;
   apiSettings: ApiSettings;
+  companies?: CompanyExperience[]; // 職務経歴・プロジェクト実績群
   updatedAt: string;
 }
