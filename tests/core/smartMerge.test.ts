@@ -130,20 +130,22 @@ describe("Smart Merge & Conflict Resolution Core Engine", () => {
   });
 
   describe("mergeProfile", () => {
-    it("merges skills and certifications from both devices without duplicates", () => {
+    it("strictly preserves deletions in skills and certifications from newer profile (LWW)", () => {
+      // Old profile on PC has AWS and AZ-305
       const pcProfile: UserProfile = {
         ...DEFAULT_USER_PROFILE,
         name: "Developer PC",
         skills: [
-          { id: "s1", name: "TypeScript", category: "language", level: "advanced" },
+          { id: "s1", name: "AWS", category: "cloud", level: "advanced" },
           { id: "s2", name: "React", category: "framework", level: "advanced" },
         ],
         certifications: [
-          { id: "c1", name: "AWS SAA", issuer: "AWS", status: "acquired" },
+          { id: "c1", name: "AZ-305: Azure Solutions Architect Expert", issuer: "Microsoft", status: "acquired" },
         ],
         updatedAt: "2026-09-01T10:00:00Z",
       };
 
+      // User deleted AWS and AZ-305 on mobile, added Rust (newer timestamp)
       const mobileProfile: UserProfile = {
         ...DEFAULT_USER_PROFILE,
         name: "Developer Mobile",
@@ -151,20 +153,43 @@ describe("Smart Merge & Conflict Resolution Core Engine", () => {
           { id: "s2", name: "React", category: "framework", level: "expert" },
           { id: "s3", name: "Rust", category: "language", level: "beginner" },
         ],
-        certifications: [
-          { id: "c2", name: "GCP PCA", issuer: "Google", status: "studying" },
-        ],
+        certifications: [], // Deleted all certifications
         updatedAt: "2026-09-02T12:00:00Z",
       };
 
       const merged = mergeProfile(pcProfile, mobileProfile);
 
       expect(merged.name).toBe("Developer Mobile"); // Latest name
-      expect(merged.skills).toHaveLength(3); // TypeScript, React, Rust
-      expect(merged.certifications).toHaveLength(2); // AWS SAA, GCP PCA
+      // Skills should strictly match the latest profile (React, Rust) - AWS must NOT resurrect!
+      expect(merged.skills).toHaveLength(2);
+      expect(merged.skills.map((s) => s.name)).toEqual(["React", "Rust"]);
+      expect(merged.skills.some((s) => s.name === "AWS")).toBe(false);
+
+      // Certifications should strictly match the latest profile (empty) - AZ-305 must NOT resurrect!
+      expect(merged.certifications).toHaveLength(0);
     });
 
-    it("preserves Gemini API key even if missing on one device", () => {
+    it("falls back to safe union if timestamps are completely identical", () => {
+      const profileA: UserProfile = {
+        ...DEFAULT_USER_PROFILE,
+        skills: [{ id: "s1", name: "TypeScript", category: "language", level: "advanced" }],
+        certifications: [{ id: "c1", name: "AWS SAA", issuer: "AWS", status: "acquired" }],
+        updatedAt: "2026-09-01T10:00:00Z",
+      };
+
+      const profileB: UserProfile = {
+        ...DEFAULT_USER_PROFILE,
+        skills: [{ id: "s2", name: "Go", category: "language", level: "intermediate" }],
+        certifications: [{ id: "c2", name: "CKA", issuer: "CNCF", status: "studying" }],
+        updatedAt: "2026-09-01T10:00:00Z",
+      };
+
+      const merged = mergeProfile(profileA, profileB);
+      expect(merged.skills).toHaveLength(2);
+      expect(merged.certifications).toHaveLength(2);
+    });
+
+    it("preserves Gemini API key even if missing on newer device", () => {
       const pcProfile: UserProfile = {
         ...DEFAULT_USER_PROFILE,
         apiSettings: {
