@@ -204,4 +204,52 @@ describe("CareerHistoryView Component", () => {
     // Verify added to list
     expect(await screen.findByText("新規参画株式会社")).toBeDefined();
   });
+
+  it("auto-commits unsaved skill text on modal save to prevent loss", async () => {
+    render(<CareerHistoryView profile={mockProfileWithCareer} />);
+    expect(await screen.findByText(/職務経歴・プロジェクト実績/)).toBeDefined();
+
+    const addProjectBtn = screen.getByTitle("この会社にプロジェクトを追加");
+    fireEvent.click(addProjectBtn);
+
+    expect(await screen.findByText("プロジェクト実績の編集（工程・複数STAR対応）")).toBeDefined();
+
+    // Input project title & role
+    const titleInput = screen.getByPlaceholderText(/EC基幹システム/);
+    fireEvent.change(titleInput, { target: { value: "未保存スキルテストPJ" } });
+
+    // Type skill without pressing enter or clicking add
+    const skillInput = screen.getByPlaceholderText(/追加するスキル/);
+    fireEvent.change(skillInput, { target: { value: "Terraform, Kubernetes" } });
+
+    // Click "プロジェクトを保存" directly
+    const saveProjBtn = screen.getByRole("button", { name: "プロジェクトを保存" });
+    fireEvent.click(saveProjBtn);
+
+    // Verify both skills are automatically committed and displayed
+    expect(await screen.findByText("未保存スキルテストPJ")).toBeDefined();
+    expect(screen.getByText("Terraform")).toBeDefined();
+    expect(screen.getByText("Kubernetes")).toBeDefined();
+  });
+
+  it("adds skills using the explicit Add button and comma separation", async () => {
+    render(<CareerHistoryView profile={mockProfileWithCareer} />);
+    expect(await screen.findByText(/職務経歴・プロジェクト実績/)).toBeDefined();
+
+    const addProjectBtn = screen.getByTitle("この会社にプロジェクトを追加");
+    fireEvent.click(addProjectBtn);
+
+    expect(await screen.findByText("プロジェクト実績の編集（工程・複数STAR対応）")).toBeDefined();
+
+    const skillInput = screen.getByPlaceholderText(/追加するスキル/);
+    fireEvent.change(skillInput, { target: { value: "GraphQL, Redis" } });
+
+    // Click the explicit "追加" button
+    const addSkillBtn = screen.getByRole("button", { name: "追加" });
+    fireEvent.click(addSkillBtn);
+
+    // Verify badges are rendered inside the modal
+    expect(screen.getByText("GraphQL")).toBeDefined();
+    expect(screen.getByText("Redis")).toBeDefined();
+  });
 });
