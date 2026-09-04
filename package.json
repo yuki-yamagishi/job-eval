@@ -12,7 +12,6 @@
     "test:coverage": "vitest run --coverage",
     "security-check": "node scripts/securityCheck.js",
     "doc-check": "node scripts/docCheck.js",
-    "pr-review": "node scripts/aiPrReviewer.js",
     "check": "node scripts/securityCheck.js && node scripts/docCheck.js && tsc --noEmit && vitest run --coverage && vite build",
     "preview": "vite preview",
     "tauri": "tauri",

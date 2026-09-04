@@ -23,6 +23,9 @@ GitHub Actions 上で個人 API キー（日次クォータ制約・Flash-Lite �
 - 指摘の手元自己修復コミット＆プッシュ。
 - 人間（ユーザー）の明示的承認を得てからのマージプロトコルを義務化。
 
+### ④ レビュー指摘 [imo] に基づく不要スクリプト群の完全削除
+- Fleet レビュアーからの指摘 `[imo]` およびユーザー指示に基づき、GitHub Actions 廃止に伴って不要となった `scripts/aiPrReviewer.js`、`tests/scripts/aiPrReviewer.test.ts`、および `package.json` の `pr-review` スクリプトを完全削除・クリーンアップ。
+
 ---
 
 # Phase 32: 実装成果レポート (Walkthrough) - AI レビュー指摘への重要度プレフィックス（[must], [should], [imo]等）義務化 (PR #37)

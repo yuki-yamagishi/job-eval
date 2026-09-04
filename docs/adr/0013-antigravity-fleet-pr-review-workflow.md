@@ -26,8 +26,8 @@ ADR-0012 において、GitHub Actions ワークフロー（`ai-pr-reviewer.yml`
 
 ## 2. 決定事項 (Decision)
 
-### ① GitHub Actions レビューワークフローの完全廃止（負債根絶）
-- `.github/workflows/ai-pr-reviewer.yml` を完全削除し、API クォータ消費、モデル妥協、CI ブロックリスクなどの負債を根絶する。
+### ① 外部 API レビュー自動化スクリプト群の完全廃止・削除（負債根絶）
+- `.github/workflows/ai-pr-reviewer.yml`、`scripts/aiPrReviewer.js`、`tests/scripts/aiPrReviewer.test.ts`、および `package.json` の `pr-review` コマンドを完全削除し、API クォータ消費、モデル妥協、CI ブロックリスク、不要スクリプト保守などの負債を 100% 根絶する。
 - 既存の CI パイプライン（`.github/workflows/ci.yml`）は、純粋な品質ゲート（シークレット検査、ドキュメント検査、型検査、テスト、ビルド）のみとして健全・シンプルに保つ。
 
 ### ② Antigravity IDE Fleet（独立サブエージェント）による最上位モデルレビュー
