@@ -83,6 +83,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       return new Response(
         JSON.stringify({
           success: true,
+          exists: Boolean(room),
           profile: room?.profile_encrypted
             ? {
                 encrypted: room.profile_encrypted,

@@ -146,6 +146,11 @@ export class CloudSyncService {
       const data = await res.json();
       if (!data.success) return false;
 
+      // If room does not exist in D1 yet, do not overwrite local data
+      if (data.exists === false) {
+        return false;
+      }
+
       // 1. Decrypt and apply authoritative profile snapshot
       if (data.profile && data.profile.encrypted) {
         const decryptedProfile = await decryptJson<UserProfile>(data.profile.encrypted, roomId);
@@ -239,28 +244,29 @@ export class CloudSyncService {
   /**
    * Initial synchronization with D1:
    * 1. Pulls latest authoritative cloud data first.
-   * 2. Only pushes local data if cloud was empty and local has custom user data.
+   * 2. If room does not exist in cloud yet, populates it with current local data.
    */
   private async syncWithD1(roomId: string) {
     // 1. Pull latest authoritative snapshot from cloud
-    const pullSuccess = await this.pullFromD1(roomId);
+    const cloudRoomExists = await this.pullFromD1(roomId);
 
-    // 2. Check local data state
-    let localProfile: UserProfile | null = null;
-    let localJobs: JobAnalysisResult[] = [];
-    try {
-      const rawProfile = localStorage.getItem(STORAGE_KEYS.PROFILE);
-      if (rawProfile) localProfile = JSON.parse(rawProfile);
-      const rawJobs = localStorage.getItem(STORAGE_KEYS.JOBS);
-      if (rawJobs) localJobs = JSON.parse(rawJobs);
-    } catch (e) {
-      console.warn("Failed to read local storage for initial D1 sync check", e);
-    }
+    // 2. If room did not exist in cloud, populate it with current local data
+    if (!cloudRoomExists) {
+      let localProfile: UserProfile | null = null;
+      let localJobs: JobAnalysisResult[] = [];
+      try {
+        const rawProfile = localStorage.getItem(STORAGE_KEYS.PROFILE);
+        if (rawProfile) localProfile = JSON.parse(rawProfile);
+        const rawJobs = localStorage.getItem(STORAGE_KEYS.JOBS);
+        if (rawJobs) localJobs = JSON.parse(rawJobs);
+      } catch (e) {
+        console.warn("Failed to read local storage for initial D1 sync check", e);
+      }
 
-    // Only if pull failed or room is freshly created, and local has custom data, push up
-    const isCustomProfile = localProfile && localProfile.id !== "user-default";
-    if (!pullSuccess && (isCustomProfile || localJobs.length > 0)) {
-      await this.pushToD1(roomId, localJobs, localProfile || undefined);
+      const isCustomProfile = localProfile && localProfile.id !== "user-default";
+      if (isCustomProfile || localJobs.length > 0) {
+        await this.pushToD1(roomId, localJobs, localProfile || undefined);
+      }
     }
   }
 

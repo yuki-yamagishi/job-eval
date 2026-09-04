@@ -112,6 +112,7 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
           json: () =>
             Promise.resolve({
               success: true,
+              exists: true,
               profile: null,
               jobs: [
                 {
@@ -174,6 +175,7 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
           json: () =>
             Promise.resolve({
               success: true,
+              exists: true,
               profile: {
                 encrypted: encryptedProfile,
                 updatedAt: Date.now(),
@@ -201,5 +203,62 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
     const parsed = JSON.parse(savedRaw!);
     expect(parsed.id).toBe("user-cloud-99");
     expect(parsed.name).toBe("Cloud Architect");
+  });
+
+  it("does not overwrite local jobs when connecting to a brand new empty cloud room (exists: false)", async () => {
+    const activeRoom = "JE-NEW-1234";
+
+    const localJob: any = {
+      metadata: {
+        id: "local-job-safe",
+        company: "My Local Company",
+        title: "Engineer",
+      },
+    };
+    localStorage.setItem("jobeval_saved_jobs_v1", JSON.stringify([localJob]));
+
+    const pushCalls: any[] = [];
+    global.fetch = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (typeof options?.body === "string") {
+        const parsed = JSON.parse(options.body);
+        if (parsed.action === "pull") {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                exists: false, // New uncreated room
+                profile: null,
+                jobs: [],
+              }),
+          });
+        }
+        if (parsed.action === "push") {
+          pushCalls.push(parsed);
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ success: true }),
+          });
+        }
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) });
+    });
+
+    await cloudSyncService.configure({
+      enabled: true,
+      roomId: activeRoom,
+      autoSync: true,
+    });
+
+    // Local jobs must NOT be wiped!
+    const savedRaw = localStorage.getItem("jobeval_saved_jobs_v1");
+    expect(savedRaw).not.toBeNull();
+    const parsed = JSON.parse(savedRaw!);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].metadata.id).toBe("local-job-safe");
+
+    // Must have pushed local jobs up to populate the empty room
+    expect(pushCalls.length).toBeGreaterThan(0);
+    expect(pushCalls[0].action).toBe("push");
   });
 });
