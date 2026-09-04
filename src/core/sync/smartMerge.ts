@@ -1,156 +1,51 @@
 /**
- * Smart Merge & Conflict Resolution Engine
- * Pure deterministic algorithms for merging Job Analysis Results and User Profiles across devices.
+ * Cloud SSoT Snapshot Engine
+ * Pure deterministic snapshot application for Cloud Single Source of Truth (SSoT).
+ * Replaces complex multi-master distributed merges with clean snapshot mirroring.
  */
 
-import { JobAnalysisResult, EvaluationHistoryItem } from "@/types/job";
-import { UserProfile, SkillItem, CertificationItem } from "@/types/profile";
+import { JobAnalysisResult } from "@/types/job";
+import { UserProfile } from "@/types/profile";
 
 /**
- * Helper to safely extract a timestamp (ms) from date strings
+ * Applies cloud jobs snapshot over local jobs.
+ * Since Cloud is the Single Source of Truth (SSoT), the cloud snapshot is authoritative.
+ * All deletions and modifications in the cloud completely replace local state.
  */
-function getJobTimestamp(job: JobAnalysisResult): number {
-  if (job?.metadata?.updatedAt) {
-    const t = new Date(job.metadata.updatedAt).getTime();
-    if (!isNaN(t)) return t;
-  }
-  if (job?.metadata?.dateAnalyzed) {
-    const t = new Date(job.metadata.dateAnalyzed).getTime();
-    if (!isNaN(t)) return t;
-  }
-  return 0;
-}
-
-/**
- * Merge evaluation history items without duplicates
- */
-function mergeEvaluationHistories(
-  localHistory?: EvaluationHistoryItem[],
-  remoteHistory?: EvaluationHistoryItem[]
-): EvaluationHistoryItem[] | undefined {
-  if (!localHistory && !remoteHistory) return undefined;
-  if (!localHistory) return remoteHistory;
-  if (!remoteHistory) return localHistory;
-
-  const historyMap = new Map<string, EvaluationHistoryItem>();
-
-  for (const item of [...localHistory, ...remoteHistory]) {
-    const key = `${item.id || ""}_${item.date}_${item.triggerReason}_${item.score}`;
-    if (!historyMap.has(key)) {
-      historyMap.set(key, item);
-    }
-  }
-
-  return Array.from(historyMap.values()).sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-}
-
-/**
- * Smartly merge two job arrays by ID with Last-Write-Wins (LWW) conflict resolution.
- * Guarantees zero data loss (Union of unique jobs).
- */
-export function mergeJobs(
-  localJobs: JobAnalysisResult[],
-  remoteJobs: JobAnalysisResult[]
+export function applyJobsSnapshot(
+  _localJobs: JobAnalysisResult[],
+  cloudJobs: JobAnalysisResult[]
 ): JobAnalysisResult[] {
-  if (!localJobs || localJobs.length === 0) return remoteJobs || [];
-  if (!remoteJobs || remoteJobs.length === 0) return localJobs || [];
-
-  const jobMap = new Map<string, JobAnalysisResult>();
-
-  // 1. Add all local jobs to map
-  for (const job of localJobs) {
-    if (job?.metadata?.id) {
-      jobMap.set(job.metadata.id, job);
-    }
-  }
-
-  // 2. Merge remote jobs
-  for (const remoteJob of remoteJobs) {
-    if (!remoteJob?.metadata?.id) continue;
-
-    const id = remoteJob.metadata.id;
-    const existingJob = jobMap.get(id);
-
-    if (!existingJob) {
-      // New job unique to remote device -> Add
-      jobMap.set(id, remoteJob);
-    } else {
-      // Existing job in both devices -> Compare timestamps (LWW)
-      const localTime = getJobTimestamp(existingJob);
-      const remoteTime = getJobTimestamp(remoteJob);
-
-      const latestJob = remoteTime > localTime ? remoteJob : existingJob;
-      const mergedHistory = mergeEvaluationHistories(
-        existingJob.evaluationHistory,
-        remoteJob.evaluationHistory
-      );
-
-      jobMap.set(id, {
-        ...latestJob,
-        evaluationHistory: mergedHistory,
-      });
-    }
-  }
-
-  // 3. Return as array sorted by latest analysis/updated date descending
-  return Array.from(jobMap.values()).sort((a, b) => getJobTimestamp(b) - getJobTimestamp(a));
+  if (!Array.isArray(cloudJobs)) return _localJobs || [];
+  return [...cloudJobs];
 }
 
 /**
- * Smartly merge two UserProfiles with Last-Write-Wins (LWW) conflict resolution.
- * Respects deletions in skills and certifications by strictly adopting the latest profile's state,
- * while safely preserving Gemini API keys across devices.
+ * Applies cloud profile snapshot over local profile.
+ * If cloudProfile is provided, it completely replaces localProfile.
+ * Safeguard: If local has a configured Gemini API key while cloud does not,
+ * the local API key is preserved for user convenience.
  */
-export function mergeProfile(
-  localProfile: UserProfile,
-  remoteProfile: UserProfile
+export function applyProfileSnapshot(
+  localProfile: UserProfile | null | undefined,
+  cloudProfile: UserProfile
 ): UserProfile {
-  if (!localProfile) return remoteProfile;
-  if (!remoteProfile) return localProfile;
+  if (!cloudProfile) return localProfile || ({} as UserProfile);
+  if (!localProfile) return cloudProfile;
 
-  const localTime = localProfile.updatedAt ? new Date(localProfile.updatedAt).getTime() : 0;
-  const remoteTime = remoteProfile.updatedAt ? new Date(remoteProfile.updatedAt).getTime() : 0;
-
-  // Choose the newer profile as the authoritative base
-  const baseProfile = remoteTime > localTime ? remoteProfile : localProfile;
-  const secondaryProfile = remoteTime > localTime ? localProfile : remoteProfile;
-
-  let finalSkills = baseProfile.skills || [];
-  let finalCertifications = baseProfile.certifications || [];
-
-  // Fallback: If timestamps are completely identical (rare simultaneous edit), do a safe union
-  if (localTime === remoteTime) {
-    const skillMap = new Map<string, SkillItem>();
-    for (const skill of [...(secondaryProfile.skills || []), ...(baseProfile.skills || [])]) {
-      const key = (skill.name || skill.id || "").toLowerCase().trim();
-      if (key) skillMap.set(key, skill);
-    }
-    finalSkills = Array.from(skillMap.values());
-
-    const certMap = new Map<string, CertificationItem>();
-    for (const cert of [...(secondaryProfile.certifications || []), ...(baseProfile.certifications || [])]) {
-      const key = (cert.name || cert.id || "").toLowerCase().trim();
-      if (key) certMap.set(key, cert);
-    }
-    finalCertifications = Array.from(certMap.values());
-  }
-
-  // Preserve Gemini API key if present on either device
-  const mergedApiKey =
-    baseProfile.apiSettings?.geminiApiKey?.trim() ||
-    secondaryProfile.apiSettings?.geminiApiKey?.trim() ||
-    "";
+  const localApiKey = localProfile.apiSettings?.geminiApiKey?.trim();
+  const cloudApiKey = cloudProfile.apiSettings?.geminiApiKey?.trim();
+  const effectiveApiKey = cloudApiKey || localApiKey || "";
 
   return {
-    ...baseProfile,
-    skills: finalSkills,
-    certifications: finalCertifications,
+    ...cloudProfile,
     apiSettings: {
-      ...baseProfile.apiSettings,
-      geminiApiKey: mergedApiKey,
+      ...cloudProfile.apiSettings,
+      geminiApiKey: effectiveApiKey,
     },
-    updatedAt: new Date(Math.max(localTime, remoteTime, Date.now())).toISOString(),
   };
 }
+
+// Backward-compatibility aliases
+export const mergeJobs = applyJobsSnapshot;
+export const mergeProfile = applyProfileSnapshot;

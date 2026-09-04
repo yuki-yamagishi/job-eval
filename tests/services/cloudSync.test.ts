@@ -1,9 +1,12 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { cloudSyncService } from "@/services/sync/cloudSyncService";
 import { storageAdapter } from "@/services/storage/storageAdapter";
 import { DEFAULT_USER_PROFILE } from "@/core/constants/defaultProfile";
+import { encryptJson } from "@/core/crypto/e2eeCrypto";
 
 describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
+  const originalFetch = global.fetch;
+
   beforeEach(async () => {
     localStorage.clear();
     await cloudSyncService.configure({
@@ -11,6 +14,10 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
       roomId: "",
       autoSync: false,
     });
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
   });
 
   it("generates a human-readable room code with JE- prefix and secure suffix", () => {
@@ -84,124 +91,174 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
     unsubscribe();
   });
 
-  it("correctly handles incoming peer messages and smart merges them", async () => {
+  it("correctly handles incoming DATA_UPDATED peer signals and pulls authoritative D1 snapshot", async () => {
     const activeRoom = "JE-8888";
-    await cloudSyncService.configure({
-      enabled: true,
-      roomId: activeRoom,
-      autoSync: true,
-    });
-
-    // Setup local initial job
-    const localJob: any = {
-      metadata: {
-        id: "job-local-1",
-        company: "PC Company",
-        title: "Tech Lead",
-        updatedAt: "2026-09-01T10:00:00Z",
-      },
-    };
-    localStorage.setItem("jobeval_saved_jobs_v1", JSON.stringify([localJob]));
 
     const remoteJob: any = {
       metadata: {
-        id: "job-remote-2",
-        company: "Mobile Company",
-        title: "Architect",
-        updatedAt: "2026-09-02T12:00:00Z",
+        id: "job-cloud-1",
+        company: "Cloud Company",
+        title: "Staff Architect",
+        updatedAt: "2026-09-04T12:00:00Z",
       },
     };
+    const encryptedJob = await encryptJson(remoteJob, activeRoom);
 
-    const jobListener = vi.fn();
-    const unsubscribe = cloudSyncService.onJobsChange(jobListener);
-
-    // Trigger incoming packet simulation via handleIncomingPacket
-    (cloudSyncService as any).handleIncomingPacket({
-      type: "JOBS_UPDATED",
-      senderId: "remote-client-123",
-      roomId: activeRoom,
-      timestamp: Date.now(),
-      payloadJobs: [remoteJob],
-    });
-
-    const savedRaw = localStorage.getItem("jobeval_saved_jobs_v1");
-    expect(savedRaw).not.toBeNull();
-    const parsed = JSON.parse(savedRaw!);
-    expect(parsed).toHaveLength(2);
-    expect(parsed.map((j: any) => j.metadata.id)).toContain("job-local-1");
-    expect(parsed.map((j: any) => j.metadata.id)).toContain("job-remote-2");
-
-    unsubscribe();
-  });
-
-  it("handles large payload messages with attachment URL gracefully", async () => {
-    const activeRoom = "JE-7777";
-    await cloudSyncService.configure({
-      enabled: true,
-      roomId: activeRoom,
-      autoSync: true,
-    });
-
-    const mockLargeJob: any = {
-      metadata: {
-        id: "large-job-99",
-        company: "Large Enterprise",
-        title: "Principal Engineer",
-        updatedAt: "2026-09-02T15:00:00Z",
-      },
-    };
-
-    // Mock global fetch to return the large packet
-    const originalFetch = global.fetch;
-    global.fetch = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("attachment.json")) {
+    // Mock fetch for D1 pull
+    global.fetch = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (typeof options?.body === "string" && options.body.includes('"action":"pull"')) {
         return Promise.resolve({
           ok: true,
           json: () =>
             Promise.resolve({
-              type: "JOBS_UPDATED",
-              senderId: "remote-peer-999",
-              roomId: activeRoom,
-              timestamp: Date.now(),
-              payloadJobs: [mockLargeJob],
+              success: true,
+              exists: true,
+              profile: null,
+              jobs: [
+                {
+                  jobId: "job-cloud-1",
+                  encrypted: encryptedJob,
+                  updatedAt: Date.now(),
+                },
+              ],
             }),
         });
       }
-      return Promise.resolve({ ok: true });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) });
     });
 
-    // Simulate raw event with attachment
-    const fakeWsEvent = {
-      data: JSON.stringify({
-        event: "message",
-        topic: `jobeval_sync_${activeRoom}`,
-        message: "You received a file: attachment.json",
-        attachment: {
-          url: "https://ntfy.sh/file/attachment.json",
-        },
-      }),
-    };
+    await cloudSyncService.configure({
+      enabled: true,
+      roomId: activeRoom,
+      autoSync: true,
+    });
 
-    // Call onmessage handler
-    const ws = (cloudSyncService as any).ws;
-    if (ws && ws.onmessage) {
-      await ws.onmessage(fakeWsEvent);
-    } else {
-      // Direct call simulation
-      (cloudSyncService as any).handleIncomingPacket({
-        type: "JOBS_UPDATED",
-        senderId: "remote-peer-999",
-        roomId: activeRoom,
-        timestamp: Date.now(),
-        payloadJobs: [mockLargeJob],
-      });
-    }
+    const jobListener = vi.fn();
+    const unsubscribe = cloudSyncService.onJobsChange(jobListener);
+
+    // Trigger incoming DATA_UPDATED signal simulation
+    (cloudSyncService as any).handleIncomingPacket({
+      type: "DATA_UPDATED",
+      senderId: "remote-client-123",
+      roomId: activeRoom,
+      timestamp: Date.now(),
+    });
+
+    // Wait a tick for async pullFromD1 to complete
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     const savedRaw = localStorage.getItem("jobeval_saved_jobs_v1");
     expect(savedRaw).not.toBeNull();
     const parsed = JSON.parse(savedRaw!);
-    expect(parsed.map((j: any) => j.metadata.id)).toContain("large-job-99");
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].metadata.id).toBe("job-cloud-1");
+    expect(parsed[0].metadata.title).toBe("Staff Architect");
 
-    global.fetch = originalFetch;
+    unsubscribe();
+  });
+
+  it("replaces local state cleanly with authoritative cloud profile snapshot on pull", async () => {
+    const activeRoom = "JE-7777";
+
+    const cloudProfile: any = {
+      ...DEFAULT_USER_PROFILE,
+      id: "user-cloud-99",
+      name: "Cloud Architect",
+      updatedAt: "2026-09-04T12:00:00Z",
+    };
+    const encryptedProfile = await encryptJson(cloudProfile, activeRoom);
+
+    global.fetch = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (typeof options?.body === "string" && options.body.includes('"action":"pull"')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              success: true,
+              exists: true,
+              profile: {
+                encrypted: encryptedProfile,
+                updatedAt: Date.now(),
+              },
+              jobs: [],
+            }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) });
+    });
+
+    // Seed local with default profile
+    localStorage.setItem("jobeval_user_profile_v1", JSON.stringify(DEFAULT_USER_PROFILE));
+
+    await cloudSyncService.configure({
+      enabled: true,
+      roomId: activeRoom,
+      autoSync: true,
+    });
+
+    await cloudSyncService.pullFromD1(activeRoom);
+
+    const savedRaw = localStorage.getItem("jobeval_user_profile_v1");
+    expect(savedRaw).not.toBeNull();
+    const parsed = JSON.parse(savedRaw!);
+    expect(parsed.id).toBe("user-cloud-99");
+    expect(parsed.name).toBe("Cloud Architect");
+  });
+
+  it("does not overwrite local jobs when connecting to a brand new empty cloud room (exists: false)", async () => {
+    const activeRoom = "JE-NEW-1234";
+
+    const localJob: any = {
+      metadata: {
+        id: "local-job-safe",
+        company: "My Local Company",
+        title: "Engineer",
+      },
+    };
+    localStorage.setItem("jobeval_saved_jobs_v1", JSON.stringify([localJob]));
+
+    const pushCalls: any[] = [];
+    global.fetch = vi.fn().mockImplementation((url: string, options?: any) => {
+      if (typeof options?.body === "string") {
+        const parsed = JSON.parse(options.body);
+        if (parsed.action === "pull") {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                success: true,
+                exists: false, // New uncreated room
+                profile: null,
+                jobs: [],
+              }),
+          });
+        }
+        if (parsed.action === "push") {
+          pushCalls.push(parsed);
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ success: true }),
+          });
+        }
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) });
+    });
+
+    await cloudSyncService.configure({
+      enabled: true,
+      roomId: activeRoom,
+      autoSync: true,
+    });
+
+    // Local jobs must NOT be wiped!
+    const savedRaw = localStorage.getItem("jobeval_saved_jobs_v1");
+    expect(savedRaw).not.toBeNull();
+    const parsed = JSON.parse(savedRaw!);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].metadata.id).toBe("local-job-safe");
+
+    // Must have pushed local jobs up to populate the empty room
+    expect(pushCalls.length).toBeGreaterThan(0);
+    expect(pushCalls[0].action).toBe("push");
   });
 });
