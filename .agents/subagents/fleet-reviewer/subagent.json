@@ -1,0 +1,7 @@
+{
+  "name": "fleet-reviewer",
+  "description": "客観的第三者コードレビューおよび品質規約・セキュリティ検査を行う最小権限サブエージェント",
+  "enable_write_tools": false,
+  "enable_subagent_tools": false,
+  "enable_mcp_tools": false
+}

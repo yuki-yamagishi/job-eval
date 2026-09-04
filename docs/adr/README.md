@@ -31,3 +31,4 @@
 | [ADR-0011](file:///docs/adr/0011-cloud-ssot-snapshot-sync.md) | クラウド SSoT（唯一の正本）の確立とマージ機能全廃によるスナップショット同期の採用 | **Accepted** | 2026-09-04 |
 | [ADR-0012](file:///docs/adr/0012-ai-automated-pr-review-workflow.md) | GitHub Actions ＋ Gemini API による自動 AI PR レビューボットの採用 | **Superseded (by ADR-0013)** | 2026-09-05 |
 | [ADR-0013](file:///docs/adr/0013-antigravity-fleet-pr-review-workflow.md) | Antigravity IDE Fleet 主導の最上位モデル PR レビュー＆修正・人間承認マージワークフローへの刷新 | **Accepted** | 2026-09-05 |
+| [ADR-0014](file:///docs/adr/0014-harness-refactoring-and-responsibility-separation.md) | 開発ハーネス（Agent / Skill / Hook / Docs / Checkers）の抜本的リファクタリング＆責務分割刷新 | **Accepted** | 2026-09-05 |
