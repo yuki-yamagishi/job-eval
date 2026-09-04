@@ -29,4 +29,5 @@
 | [ADR-0009](file:///docs/adr/0009-cloudflare-d1-e2ee-persistent-cloud-sync.md) | Cloudflare D1 サーバーレスSQLとWeb Crypto E2EE暗号化による常時非同期クロスデバイス同期の採用 | **Accepted** | 2026-09-03 |
 | [ADR-0010](file:///docs/adr/0010-pwa-offline-caching-and-installability.md) | Service Worker による静的アセットのキャッシュおよび PWA スタンドアロンインストールの採用 | **Accepted** | 2026-09-03 |
 | [ADR-0011](file:///docs/adr/0011-cloud-ssot-snapshot-sync.md) | クラウド SSoT（唯一の正本）の確立とマージ機能全廃によるスナップショット同期の採用 | **Accepted** | 2026-09-04 |
-| [ADR-0012](file:///docs/adr/0012-ai-automated-pr-review-workflow.md) | GitHub Actions ＋ Gemini API による自動 AI PR レビューボットの採用 | **Accepted** | 2026-09-05 |
+| [ADR-0012](file:///docs/adr/0012-ai-automated-pr-review-workflow.md) | GitHub Actions ＋ Gemini API による自動 AI PR レビューボットの採用 | **Superseded (by ADR-0013)** | 2026-09-05 |
+| [ADR-0013](file:///docs/adr/0013-antigravity-fleet-pr-review-workflow.md) | Antigravity IDE Fleet 主導の最上位モデル PR レビュー＆修正・人間承認マージワークフローへの刷新 | **Accepted** | 2026-09-05 |

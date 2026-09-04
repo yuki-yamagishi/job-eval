@@ -1,7 +1,7 @@
 # ADR-0012: GitHub Actions ＋ Gemini API による自動 AI PR レビューボットの採用
 
 ## ステータス
-**Accepted** (2026-09-05)
+**Superseded** (by [ADR-0013](file:///docs/adr/0013-antigravity-fleet-pr-review-workflow.md), 2026-09-05)
 
 ## 文脈 (Context)
 JobEval リポジトリでは、AI エージェントが Issue 起票・ブランチ作成・コード実装・テスト作成・PR 発行までの一連のワークフローを自律的に遂行している。
