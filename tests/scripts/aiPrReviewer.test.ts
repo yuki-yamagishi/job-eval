@@ -76,6 +76,11 @@ Binary files differ
       expect(prompt).toContain("🛡️ 2. エッジケース & 潜在的リスク");
       expect(prompt).toContain("💡 3. 保守性・コード品質の改善提案");
       expect(prompt).toContain("📋 4. AGENTS.md / アーキテクチャ整合性チェック");
+      expect(prompt).toContain("[must]");
+      expect(prompt).toContain("[should]");
+      expect(prompt).toContain("[imo]");
+      expect(prompt).toContain("[nits]");
+      expect(prompt).toContain("[ask]");
     });
 
     it("handles missing/empty fields with fallback strings", () => {
@@ -207,6 +212,9 @@ Binary files differ
       expect(parsedBody.body).toContain("<!-- AI-PR-REVIEW-BOT -->");
       expect(parsedBody.body).toContain("Looks good to me!");
       expect(parsedBody.body).toContain("JobEval Reviewer Bot");
+      expect(parsedBody.body).toContain("レビュー接頭辞ガイド");
+      expect(parsedBody.body).toContain("[must]");
+      expect(parsedBody.body).toContain("[imo]");
     });
   });
 });
