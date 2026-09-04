@@ -105,8 +105,8 @@ ${diff}
 /**
  * Call Gemini API with model fallback
  */
-export async function callGeminiApi(prompt, apiKey, model = "gemini-2.5-flash") {
-  const models = [model, "gemini-1.5-flash"];
+export async function callGeminiApi(prompt, apiKey, model = "gemini-3.5-flash-lite") {
+  const models = Array.from(new Set([model, "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]));
   let lastError = null;
 
   for (const m of models) {
@@ -132,7 +132,7 @@ export async function callGeminiApi(prompt, apiKey, model = "gemini-2.5-flash") 
       const data = await response.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text) {
-        return text;
+        return { text, model: m };
       }
       throw new Error("Empty response from Gemini API");
     } catch (err) {
@@ -147,14 +147,14 @@ export async function callGeminiApi(prompt, apiKey, model = "gemini-2.5-flash") 
 /**
  * Post comment to GitHub Pull Request
  */
-export async function postPrComment({ repo, prNumber, githubToken, reviewBody }) {
+export async function postPrComment({ repo, prNumber, githubToken, reviewBody, usedModel = "gemini-3.5-flash-lite" }) {
   const formattedBody = `${REVIEW_TAG}
 ## 🤖 AI Automated PR Review (JobEval Reviewer Bot)
 
 ${reviewBody}
 
 ---
-*Powered by Google Gemini & JobEval CI Quality Gate*`;
+*Powered by Google Gemini (${usedModel}) & JobEval CI Quality Gate*`;
 
   const url = `https://api.github.com/repos/${repo}/issues/${prNumber}/comments`;
   const response = await fetch(url, {
@@ -214,6 +214,7 @@ export async function main() {
     process.exit(0);
   }
 
+  const requestedModel = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
   const prNumber = process.env.PR_NUMBER || process.env.GITHUB_REF_NAME;
   const repo = process.env.GITHUB_REPOSITORY || "yuki-yamagishi/job-eval";
   const githubToken = process.env.GITHUB_TOKEN;
@@ -243,11 +244,11 @@ export async function main() {
   }
 
   // 3. Build Prompt & Call Gemini
-  console.log("🧠 Requesting AI PR review from Gemini API...");
+  console.log(`🧠 Requesting AI PR review from Gemini API (requested model: ${requestedModel})...`);
   const prompt = buildReviewPrompt({ prTitle, prBody, diff, agentsGuideline });
-  const reviewResult = await callGeminiApi(prompt, apiKey);
+  const { text: reviewResult, model: usedModel } = await callGeminiApi(prompt, apiKey, requestedModel);
 
-  console.log("\n=================== 🤖 AI PR REVIEW RESULT ===================");
+  console.log(`\n=================== 🤖 AI PR REVIEW RESULT (${usedModel}) ===================`);
   console.log(reviewResult);
   console.log("=============================================================\n");
 
@@ -260,6 +261,7 @@ export async function main() {
         prNumber,
         githubToken,
         reviewBody: reviewResult,
+        usedModel,
       });
       console.log("✅ Successfully posted review comment to PR!");
     } catch (err) {

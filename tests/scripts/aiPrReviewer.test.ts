@@ -120,7 +120,8 @@ Binary files differ
       });
 
       const result = await callGeminiApi("test prompt", "test-api-key");
-      expect(result).toBe("### レビュー結果\n問題ありません。");
+      expect(result.text).toBe("### レビュー結果\n問題ありません。");
+      expect(result.model).toBe("gemini-3.5-flash-lite");
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
@@ -149,8 +150,9 @@ Binary files differ
         };
       });
 
-      const result = await callGeminiApi("test prompt", "test-api-key");
-      expect(result).toBe("Fallback model review text");
+      const result = await callGeminiApi("test prompt", "test-api-key", "custom-model");
+      expect(result.text).toBe("Fallback model review text");
+      expect(result.model).toBe("gemini-3.5-flash-lite");
       expect(global.fetch).toHaveBeenCalledTimes(2);
     });
 
