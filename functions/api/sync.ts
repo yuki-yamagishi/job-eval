@@ -64,10 +64,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
     const cleanRoomId = roomId.trim().toUpperCase();
 
-    // 1. PULL ACTION
+    // 1. PULL ACTION (SSoT Full Snapshot)
     if (action === "pull") {
-      const since = typeof body.since === "number" ? body.since : 0;
-
       // Fetch room profile
       const room = await env.DB.prepare(
         "SELECT profile_encrypted, profile_updated_at FROM sync_rooms WHERE room_id = ?"
@@ -75,11 +73,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         .bind(cleanRoomId)
         .first<{ profile_encrypted: string | null; profile_updated_at: number }>();
 
-      // Fetch updated jobs since timestamp
+      // Fetch all active jobs for the room ordered by updated_at desc
       const jobsResult = await env.DB.prepare(
-        "SELECT job_id, job_encrypted, updated_at FROM sync_jobs WHERE room_id = ? AND updated_at > ? ORDER BY updated_at ASC"
+        "SELECT job_id, job_encrypted, updated_at FROM sync_jobs WHERE room_id = ? ORDER BY updated_at DESC"
       )
-        .bind(cleanRoomId, since)
+        .bind(cleanRoomId)
         .all<{ job_id: string; job_encrypted: string; updated_at: number }>();
 
       return new Response(
@@ -105,7 +103,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       );
     }
 
-    // 2. PUSH ACTION
+    // 2. PUSH ACTION (Snapshot Sync with Deletion Support)
     if (action === "push") {
       const { authHash, profile, jobs } = body;
       const now = Date.now();
@@ -120,8 +118,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
              ON CONFLICT(room_id) DO UPDATE SET
                profile_encrypted = excluded.profile_encrypted,
                profile_updated_at = excluded.profile_updated_at,
-               updated_at = excluded.updated_at
-             WHERE excluded.profile_updated_at >= sync_rooms.profile_updated_at`
+               updated_at = excluded.updated_at`
           ).bind(cleanRoomId, authHash || null, profile.encrypted, profile.updatedAt || now, now)
         );
       } else {
@@ -135,19 +132,37 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         );
       }
 
-      // Upsert jobs if provided
-      if (Array.isArray(jobs) && jobs.length > 0) {
-        for (const job of jobs) {
-          if (job.jobId && job.encrypted) {
+      // Sync jobs snapshot if provided
+      if (Array.isArray(jobs)) {
+        if (jobs.length === 0) {
+          // All jobs were deleted locally -> delete all jobs for this room in D1
+          statements.push(
+            env.DB.prepare("DELETE FROM sync_jobs WHERE room_id = ?").bind(cleanRoomId)
+          );
+        } else {
+          // 1. Upsert provided active jobs
+          for (const job of jobs) {
+            if (job.jobId && job.encrypted) {
+              statements.push(
+                env.DB.prepare(
+                  `INSERT INTO sync_jobs (room_id, job_id, job_encrypted, updated_at)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(room_id, job_id) DO UPDATE SET
+                     job_encrypted = excluded.job_encrypted,
+                     updated_at = excluded.updated_at`
+                ).bind(cleanRoomId, job.jobId, job.encrypted, job.updatedAt || now)
+              );
+            }
+          }
+
+          // 2. Delete jobs in D1 that are not present in the incoming active jobs list
+          const activeJobIds = jobs.map((j) => j.jobId).filter(Boolean);
+          if (activeJobIds.length > 0) {
+            const placeholders = activeJobIds.map(() => "?").join(",");
             statements.push(
               env.DB.prepare(
-                `INSERT INTO sync_jobs (room_id, job_id, job_encrypted, updated_at)
-                 VALUES (?, ?, ?, ?)
-                 ON CONFLICT(room_id, job_id) DO UPDATE SET
-                   job_encrypted = excluded.job_encrypted,
-                   updated_at = excluded.updated_at
-                 WHERE excluded.updated_at >= sync_jobs.updated_at`
-              ).bind(cleanRoomId, job.jobId, job.encrypted, job.updatedAt || now)
+                `DELETE FROM sync_jobs WHERE room_id = ? AND job_id NOT IN (${placeholders})`
+              ).bind(cleanRoomId, ...activeJobIds)
             );
           }
         }

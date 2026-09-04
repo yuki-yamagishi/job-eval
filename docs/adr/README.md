@@ -28,3 +28,4 @@
 | [ADR-0008](file:///docs/adr/0008-webrtc-p2p-cross-device-realtime-sync.md) | WebRTC P2P 通信によるクロスネットワーク複数端末リアルタイム同期と本番共有URLの標準化 | **Accepted** | 2026-09-02 |
 | [ADR-0009](file:///docs/adr/0009-cloudflare-d1-e2ee-persistent-cloud-sync.md) | Cloudflare D1 サーバーレスSQLとWeb Crypto E2EE暗号化による常時非同期クロスデバイス同期の採用 | **Accepted** | 2026-09-03 |
 | [ADR-0010](file:///docs/adr/0010-pwa-offline-caching-and-installability.md) | Service Worker による静的アセットのキャッシュおよび PWA スタンドアロンインストールの採用 | **Accepted** | 2026-09-03 |
+| [ADR-0011](file:///docs/adr/0011-cloud-ssot-snapshot-sync.md) | クラウド SSoT（唯一の正本）の確立とマージ機能全廃によるスナップショット同期の採用 | **Accepted** | 2026-09-04 |
