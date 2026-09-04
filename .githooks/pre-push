@@ -2,7 +2,7 @@
 # Automated Full Quality Check before push to remote
 
 echo "🚀 [Git Pre-Push Hook] Running full quality & security check before push..."
-npm run check
+cmd.exe /c "npm.cmd run check"
 if [ $? -ne 0 ]; then
   echo "❌ [Git Pre-Push Hook] Quality Gate FAILED. Push aborted."
   exit 1
