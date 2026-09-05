@@ -1,6 +1,11 @@
 #!/bin/sh
 # Automated Full Quality Check before push to remote
 
+# Safely drain stdin to prevent Windows Git syntax errors ('refs' is not recognized...)
+while read -r local_ref local_sha remote_ref remote_sha; do
+  :
+done
+
 echo "🚀 [Git Pre-Push Hook] Running full quality & security check before push..."
 cmd.exe /c "npm.cmd run check"
 if [ $? -ne 0 ]; then

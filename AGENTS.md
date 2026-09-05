@@ -26,9 +26,11 @@ src/
   └── lib/                # 共通ユーティリティ (cn, フォーマッター)
 docs/                     # アーキテクチャ・設計・検証ログの唯一の正本 (Single Source of Truth)
   ├── adr/                # Architecture Decision Records (不変の設計決定記録)
-  ├── pre_phase_verification.md   # 各フェーズ開始前の4軸事前検証ログ
-  ├── implementation_plan.md      # フェーズごとの簡潔な作業計画書
-  └── walkthrough.md              # フェーズ完了・成果レポート
+  ├── issues/             # 各Issueごとのフォルダ完結型ドキュメント (issue.md, pre_verification.md, plan.md, walkthrough.md)
+  ├── archive/            # 過去フェーズのアーカイブ
+  ├── pre_phase_verification.md   # 最新フェーズの4軸事前検証ログ (ポインタ)
+  ├── implementation_plan.md      # 最新フェーズの作業計画書 (ポインタ)
+  └── walkthrough.md              # 最新フェーズの完了・成果レポート (ポインタ)
 tests/                    # 自動テストハーネス (Vitest)
 ```
 
@@ -77,9 +79,17 @@ Issue はプレフィックス付きラベル（`status:*`, `type:*`, `priority:
 - スコアリング計算式や永続化フォーマット、アーキテクチャの変更を伴う場合は、必ず `docs/adr/000X-xxx.md` を作成して意思決定理由を記録。
 - `docs/adr/README.md` の一覧テーブルにも該当 ADR を必ず登録する（`scripts/docCheck.js` で自動検証）。
 
-### ④ ブランチ作成 & 実装 & 自動品質検査
+### ④ ブランチ作成 & 実装 & コミット & 自動品質検査
 - `git checkout -b feature/issue-<番号>-<概要>` でブランチを切る。
-- コアロジック（`src/core/`）から順に実装し、`npm run check` ですべての品質ゲートを通過させる。
+- コアロジック（`src/core/`）から順に実装し、`npm.cmd run check` ですべての品質ゲートを通過させる。
+- **Conventional Commits 規約**の厳格遵守：
+  - `feat:` 新機能追加
+  - `fix:` バグ修正
+  - `docs:` ドキュメント・ADR 作成・更新
+  - `chore:` ハーネス・依存関係・設定更新
+  - `test:` テストコード追加・修正
+  - `refactor:` リファクタリング
+  - `ci:` CI/CD 設定
 
 ### ⑤ Pull Request 作成
 - PR 本文に `Closes #<Issue番号>` を含めて PR を作成（`gh pr create`）。
