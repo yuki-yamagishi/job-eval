@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Automated Document & Harness Integrity Checker (Orchestrator)
  * Coordinates specialized checkers: adrChecker, agentSkillChecker, issueDocChecker
  */

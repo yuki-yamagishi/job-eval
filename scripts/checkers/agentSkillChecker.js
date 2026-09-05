@@ -47,7 +47,10 @@ export function checkAgentSkillIntegrity(projectRoot) {
 
   // Verify that subagent directory exists and contains necessary configuration
   const fleetSubagentDir = path.resolve(projectRoot, '.agents/subagents/fleet-reviewer');
-  if (fs.existsSync(fleetSubagentDir)) {
+  if (!fs.existsSync(fleetSubagentDir)) {
+    console.error('\n❌ [サブエージェント設定不備] .agents/subagents/fleet-reviewer/ ディレクトリが存在しません。');
+    hasError = true;
+  } else {
     const subagentJson = path.join(fleetSubagentDir, 'subagent.json');
     const systemPromptMd = path.join(fleetSubagentDir, 'SYSTEM_PROMPT.md');
     if (!fs.existsSync(subagentJson) || !fs.existsSync(systemPromptMd)) {
