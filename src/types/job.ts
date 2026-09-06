@@ -92,6 +92,7 @@ export interface JobAnalysisResult {
     advice: string;
   };
   careerTrajectory?: CareerTrajectory;
+  benefitResearch?: CorporateBenefitResearch;
   jobDetails: {
     mustRequirements: string[];
     wantRequirements: string[];
@@ -100,6 +101,36 @@ export interface JobAnalysisResult {
     selectionProcess: string;
   };
   markdownContent: string;
+}
+
+export interface WebSourceItem {
+  title: string;
+  url: string;
+}
+
+export interface CorporateBenefitResearch {
+  companyName: string;
+  researchedAt: string; // ISO 8601 string
+  healthInsurance: {
+    name: string; // e.g. "関東ITソフトウェア健康保険組合 (ITS健保)", "協会けんぽ", "自社単一健保" 等
+    confidence: "high" | "medium" | "low";
+    benefits: string[]; // e.g. ["保険料率が割安で手取り有利", "直営保養所・レストラン・旅行補助", "高額療養費付加給付"]
+    notes?: string;
+  };
+  corporateDC: {
+    hasDC: boolean | "不明"; // 企業型確定拠出年金 (企業型DC) の有無
+    matchingContribution?: boolean | "不明"; // マッチング拠出 (加入者掛金上乗せ) の可否
+    dbPlan?: boolean | "不明"; // 確定給付企業年金 (DB)
+    details: string; // 制度の概要や詳細
+  };
+  workEnvironment?: {
+    annualHolidays?: string; // e.g. "完全週休2日 (年間休日125日以上)"
+    paidLeaveRate?: string; // e.g. "平均有休取得率 82%"
+    sideJobAllowed?: boolean | "不明"; // 副業可否
+    notes?: string[];
+  };
+  sources: WebSourceItem[]; // 参照元Webページ
+  summaryAdvice: string; // 転職者目線での総合評価・アドバイス
 }
 
 export interface UserProfile {

@@ -26,7 +26,12 @@ import {
   History,
   Loader2,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Globe,
+  HeartPulse,
+  Coins,
+  Search,
+  ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -46,6 +51,7 @@ interface PreviewPaneProps {
   onReEvaluate?: (feedback: string) => Promise<void>;
   onReEvaluateWithProfile?: () => Promise<void>;
   onGenerateCareerTrajectory?: (job: JobAnalysisResult) => Promise<void>;
+  onResearchCorporateBenefits?: (job: JobAnalysisResult) => Promise<void>;
 }
 
 type ViewMode = "rich" | "split" | "raw";
@@ -59,6 +65,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
   onReEvaluate,
   onReEvaluateWithProfile,
   onGenerateCareerTrajectory,
+  onResearchCorporateBenefits,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>("rich");
   const [editedMarkdown, setEditedMarkdown] = useState<string>("");
@@ -67,6 +74,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isGeneratingTrajectory, setIsGeneratingTrajectory] = useState(false);
+  const [isResearchingBenefits, setIsResearchingBenefits] = useState(false);
   const [isProfileReEvaluating, setIsProfileReEvaluating] = useState(false);
 
   const [selectedLens, setSelectedLens] = useState<ScoringPresetKey | "current">("current");
@@ -874,6 +882,212 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                         <>
                           <Sparkles className="h-3.5 w-3.5 mr-1.5" />
                           ✨ キャリア展望をAI生成
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 6. Corporate Benefits Web Research (Health Insurance, Corporate DC, WLB) */}
+            {analysisResult.benefitResearch ? (
+              <Card className="border-teal-500/30 bg-gradient-to-br from-slate-950 via-teal-950/10 to-slate-900 shadow-sm">
+                <CardHeader className="p-3.5 pb-2 border-b border-teal-500/20 flex flex-row items-center justify-between">
+                  <CardTitle className="text-xs text-teal-300 flex items-center gap-1.5 font-bold">
+                    <Globe className="h-4 w-4 text-teal-400" />
+                    🌐 企業・福利厚生Webリサーチ (健保・企業型DC等)
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px] bg-teal-950 border-teal-700/60 text-teal-300">
+                      Google検索調査済
+                    </Badge>
+                    {onResearchCorporateBenefits && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isResearchingBenefits}
+                        onClick={async () => {
+                          if (!analysisResult) return;
+                          setIsResearchingBenefits(true);
+                          try {
+                            await onResearchCorporateBenefits(analysisResult);
+                          } finally {
+                            setIsResearchingBenefits(false);
+                          }
+                        }}
+                        className="h-6 px-2 text-[10px] text-teal-300 hover:text-white hover:bg-teal-600/30 border border-teal-500/30"
+                      >
+                        <RotateCw className={`h-3 w-3 mr-1 ${isResearchingBenefits ? "animate-spin" : ""}`} />
+                        {isResearchingBenefits ? "再調査中..." : "再調査"}
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-3.5 pt-3 space-y-3">
+                  {/* Health Insurance */}
+                  <div className="bg-slate-950/70 p-3 rounded-xl border border-teal-500/20 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <HeartPulse className="h-4 w-4 text-teal-400" />
+                        <span className="text-xs text-slate-200 font-bold">加入健康保険組合:</span>
+                        <span className="text-xs font-semibold text-teal-300">
+                          {analysisResult.benefitResearch.healthInsurance.name}
+                        </span>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={`text-[10px] ${
+                          analysisResult.benefitResearch.healthInsurance.confidence === "high"
+                            ? "bg-emerald-950 border-emerald-700/60 text-emerald-300"
+                            : analysisResult.benefitResearch.healthInsurance.confidence === "medium"
+                            ? "bg-sky-950 border-sky-700/60 text-sky-300"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        確度: {analysisResult.benefitResearch.healthInsurance.confidence === "high" ? "高 (公開情報確認)" : analysisResult.benefitResearch.healthInsurance.confidence === "medium" ? "中 (業界/規模高確率)" : "推定"}
+                      </Badge>
+                    </div>
+
+                    {analysisResult.benefitResearch.healthInsurance.benefits.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {analysisResult.benefitResearch.healthInsurance.benefits.map((b, i) => (
+                          <span
+                            key={i}
+                            className="text-[11px] px-2 py-0.5 rounded bg-teal-950/40 border border-teal-800/40 text-teal-200"
+                          >
+                            ✓ {b}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {analysisResult.benefitResearch.healthInsurance.notes && (
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        {analysisResult.benefitResearch.healthInsurance.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Corporate DC */}
+                  <div className="bg-slate-950/70 p-3 rounded-xl border border-teal-500/20 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Coins className="h-4 w-4 text-amber-400" />
+                        <span className="text-xs text-slate-200 font-bold">企業型確定拠出年金 (DC):</span>
+                        <span className="text-xs font-semibold text-amber-300">
+                          {analysisResult.benefitResearch.corporateDC.hasDC === true
+                            ? "✅ 導入あり"
+                            : analysisResult.benefitResearch.corporateDC.hasDC === false
+                            ? "❌ 導入なし"
+                            : "❓ 不明・要確認"}
+                        </span>
+                      </div>
+                      {analysisResult.benefitResearch.corporateDC.matchingContribution === true && (
+                        <Badge variant="outline" className="text-[10px] bg-amber-950/60 border-amber-600/50 text-amber-300">
+                          マッチング拠出可（節税メリット大）
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      {analysisResult.benefitResearch.corporateDC.details}
+                    </p>
+                  </div>
+
+                  {/* Work Environment (Holidays / Leave / Side job) */}
+                  {analysisResult.benefitResearch.workEnvironment && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {analysisResult.benefitResearch.workEnvironment.annualHolidays && (
+                        <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-xs">
+                          <span className="text-[10px] text-slate-400 block">年間休日</span>
+                          <span className="font-semibold text-slate-200">{analysisResult.benefitResearch.workEnvironment.annualHolidays}</span>
+                        </div>
+                      )}
+                      {analysisResult.benefitResearch.workEnvironment.paidLeaveRate && (
+                        <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-xs">
+                          <span className="text-[10px] text-slate-400 block">有給消化率</span>
+                          <span className="font-semibold text-slate-200">{analysisResult.benefitResearch.workEnvironment.paidLeaveRate}</span>
+                        </div>
+                      )}
+                      {analysisResult.benefitResearch.workEnvironment.sideJobAllowed !== undefined && (
+                        <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 text-xs">
+                          <span className="text-[10px] text-slate-400 block">副業</span>
+                          <span className="font-semibold text-slate-200">
+                            {analysisResult.benefitResearch.workEnvironment.sideJobAllowed === true
+                              ? "副業可"
+                              : analysisResult.benefitResearch.workEnvironment.sideJobAllowed === false
+                              ? "副業不可"
+                              : "要確認"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Summary Advice */}
+                  <div className="bg-teal-950/30 p-2.5 rounded-lg border border-teal-600/30 text-xs text-teal-200 leading-relaxed">
+                    <span className="text-teal-400 font-bold mr-1.5">💡 福利厚生総評:</span>
+                    <span>{analysisResult.benefitResearch.summaryAdvice}</span>
+                  </div>
+
+                  {/* Sources List */}
+                  {analysisResult.benefitResearch.sources && analysisResult.benefitResearch.sources.length > 0 && (
+                    <div className="pt-1 border-t border-slate-800/60">
+                      <span className="text-[10px] text-slate-500 font-semibold block mb-1">🔗 参照Webソース:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {analysisResult.benefitResearch.sources.map((s, idx) => (
+                          <a
+                            key={idx}
+                            href={s.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] text-sky-400 hover:text-sky-300 hover:underline truncate max-w-[280px] flex items-center gap-1"
+                          >
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{s.title || s.url}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              /* On-Demand Benefit Research Banner */
+              <Card className="border-teal-500/30 bg-gradient-to-r from-slate-950 via-teal-950/20 to-emerald-950/20 border-dashed">
+                <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-xs font-bold text-teal-300 flex items-center gap-1.5">
+                      <Globe className="h-4 w-4 text-teal-400" />
+                      🌐 企業の健保・確定拠出年金 (DC) をWeb調査
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      求人票に書かれない「加入健康保険組合（ITS・TJK等）」「企業型確定拠出年金 (DC)」「有給消化率」をGoogle検索でリアルタイム調査します（500 RPD 枠使用）。
+                    </p>
+                  </div>
+                  {onResearchCorporateBenefits && (
+                    <Button
+                      size="sm"
+                      disabled={isResearchingBenefits}
+                      onClick={async () => {
+                        if (!analysisResult) return;
+                        setIsResearchingBenefits(true);
+                        try {
+                          await onResearchCorporateBenefits(analysisResult);
+                        } finally {
+                          setIsResearchingBenefits(false);
+                        }
+                      }}
+                      className="shrink-0 h-8 text-xs bg-teal-600 hover:bg-teal-500 text-white font-medium"
+                    >
+                      {isResearchingBenefits ? (
+                        <>
+                          <RotateCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          Web調査中...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="h-3.5 w-3.5 mr-1.5" />
+                          福利厚生をWeb調査
                         </>
                       )}
                     </Button>

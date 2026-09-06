@@ -1,4 +1,4 @@
-import { JobAnalysisResult, AgentSource, CareerTrajectory } from "@/types/job";
+import { JobAnalysisResult, AgentSource, CareerTrajectory, CorporateBenefitResearch } from "@/types/job";
 import { UserProfile } from "@/types/profile";
 
 export interface AiProvider {
@@ -17,4 +17,8 @@ export interface AiProvider {
     jobResult: JobAnalysisResult,
     profile: UserProfile
   ): Promise<CareerTrajectory>;
+  researchCorporateBenefits(
+    jobResult: JobAnalysisResult,
+    profile: UserProfile
+  ): Promise<CorporateBenefitResearch>;
 }

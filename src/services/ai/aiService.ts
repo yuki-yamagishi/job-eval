@@ -191,3 +191,29 @@ export async function generateCareerTrajectoryWithProfile(
 
   return mockProvider.generateCareerTrajectory(jobResult, profile);
 }
+
+/**
+ * Unified AI service to research corporate benefits (Health Insurance, Corporate DC, WLB) via Google Search Grounding
+ */
+export async function researchCorporateBenefitsWithProfile(
+  jobResult: JobAnalysisResult,
+  profile: UserProfile,
+  customProvider?: AiProvider
+): Promise<import("@/types/job").CorporateBenefitResearch> {
+  if (customProvider) {
+    return customProvider.researchCorporateBenefits(jobResult, profile);
+  }
+
+  const hasApiKey = Boolean(profile.apiSettings?.geminiApiKey?.trim());
+
+  if (hasApiKey) {
+    try {
+      return await geminiProvider.researchCorporateBenefits(jobResult, profile);
+    } catch (error) {
+      console.warn("Gemini API error during corporate benefit research:", error);
+      throw error;
+    }
+  }
+
+  return mockProvider.researchCorporateBenefits(jobResult, profile);
+}

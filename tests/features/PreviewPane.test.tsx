@@ -274,4 +274,62 @@ describe("PreviewPane Component", () => {
     expect(screen.getByText(/Azureスキル追加前の評価/)).toBeDefined();
     expect(screen.getByText("75点")).toBeDefined();
   });
+
+  it("renders corporate benefit research button and calls onResearchCorporateBenefits callback", () => {
+    const handleResearch = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PreviewPane
+        analysisResult={mockResult}
+        isAnalyzing={false}
+        onResearchCorporateBenefits={handleResearch}
+      />
+    );
+
+    const researchBtn = screen.getByText("福利厚生をWeb調査");
+    expect(researchBtn).toBeDefined();
+
+    fireEvent.click(researchBtn);
+    expect(handleResearch).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders corporate benefit research card when benefitResearch exists", () => {
+    const resultWithBenefits: JobAnalysisResult = {
+      ...mockResult,
+      benefitResearch: {
+        healthInsurance: {
+          name: "関東ITソフトウェア健康保険組合 (ITS健保)",
+          benefits: ["保養所・施設割引", "付加給付金制度"],
+          confidence: "high",
+        },
+        corporateDC: {
+          hasDC: true,
+          matchingContribution: true,
+          details: "確定拠出年金あり、マッチング拠出も可能",
+        },
+        workEnvironment: {
+          annualHolidays: "125日",
+          paidLeaveRate: "80%",
+          sideJobAllowed: true,
+        },
+        summaryAdvice: "福利厚生の水準は極めて良好です。",
+        sources: [
+          { title: "採用FAQページ", url: "https://example.com/faq" },
+        ],
+        searchedAt: "2026-09-06T12:00:00Z",
+      },
+    };
+
+    render(
+      <PreviewPane
+        analysisResult={resultWithBenefits}
+        isAnalyzing={false}
+      />
+    );
+
+    expect(screen.getByText(/企業・福利厚生Webリサーチ/)).toBeDefined();
+    expect(screen.getByText(/関東ITソフトウェア健康保険組合 \(ITS健保\)/)).toBeDefined();
+    expect(screen.getByText(/保養所・施設割引/)).toBeDefined();
+    expect(screen.getByText(/確定拠出年金あり、マッチング拠出も可能/)).toBeDefined();
+    expect(screen.getByText("採用FAQページ")).toBeDefined();
+  });
 });

@@ -18,7 +18,12 @@ import {
   Calendar,
   Activity,
   AlertCircle,
-  Loader2
+  Loader2,
+  Globe,
+  Sparkles,
+  Cpu,
+  Brain,
+  Info
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,6 +40,7 @@ import {
   ScoringPresetKey,
   DEFAULT_SCORING_WEIGHTS,
   SCORING_PRESETS,
+  ThinkingLevel,
 } from "@/types/profile";
 import { testGeminiConnection, fetchAvailableGeminiModels } from "@/services/ai/aiService";
 import { useProfile } from "@/hooks/useProfile";
@@ -237,7 +243,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
 
     setApiTestStatus({ checking: true, result: null });
     try {
-      const res = await testGeminiConnection(key, draft.apiSettings?.geminiModel || "gemini-2.0-flash");
+      const res = await testGeminiConnection(key, draft.apiSettings?.geminiModel || "gemini-3.5-flash-lite");
       setApiTestStatus({ checking: false, result: res });
       if (res.availableModels && res.availableModels.length > 0) {
         setAvailableModels(res.availableModels);
@@ -1078,10 +1084,10 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                 Google Gemini API 設定 & 接続テスト (NFR-101)
               </CardTitle>
               <CardDescription className="text-xs">
-                求人情報の構造化抽出および資格推薦推論に使用する API キーとモデル
+                求人情報の構造化抽出、企業・福利厚生Web調査、および精密評価・STAR推論に使用する API キーと用途別モデル
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 pt-0">
+            <CardContent className="space-y-4 pt-0">
               {/* API Key input */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -1098,7 +1104,15 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                     onChange={(e) =>
                       updateDraft({
                         ...draft,
-                        apiSettings: { ...(draft.apiSettings || { geminiModel: "gemini-3.6-flash" }), geminiApiKey: e.target.value },
+                        apiSettings: {
+                          ...(draft.apiSettings || {
+                            geminiModel: "gemini-3.5-flash-lite",
+                            researchModel: "gemini-3.5-flash-lite",
+                            deepEvalModel: "gemini-3.8-flash",
+                            thinkingLevel: "low",
+                          }),
+                          geminiApiKey: e.target.value,
+                        },
                       })
                     }
                     className="font-mono text-xs h-9"
@@ -1126,10 +1140,29 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                 </div>
               </div>
 
-              {/* Model selection */}
-              <div className="space-y-1.5 pt-1 border-t border-slate-800/60">
+              {/* Free Tier Quota / Rate Limit Guide Alert */}
+              <div className="p-2.5 rounded-lg bg-indigo-950/30 border border-indigo-500/20 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-indigo-300">
+                  <Info className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                  <span>Google AI Studio 無料枠（従量課金OFF時）クォータ目安</span>
+                </div>
+                <div className="text-[11px] text-slate-300 leading-relaxed space-y-0.5">
+                  <p>
+                    ・<strong className="text-emerald-300">Gemini 3.5 Flash Lite</strong>: <span className="text-emerald-400 font-mono font-semibold">500 RPD</span> (500回/日) & 15 RPM — 通常の大量求人解析やWeb検索リサーチに最適
+                  </p>
+                  <p>
+                    ・<strong className="text-amber-300">Gemini 3.8 / 3.7 / 3.6 / 3.5 Flash</strong>: <span className="text-amber-400 font-mono font-semibold">20 RPD</span> (20回/日) & 5 RPM — 本命求人の精密推論に温存を推奨
+                  </p>
+                </div>
+              </div>
+
+              {/* Model Separations */}
+              <div className="space-y-3 pt-2 border-t border-slate-800/60">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-300">使用 Gemini モデル</label>
+                  <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                    <Cpu className="h-3.5 w-3.5 text-indigo-400" />
+                    用途別モデル分離設定
+                  </span>
                   <Button
                     type="button"
                     variant="ghost"
@@ -1138,20 +1171,31 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                     disabled={isFetchingModels || !draft.apiSettings?.geminiApiKey?.trim()}
                     className="h-6 text-[11px] text-indigo-400 hover:text-indigo-200 p-1"
                   >
-                    {isFetchingModels ? "モデル取得中..." : "🔄 Googleからモデル一覧を取得"}
+                    {isFetchingModels ? "取得中..." : "🔄 Googleからモデル一覧取得"}
                   </Button>
                 </div>
 
-                <div className="space-y-1.5">
+                {/* 1. Primary Model */}
+                <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-slate-300 flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-emerald-400" />
+                      通常求人解析モデル (Primary)
+                    </label>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/40">
+                      大量解析向 (500 RPD 推奨)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">求人票の基本構造化、マッチ度採点、資格自動判定に使用</p>
                   <select
-                    value={draft.apiSettings?.geminiModel || "gemini-3.6-flash"}
+                    value={draft.apiSettings?.geminiModel || "gemini-3.5-flash-lite"}
                     onChange={(e) =>
                       updateDraft({
                         ...draft,
                         apiSettings: { ...(draft.apiSettings || { geminiApiKey: "" }), geminiModel: e.target.value },
                       })
                     }
-                    className="w-full h-9 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 font-mono focus:outline-none focus:border-indigo-500"
+                    className="w-full h-8 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded px-2 font-mono focus:outline-none focus:border-indigo-500"
                   >
                     {availableModels.length > 0 ? (
                       availableModels.map((m) => (
@@ -1161,19 +1205,19 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                       ))
                     ) : (
                       <>
-                        <option value="gemini-3.6-flash">gemini-3.6-flash (推奨・最新・高精度)</option>
-                        <option value="gemini-3.5-flash">gemini-3.5-flash (高速・安定)</option>
-                        <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (軽量・超低遅延)</option>
-                        <option value="gemini-3.7-flash">gemini-3.7-flash (高機能・混雑時自動フォールバック)</option>
+                        <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (推奨・500 RPD・大量解析)</option>
+                        <option value="gemini-3.8-flash">gemini-3.8-flash (最新・高精度・20 RPD)</option>
+                        <option value="gemini-3.7-flash">gemini-3.7-flash (高機能・20 RPD)</option>
+                        <option value="gemini-3.6-flash">gemini-3.6-flash (安定・20 RPD)</option>
+                        <option value="gemini-3.5-flash">gemini-3.5-flash (20 RPD)</option>
+                        <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (超低遅延)</option>
                       </>
                     )}
                   </select>
-
-                  {/* Manual entry support */}
-                  <div className="flex items-center gap-1.5 pt-1">
-                    <span className="text-[11px] text-slate-500 shrink-0">直接指定:</span>
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] text-slate-500 shrink-0">直接指定:</span>
                     <Input
-                      placeholder="モデル名直接入力 (例: gemini-2.0-flash)"
+                      placeholder="例: gemini-3.5-flash-lite"
                       value={draft.apiSettings?.geminiModel || ""}
                       onChange={(e) =>
                         updateDraft({
@@ -1181,9 +1225,125 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({
                           apiSettings: { ...(draft.apiSettings || { geminiApiKey: "" }), geminiModel: e.target.value },
                         })
                       }
-                      className="h-7 text-xs font-mono"
+                      className="h-6 text-xs font-mono"
                     />
                   </div>
+                </div>
+
+                {/* 2. Research Model */}
+                <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-slate-300 flex items-center gap-1">
+                      <Globe className="h-3 w-3 text-cyan-400" />
+                      企業・福利厚生Web調査モデル (Research)
+                    </label>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950/60 text-cyan-300 border border-cyan-800/40">
+                      Search Grounding (500 RPD 推奨)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Google Search Grounding による加入健保・企業型DC・就業実態のWeb調査に使用</p>
+                  <select
+                    value={draft.apiSettings?.researchModel || "gemini-3.5-flash-lite"}
+                    onChange={(e) =>
+                      updateDraft({
+                        ...draft,
+                        apiSettings: { ...(draft.apiSettings || { geminiApiKey: "" }), researchModel: e.target.value },
+                      })
+                    }
+                    className="w-full h-8 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded px-2 font-mono focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (推奨・500 RPD・Grounding無料対応)</option>
+                    <option value="gemini-3.8-flash">gemini-3.8-flash (高精度Web調査・20 RPD)</option>
+                    <option value="gemini-3.7-flash">gemini-3.7-flash (20 RPD)</option>
+                    <option value="gemini-3.6-flash">gemini-3.6-flash (20 RPD)</option>
+                    <option value="gemini-3.5-flash">gemini-3.5-flash (20 RPD)</option>
+                  </select>
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] text-slate-500 shrink-0">直接指定:</span>
+                    <Input
+                      placeholder="例: gemini-3.5-flash-lite"
+                      value={draft.apiSettings?.researchModel || ""}
+                      onChange={(e) =>
+                        updateDraft({
+                          ...draft,
+                          apiSettings: { ...(draft.apiSettings || { geminiApiKey: "" }), researchModel: e.target.value },
+                        })
+                      }
+                      className="h-6 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. Deep Eval Model */}
+                <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-slate-300 flex items-center gap-1">
+                      <Brain className="h-3 w-3 text-purple-400" />
+                      本命精密評価・キャリア展望モデル (Deep Eval)
+                    </label>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-950/60 text-purple-300 border border-purple-800/40">
+                      本命推論向 (20 RPD 推奨)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">合格確率、キャリア成長見込み、職務経歴STAR整形の深層推論に使用</p>
+                  <select
+                    value={draft.apiSettings?.deepEvalModel || "gemini-3.8-flash"}
+                    onChange={(e) =>
+                      updateDraft({
+                        ...draft,
+                        apiSettings: { ...(draft.apiSettings || { geminiApiKey: "" }), deepEvalModel: e.target.value },
+                      })
+                    }
+                    className="w-full h-8 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded px-2 font-mono focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="gemini-3.8-flash">gemini-3.8-flash (推奨・最新最高精度・20 RPD)</option>
+                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (回数節約・500 RPD)</option>
+                    <option value="gemini-3.7-flash">gemini-3.7-flash (20 RPD)</option>
+                    <option value="gemini-3.6-flash">gemini-3.6-flash (20 RPD)</option>
+                  </select>
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] text-slate-500 shrink-0">直接指定:</span>
+                    <Input
+                      placeholder="例: gemini-3.8-flash"
+                      value={draft.apiSettings?.deepEvalModel || ""}
+                      onChange={(e) =>
+                        updateDraft({
+                          ...draft,
+                          apiSettings: { ...(draft.apiSettings || { geminiApiKey: "" }), deepEvalModel: e.target.value },
+                        })
+                      }
+                      className="h-6 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* 4. Thinking Level */}
+                <div className="space-y-1.5 p-2.5 rounded-lg bg-slate-900/60 border border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-slate-300 flex items-center gap-1">
+                      <Sliders className="h-3 w-3 text-amber-400" />
+                      思考レベル (Thinking Level)
+                    </label>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-950/60 text-amber-300 border border-amber-800/40">
+                      Thinking Budget制御
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">Gemini 2.5/3.x の思考深度を制御し、不要な思考トークン浪費を防ぎます</p>
+                  <select
+                    value={draft.apiSettings?.thinkingLevel || "low"}
+                    onChange={(e) =>
+                      updateDraft({
+                        ...draft,
+                        apiSettings: { ...(draft.apiSettings || { geminiApiKey: "" }), thinkingLevel: e.target.value as ThinkingLevel },
+                      })
+                    }
+                    className="w-full h-8 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded px-2 font-mono focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="low">low (低 / 推奨・バランス良好)</option>
+                    <option value="minimal">minimal (最小限 / 最速・トークン消費極小)</option>
+                    <option value="medium">medium (中 / 複雑条件の深い考察)</option>
+                    <option value="high">high (高 / 徹底的な詳細推論)</option>
+                  </select>
                 </div>
               </div>
 

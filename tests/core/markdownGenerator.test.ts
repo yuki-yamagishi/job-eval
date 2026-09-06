@@ -181,4 +181,58 @@ tags:
     expect(parsed.careerTrajectory).toBeDefined();
     expect(parsed.careerTrajectory?.acquiredSkills.length).toBeGreaterThan(0);
   });
+
+  it("generates markdown with Corporate Benefit Research section and parses it back", () => {
+    const md = generateJobMarkdown({
+      metadata: mockMetadata,
+      scoreBreakdown: {
+        skillMatchRatio: 90,
+        conditionMatchRatio: 90,
+        careerGrowthRatio: 90,
+        environmentRiskRatio: 90,
+      },
+      positives: ["高待遇"],
+      concerns: [],
+      agentQuestions: [],
+      appealPoints: [],
+      benefitResearch: {
+        healthInsurance: {
+          name: "関東ITソフトウェア健康保険組合 (ITS健保)",
+          benefits: ["直営保養所・契約リゾート格安利用", "高額療養費付加給付"],
+          confidence: "high",
+        },
+        corporateDC: {
+          hasDC: true,
+          matchingContribution: true,
+          details: "企業型DC制度あり、マッチング拠出利用可能",
+        },
+        workEnvironment: {
+          annualHolidays: "125日",
+          paidLeaveRate: "78%",
+          sideJobAllowed: true,
+        },
+        summaryAdvice: "ITS健保および企業型DCが完備されており福利厚生の質は非常に高いです。",
+        sources: [
+          { title: "企業公式サイト採用ページ", url: "https://example.com/recruit" },
+        ],
+        searchedAt: "2026-09-06T10:00:00Z",
+      },
+      mustRequirements: ["AWS設計経験"],
+      wantRequirements: [],
+      jobDescription: ["インフラ刷新"],
+    });
+
+    expect(md).toContain("## 🌐 企業・福利厚生Webリサーチ (健保・企業型DC等)");
+    expect(md).toContain("関東ITソフトウェア健康保険組合 (ITS健保)");
+    expect(md).toContain("✅ 導入あり (マッチング拠出可)");
+    expect(md).toContain("直営保養所・契約リゾート格安利用");
+    expect(md).toContain("https://example.com/recruit");
+
+    const parsed = parseJobMarkdownToJobResult(md);
+    expect(parsed.benefitResearch).toBeDefined();
+    expect(parsed.benefitResearch?.healthInsurance.name).toContain("関東ITソフトウェア健康保険組合");
+    expect(parsed.benefitResearch?.corporateDC.hasDC).toBe(true);
+    expect(parsed.benefitResearch?.corporateDC.matchingContribution).toBe(true);
+    expect(parsed.benefitResearch?.sources?.[0]?.url).toBe("https://example.com/recruit");
+  });
 });

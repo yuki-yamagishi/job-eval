@@ -106,15 +106,22 @@ export interface ConditionMatrix {
 }
 
 export type GeminiModel = 
+  | "gemini-3.5-flash-lite"
+  | "gemini-3.8-flash"
+  | "gemini-3.7-flash"
   | "gemini-3.6-flash"
   | "gemini-3.5-flash"
   | "gemini-3.1-flash-lite"
-  | "gemini-3.7-flash"
   | string;
+
+export type ThinkingLevel = "minimal" | "low" | "medium" | "high";
 
 export interface ApiSettings {
   geminiApiKey: string;
-  geminiModel: GeminiModel;
+  geminiModel: GeminiModel; // 基本求人解析用モデル（デフォルト: gemini-3.5-flash-lite）
+  researchModel?: GeminiModel; // 福利厚生Web調査用モデル（デフォルト: gemini-3.5-flash-lite）
+  deepEvalModel?: GeminiModel; // 本命精密評価・キャリア展望用モデル（デフォルト: gemini-3.8-flash）
+  thinkingLevel?: ThinkingLevel; // 思考レベル（デフォルト: "low"）
   customInstructions?: string;
 }
 
