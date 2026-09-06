@@ -1,4 +1,11 @@
-import { JobAnalysisResult, AgentSource, EvaluationTriggerReason, EvaluationHistoryItem } from "@/types/job";
+import {
+  JobAnalysisResult,
+  AgentSource,
+  EvaluationTriggerReason,
+  EvaluationHistoryItem,
+  CareerTrajectory,
+  CorporateBenefitResearch
+} from "@/types/job";
 import { UserProfile } from "@/types/profile";
 import { AiProvider } from "./aiProvider";
 import { MockAiProvider } from "./mockAiProvider";
@@ -173,7 +180,7 @@ export async function generateCareerTrajectoryWithProfile(
   jobResult: JobAnalysisResult,
   profile: UserProfile,
   customProvider?: AiProvider
-): Promise<import("@/types/job").CareerTrajectory> {
+): Promise<CareerTrajectory> {
   if (customProvider) {
     return customProvider.generateCareerTrajectory(jobResult, profile);
   }
@@ -190,4 +197,30 @@ export async function generateCareerTrajectoryWithProfile(
   }
 
   return mockProvider.generateCareerTrajectory(jobResult, profile);
+}
+
+/**
+ * Unified AI service to research corporate benefits (Health Insurance, Corporate DC, WLB) via Google Search Grounding
+ */
+export async function researchCorporateBenefitsWithProfile(
+  jobResult: JobAnalysisResult,
+  profile: UserProfile,
+  customProvider?: AiProvider
+): Promise<CorporateBenefitResearch> {
+  if (customProvider) {
+    return customProvider.researchCorporateBenefits(jobResult, profile);
+  }
+
+  const hasApiKey = Boolean(profile.apiSettings?.geminiApiKey?.trim());
+
+  if (hasApiKey) {
+    try {
+      return await geminiProvider.researchCorporateBenefits(jobResult, profile);
+    } catch (error) {
+      console.warn("Gemini API error during corporate benefit research:", error);
+      throw error;
+    }
+  }
+
+  return mockProvider.researchCorporateBenefits(jobResult, profile);
 }

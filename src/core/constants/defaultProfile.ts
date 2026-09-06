@@ -45,7 +45,10 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   },
   apiSettings: {
     geminiApiKey: "",
-    geminiModel: "gemini-3.6-flash",
+    geminiModel: "gemini-3.5-flash-lite",
+    researchModel: "gemini-3.5-flash-lite",
+    deepEvalModel: "gemini-3.8-flash",
+    thinkingLevel: "low",
   },
   companies: [
     {

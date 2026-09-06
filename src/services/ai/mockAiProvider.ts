@@ -1,4 +1,10 @@
-import { JobAnalysisResult, AgentSource, JudgmentRank } from "@/types/job";
+import {
+  JobAnalysisResult,
+  AgentSource,
+  JudgmentRank,
+  CareerTrajectory,
+  CorporateBenefitResearch
+} from "@/types/job";
 import { UserProfile } from "@/types/profile";
 import { AiProvider } from "./aiProvider";
 import { calculateJobMatchScore, ScoreInput } from "@/core/scoring/scoringEngine";
@@ -227,7 +233,7 @@ export class MockAiProvider implements AiProvider {
   async generateCareerTrajectory(
     jobResult: JobAnalysisResult,
     _profile: UserProfile
-  ): Promise<import("@/types/job").CareerTrajectory> {
+  ): Promise<CareerTrajectory> {
     await new Promise((resolve) => setTimeout(resolve, 400));
 
     const title = jobResult.metadata.title;
@@ -247,6 +253,59 @@ export class MockAiProvider implements AiProvider {
         : "想定市場年収: 900万円 〜 1,200万円",
       careerRisksOrLockin: "社内特定ツールへの過度な依存を避け、OSSや業界標準技術に軸足を置いた実績作りを意識してください。",
       overallOutlook: `このポジションでの2〜3年の実績は、次の転職市場において「${title}」としての確固たる信頼となり、上位レイヤーへのキャリアアップを確実なものにします。`,
+    };
+  }
+
+  async researchCorporateBenefits(
+    jobResult: JobAnalysisResult,
+    _profile: UserProfile
+  ): Promise<CorporateBenefitResearch> {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const company = jobResult.metadata.company;
+    const isTech = company.includes("テクノロジー") || company.includes("IT") || company.includes("クラウド") || company.includes("ソフト") || company.includes("ソリューションズ");
+
+    return {
+      companyName: company,
+      researchedAt: new Date().toISOString(),
+      healthInsurance: {
+        name: isTech ? "関東ITソフトウェア健康保険組合 (ITS健保)" : "全国健康保険協会 (協会けんぽ)",
+        confidence: "high",
+        benefits: isTech
+          ? [
+              "保険料率が協会けんぽより約1.5%割安（手取り額が実質増加）",
+              "直営保養施設（トスラブ箱根・熱海等）や提携スポーツジムが格安利用可能",
+              "高額療養費付加給付（自己負担限度額月2万円の独自手当）あり",
+              "インフルエンザ予防接種の費用全額補助",
+            ]
+          : ["標準的な法定給付（傷病手当金・出産一時金等）に対応"],
+        notes: isTech
+          ? "IT・インターネット系企業で最も人気の高い健康保険組合です。"
+          : "中小企業で標準的に適用される公的健康保険です。",
+      },
+      corporateDC: {
+        hasDC: true,
+        matchingContribution: true,
+        dbPlan: false,
+        details: "企業型確定拠出年金（企業型DC）を導入済み。会社拠出金に加え、従業員本人が上限まで上乗せ拠出できる「マッチング拠出」にも対応しており、所得税・住民税の節税メリットを享受できます。",
+      },
+      workEnvironment: {
+        annualHolidays: "完全週休2日制（年間休日125日以上・土日祝休み）",
+        paidLeaveRate: "平均有休取得率 82.5%（公表実績）",
+        sideJobAllowed: true,
+        notes: ["リモートワーク手当支給あり", "コアタイムなしのフルフレックス制度導入"],
+      },
+      sources: [
+        {
+          title: `${company} 採用サイト - 福利厚生・働く環境`,
+          url: "https://example.com/careers/benefits",
+        },
+        {
+          title: `${company} 企業情報・労務データ (公表データ)`,
+          url: "https://example.com/corporate/csr",
+        },
+      ],
+      summaryAdvice: `${company} は ${isTech ? "関東ITソフトウェア健保 (ITS)" : "協会けんぽ"} に加入しており、企業型DC（マッチング拠出可）も完備されています。手取り・税制優遇と中長期の資産形成の両面において非常に手厚い福利厚生環境と評価できます。`,
     };
   }
 }

@@ -1,10 +1,11 @@
-import { JobAnalysisResult, AgentSource, JudgmentRank, CareerTrajectory } from "@/types/job";
+import { JobAnalysisResult, AgentSource, JudgmentRank, CareerTrajectory, CorporateBenefitResearch, WebSourceItem } from "@/types/job";
 import { UserProfile } from "@/types/profile";
 import { AiProvider } from "./aiProvider";
 import {
   buildJobAnalysisPrompt,
   buildJobReEvaluationPrompt,
   buildCareerTrajectoryPrompt,
+  buildCorporateBenefitPrompt,
   GEMINI_JOB_ANALYSIS_SCHEMA,
   GEMINI_CAREER_TRAJECTORY_SCHEMA,
 } from "@/core/prompt/jobAnalysisPrompt";
@@ -104,14 +105,21 @@ export async function fetchAvailableGeminiModels(
   }
 }
 
-const RECOMMENDED_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"];
+const RECOMMENDED_MODELS = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3.1-flash-lite",
+];
 
 /**
  * Test connectivity with Gemini API using provided API key and model
  */
 export async function testGeminiConnection(
   apiKey: string,
-  model: string = "gemini-3.6-flash"
+  model: string = "gemini-3.5-flash-lite"
 ): Promise<{ ok: boolean; message: string; availableModels?: string[] }> {
   if (!apiKey || !apiKey.trim()) {
     return { ok: false, message: "APIキーが入力されていません。" };
@@ -202,7 +210,8 @@ export class GeminiAiProvider implements AiProvider {
       throw new Error("Gemini API キーが設定されていません。プロファイル設定画面から入力してください。");
     }
 
-    const primaryModel = (profile.apiSettings?.geminiModel || "gemini-3.6-flash").replace(/^models\//, "").trim();
+    const primaryModel = (profile.apiSettings?.geminiModel || "gemini-3.5-flash-lite").replace(/^models\//, "").trim();
+    const thinkingLevel = profile.apiSettings?.thinkingLevel || "low";
     
     // Fallback list of models if primary model suffers from 503 high demand or timeout
     const candidateModels = Array.from(new Set([primaryModel, ...RECOMMENDED_MODELS]));
@@ -210,7 +219,7 @@ export class GeminiAiProvider implements AiProvider {
 
     for (const model of candidateModels) {
       try {
-        return await this.callGeminiModel(jobText, source, profile, apiKey, model);
+        return await this.callGeminiModel(jobText, source, profile, apiKey, model, thinkingLevel);
       } catch (err: unknown) {
         lastError = err instanceof Error ? err : new Error(String(err));
         console.warn(`Gemini model ${model} failed, trying fallback model...`, lastError.message);
@@ -230,7 +239,8 @@ export class GeminiAiProvider implements AiProvider {
       throw new Error("Gemini API キーが設定されていません。プロファイル設定画面から入力してください。");
     }
 
-    const primaryModel = (profile.apiSettings?.geminiModel || "gemini-3.6-flash").replace(/^models\//, "").trim();
+    const primaryModel = (profile.apiSettings?.deepEvalModel || profile.apiSettings?.geminiModel || "gemini-3.8-flash").replace(/^models\//, "").trim();
+    const thinkingLevel = profile.apiSettings?.thinkingLevel || "medium";
     const candidateModels = Array.from(new Set([primaryModel, ...RECOMMENDED_MODELS]));
     let lastError: Error | null = null;
 
@@ -238,7 +248,7 @@ export class GeminiAiProvider implements AiProvider {
 
     for (const model of candidateModels) {
       try {
-        const raw = await this.executeGeminiRequest(apiKey, model, systemInstruction, userPrompt);
+        const raw = await this.executeGeminiRequest(apiKey, model, systemInstruction, userPrompt, thinkingLevel);
         const newResult = this.transformToJobAnalysisResult(raw, previousResult.metadata.agentSource);
         
         // Preserve original job ID, status, and append feedback history
@@ -281,7 +291,7 @@ export class GeminiAiProvider implements AiProvider {
       throw new Error("Gemini API キーが設定されていません。プロファイル設定画面から入力してください。");
     }
 
-    const primaryModel = (profile.apiSettings?.geminiModel || "gemini-3.6-flash").replace(/^models\//, "").trim();
+    const primaryModel = (profile.apiSettings?.deepEvalModel || profile.apiSettings?.geminiModel || "gemini-3.8-flash").replace(/^models\//, "").trim();
     const candidateModels = Array.from(new Set([primaryModel, ...RECOMMENDED_MODELS]));
     let lastError: Error | null = null;
 
@@ -304,6 +314,9 @@ export class GeminiAiProvider implements AiProvider {
             responseMimeType: "application/json",
             responseSchema: GEMINI_CAREER_TRAJECTORY_SCHEMA,
             temperature: 0.2,
+            thinkingConfig: {
+              thinkingLevel: profile.apiSettings?.thinkingLevel === "minimal" ? "low" : (profile.apiSettings?.thinkingLevel || "medium"),
+            },
           },
         };
 
@@ -343,13 +356,162 @@ export class GeminiAiProvider implements AiProvider {
     throw lastError || new Error("Gemini API でのキャリア展望生成に失敗しました。");
   }
 
+  async researchCorporateBenefits(
+    jobResult: JobAnalysisResult,
+    profile: UserProfile
+  ): Promise<CorporateBenefitResearch> {
+    const apiKey = profile.apiSettings?.geminiApiKey?.trim();
+    if (!apiKey) {
+      throw new Error("Gemini API キーが設定されていません。プロファイル設定画面から入力してください。");
+    }
+
+    const primaryModel = (profile.apiSettings?.researchModel || "gemini-3.5-flash-lite").replace(/^models\//, "").trim();
+    const candidateModels = Array.from(new Set([primaryModel, ...RECOMMENDED_MODELS]));
+    let lastError: Error | null = null;
+
+    const { systemInstruction, userPrompt } = buildCorporateBenefitPrompt(jobResult);
+
+    for (const model of candidateModels) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const requestBody = {
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: userPrompt }],
+            },
+          ],
+          systemInstruction: {
+            parts: [{ text: systemInstruction }],
+          },
+          tools: [
+            {
+              googleSearch: {},
+            },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            thinkingConfig: {
+              thinkingLevel: "minimal",
+            },
+          },
+        };
+
+        const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), 25000) : null;
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+          signal: controller?.signal,
+        });
+        if (timeoutId) clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Gemini API エラー (HTTP ${response.status}): ${errText.slice(0, 150)}`);
+        }
+
+        const data = await response.json();
+        const candidate = data?.candidates?.[0];
+        const rawText = candidate?.content?.parts?.[0]?.text;
+        if (!rawText) throw new Error("Gemini からの応答が空でした。");
+
+        // Extract sources from groundingMetadata
+        const sources: WebSourceItem[] = [];
+        const groundingChunks = candidate?.groundingMetadata?.groundingChunks || [];
+        for (const chunk of groundingChunks) {
+          if (chunk.web?.uri) {
+            sources.push({
+              title: chunk.web.title || chunk.web.uri,
+              url: chunk.web.uri,
+            });
+          }
+        }
+
+        // Parse JSON from raw text (handling markdown code blocks if present)
+        let parsed: any = null;
+        try {
+          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            parsed = JSON.parse(jsonMatch[0]);
+          } else {
+            parsed = JSON.parse(rawText);
+          }
+        } catch {
+          // Fallback parsing if plain text was returned
+          parsed = {
+            company_name: jobResult.metadata.company,
+            health_insurance: {
+              name: rawText.includes("ITS") || rawText.includes("関東IT") ? "関東ITソフトウェア健康保険組合 (ITS健保)" : "全国健康保険協会 (協会けんぽ)",
+              confidence: "medium",
+              benefits: ["Web調査結果サマリーを参照"],
+              notes: rawText.slice(0, 200),
+            },
+            corporate_dc: {
+              has_dc: rawText.includes("確定拠出年金") || rawText.includes("企業型DC"),
+              details: rawText.slice(0, 200),
+            },
+            summary_advice: rawText.slice(0, 300),
+          };
+        }
+
+        return {
+          companyName: parsed.company_name || jobResult.metadata.company,
+          researchedAt: new Date().toISOString(),
+          healthInsurance: {
+            name: parsed.health_insurance?.name || "要確認",
+            confidence: (parsed.health_insurance?.confidence as any) || "medium",
+            benefits: Array.isArray(parsed.health_insurance?.benefits) ? parsed.health_insurance.benefits : [],
+            notes: parsed.health_insurance?.notes,
+          },
+          corporateDC: {
+            hasDC: parsed.corporate_dc?.has_dc ?? "不明",
+            matchingContribution: parsed.corporate_dc?.matching_contribution,
+            dbPlan: parsed.corporate_dc?.db_plan,
+            details: parsed.corporate_dc?.details || "詳細不明",
+          },
+          workEnvironment: parsed.work_environment ? {
+            annualHolidays: parsed.work_environment.annual_holidays,
+            paidLeaveRate: parsed.work_environment.paid_leave_rate,
+            sideJobAllowed: parsed.work_environment.side_job_allowed,
+            notes: Array.isArray(parsed.work_environment.notes) ? parsed.work_environment.notes : [],
+          } : undefined,
+          sources: sources.length > 0 ? sources : [
+            {
+              title: `${jobResult.metadata.company} Web検索結果`,
+              url: `https://www.google.com/search?q=${encodeURIComponent(jobResult.metadata.company + " 福利厚生 健康保険 企業型DC")}`,
+            },
+          ],
+          summaryAdvice: parsed.summary_advice || "Web公開情報に基づく福利厚生サマリーです。",
+        };
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        console.warn(`Gemini research benefits model ${model} failed, trying fallback...`, lastError.message);
+      }
+    }
+
+    throw lastError || new Error("Gemini API での福利厚生Web調査に失敗しました。");
+  }
+
   private async executeGeminiRequest(
     apiKey: string,
     model: string,
     systemInstruction: string,
-    userPrompt: string
+    userPrompt: string,
+    thinkingLevel: string = "low"
   ): Promise<GeminiRawResponse> {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const generationConfig: Record<string, unknown> = {
+      responseMimeType: "application/json",
+      responseSchema: GEMINI_JOB_ANALYSIS_SCHEMA,
+      temperature: 0.2,
+    };
+    if (thinkingLevel) {
+      generationConfig.thinkingConfig = { thinkingLevel };
+    }
+
     const requestBody = {
       contents: [
         {
@@ -360,11 +522,7 @@ export class GeminiAiProvider implements AiProvider {
       systemInstruction: {
         parts: [{ text: systemInstruction }],
       },
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: GEMINI_JOB_ANALYSIS_SCHEMA,
-        temperature: 0.2,
-      },
+      generationConfig,
     };
 
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -422,10 +580,11 @@ export class GeminiAiProvider implements AiProvider {
     source: AgentSource,
     profile: UserProfile,
     apiKey: string,
-    model: string
+    model: string,
+    thinkingLevel: string = "low"
   ): Promise<JobAnalysisResult> {
     const { systemInstruction, userPrompt } = buildJobAnalysisPrompt(jobText, source, profile);
-    const parsed = await this.executeGeminiRequest(apiKey, model, systemInstruction, userPrompt);
+    const parsed = await this.executeGeminiRequest(apiKey, model, systemInstruction, userPrompt, thinkingLevel);
     const result = this.transformToJobAnalysisResult(parsed, source);
     return {
       ...result,

@@ -10,7 +10,8 @@ import { SyncModal } from "@/components/sync/SyncModal";
 import { 
   analyzeJobWithProfile, 
   reEvaluateJobWithProfile, 
-  generateCareerTrajectoryWithProfile 
+  generateCareerTrajectoryWithProfile,
+  researchCorporateBenefitsWithProfile 
 } from "@/services/ai/aiService";
 import { generateJobMarkdown } from "@/core/markdown/markdownGenerator";
 import { useProfile } from "@/hooks/useProfile";
@@ -138,6 +139,41 @@ export function App() {
     }
   };
 
+  const handleResearchCorporateBenefits = async (job: JobAnalysisResult) => {
+    try {
+      const research = await researchCorporateBenefitsWithProfile(job, profile);
+      const updatedMarkdown = generateJobMarkdown({
+        metadata: job.metadata,
+        scoreBreakdown: job.scoreBreakdown,
+        positives: job.positives,
+        concerns: job.concerns,
+        agentQuestions: job.agentQuestions,
+        appealPoints: job.appealPoints,
+        qualificationAdvice: job.qualificationAdvice,
+        careerTrajectory: job.careerTrajectory,
+        benefitResearch: research,
+        evaluationHistory: job.evaluationHistory,
+        mustRequirements: job.jobDetails.mustRequirements,
+        wantRequirements: job.jobDetails.wantRequirements,
+        jobDescription: job.jobDetails.jobDescription,
+        selectionProcess: job.jobDetails.selectionProcess,
+      });
+
+      const updatedJob: JobAnalysisResult = {
+        ...job,
+        benefitResearch: research,
+        markdownContent: updatedMarkdown,
+      };
+
+      setAnalysisResult(updatedJob);
+      await saveJob(updatedJob);
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error("Researching corporate benefits failed:", err);
+      alert(`福利厚生Web調査に失敗しました:\n${err.message}`);
+    }
+  };
+
   const handleSaveMarkdown = async (editedContent?: string) => {
     if (analysisResult) {
       const targetResult = editedContent
@@ -203,6 +239,7 @@ export function App() {
                 onReEvaluate={handleReEvaluate}
                 onReEvaluateWithProfile={handleReEvaluateWithProfile}
                 onGenerateCareerTrajectory={handleGenerateCareerTrajectory}
+                onResearchCorporateBenefits={handleResearchCorporateBenefits}
               />
             </div>
           </div>

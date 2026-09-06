@@ -1,5 +1,5 @@
 import { UserProfile } from "@/types/profile";
-import { AgentSource } from "@/types/job";
+import { AgentSource, JobAnalysisResult } from "@/types/job";
 
 export interface CleanedJobInput {
   cleanedText: string;
@@ -302,7 +302,7 @@ export const GEMINI_CAREER_TRAJECTORY_SCHEMA = {
  * Build prompt to generate career trajectory for an already analyzed job
  */
 export function buildCareerTrajectoryPrompt(
-  jobResult: import("@/types/job").JobAnalysisResult,
+  jobResult: JobAnalysisResult,
   profile: UserProfile
 ): { systemInstruction: string; userPrompt: string } {
   const systemInstruction = `あなたはトップITキャリアコンサルタントおよびテックリードメンターです。
@@ -337,7 +337,7 @@ export function buildCareerTrajectoryPrompt(
  * Build a re-evaluation prompt incorporating user feedback on previous AI analysis
  */
 export function buildJobReEvaluationPrompt(
-  previousResult: import("@/types/job").JobAnalysisResult,
+  previousResult: JobAnalysisResult,
   userFeedback: string,
   profile: UserProfile
 ): { systemInstruction: string; userPrompt: string } {
@@ -374,3 +374,67 @@ ${userFeedback}
     userPrompt: reEvaluationUserPrompt,
   };
 }
+
+/**
+ * Build prompt to research corporate benefits (Health Insurance, Corporate DC, WLB) via Google Search Grounding
+ */
+export function buildCorporateBenefitPrompt(
+  jobResult: JobAnalysisResult
+): { systemInstruction: string; userPrompt: string } {
+  const companyName = jobResult.metadata.company;
+  const systemInstruction = `あなたは企業の雇用環境・福利厚生制度に精通した人事労務およびキャリアリサーチャーです。
+Google検索ツールを活用し、求人票では明記されにくい企業の詳細な福利厚生情報をWeb上の公開情報（採用サイト、企業の福利厚生規程、有価証券報告書、加入事業所名簿、公式リリース、転職口コミ等の事実情報）から客観的に調査・整理してください。
+
+【調査重点項目】
+1. 健康保険組合 (Health Insurance):
+   - 加入している健康保険組合名（例: 「関東ITソフトウェア健康保険組合 (ITS健保)」、「東京都情報サービス産業健康保険組合 (TJK)」、「全国健康保険協会 (協会けんぽ)」、「自社単一健保」など）
+   - その健保に加入していることによる具体的なメリット（保険料率の安さ/手取り有利、高額療養費付加給付、保養所・提携レストラン、予防接種補助など）
+   - 確度: high (採用情報や加入リスト等に明記), medium (企業規模や業界慣行から高確率), low (推定)
+
+2. 企業型確定拠出年金 / 企業年金 (Corporate DC):
+   - 企業型DCの導入有無 (あり / なし / 不明)
+   - マッチング拠出（加入者掛金上乗せ拠出）の可否
+   - 確定給付企業年金 (DB) や退職金制度の概要
+
+3. 勤務環境・その他福利厚生:
+   - 年間休日数（例: 完全週休2日・年休125日以上）
+   - 有給消化率や平均残業時間（公表値）
+   - 副業・複業の可否
+
+4. 転職者目線での総合アドバイス:
+   - 手取り額への好影響や資産形成（DC）、WLB面から見た総評
+
+【出力フォーマット】
+以下のキー構造を持つ純粋なJSONオブジェクトのみを出力してください（Markdownコードブロックは不要、またはJSONのみを含めること）：
+{
+  "company_name": "${companyName}",
+  "health_insurance": {
+    "name": "健康保険組合名",
+    "confidence": "high",
+    "benefits": ["メリット1", "メリット2"],
+    "notes": "補足"
+  },
+  "corporate_dc": {
+    "has_dc": true,
+    "matching_contribution": true,
+    "db_plan": false,
+    "details": "確定拠出年金等の制度詳細"
+  },
+  "work_environment": {
+    "annual_holidays": "年間休日125日（土日祝休み）",
+    "paid_leave_rate": "有給取得率 78%",
+    "side_job_allowed": true,
+    "notes": ["リモート手当支給あり"]
+  },
+  "summary_advice": "ITS健保加入のため手取りが有利で、企業型DC（マッチング拠出可）も完備されており、手厚い福利厚生環境です。"
+}`;
+
+  const userPrompt = `対象企業名: ${companyName}
+募集ポジション: ${jobResult.metadata.title}
+勤務地: ${jobResult.jobDetails.location || "不明"}
+
+Google検索ツールで「${companyName} 健康保険組合 ITS TJK 協会けんぽ」および「${companyName} 企業型確定拠出年金 企業型DC 福利厚生 退職金」を調査し、判明した事実をJSON形式で出力してください。`;
+
+  return { systemInstruction, userPrompt };
+}
+

@@ -379,7 +379,7 @@ export const CareerHistoryView: React.FC<CareerHistoryViewProps> = ({
 
     setPolishingEpisodeId(episode.id);
     try {
-      const model = profile.apiSettings?.geminiModel || "gemini-3.6-flash";
+      const model = profile.apiSettings?.deepEvalModel || profile.apiSettings?.geminiModel || "gemini-3.8-flash";
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
       const prompt = `あなたはIT業界のプロフェッショナルな職務経歴書コンサルタントです。

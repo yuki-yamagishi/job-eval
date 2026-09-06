@@ -127,4 +127,19 @@ describe("ProfileSettingsView Component", () => {
     expect(screen.getByDisplayValue("編集中の新しい名前")).toBeDefined();
     expect(screen.queryByDisplayValue("同期で降ってきた古い名前")).toBeNull();
   });
+
+  it("renders model separation settings and quota guide badges", async () => {
+    render(<ProfileSettingsView />);
+
+    // Quota guide
+    expect(await screen.findByText(/Google AI Studio 無料枠（従量課金OFF時）クォータ目安/)).toBeDefined();
+    expect(screen.getAllByText(/500 RPD/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/20 RPD/).length).toBeGreaterThanOrEqual(1);
+
+    // Model separation labels
+    expect(screen.getByText("通常求人解析モデル (Primary)")).toBeDefined();
+    expect(screen.getByText("企業・福利厚生Web調査モデル (Research)")).toBeDefined();
+    expect(screen.getByText("本命精密評価・キャリア展望モデル (Deep Eval)")).toBeDefined();
+    expect(screen.getByText("思考レベル (Thinking Level)")).toBeDefined();
+  });
 });

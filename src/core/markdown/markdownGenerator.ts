@@ -1,4 +1,4 @@
-import { JobMetadata, CareerTrajectory, EvaluationHistoryItem } from "@/types/job";
+import { JobMetadata, CareerTrajectory, EvaluationHistoryItem, CorporateBenefitResearch } from "@/types/job";
 
 export interface MarkdownGenerationInput {
   metadata: JobMetadata;
@@ -18,6 +18,7 @@ export interface MarkdownGenerationInput {
     advice: string;
   };
   careerTrajectory?: CareerTrajectory;
+  benefitResearch?: CorporateBenefitResearch;
   evaluationHistory?: EvaluationHistoryItem[];
   mustRequirements: string[];
   wantRequirements: string[];
@@ -94,6 +95,30 @@ ${ct.careerRisksOrLockin ? `- **キャリア上の留意点・リスク**: ${ct.
 `;
   }
 
+  let benefitResearchSection = "";
+  if (input.benefitResearch) {
+    const br = input.benefitResearch;
+    const sourcesList = br.sources && br.sources.length > 0
+      ? br.sources.map((s) => `  - [${s.title || s.url}](${s.url})`).join("\n")
+      : "  - (Web検索結果より集約)";
+    const benefitsList = br.healthInsurance.benefits && br.healthInsurance.benefits.length > 0
+      ? br.healthInsurance.benefits.map((b) => `  - ${b}`).join("\n")
+      : "";
+
+    benefitResearchSection = `
+
+## 🌐 企業・福利厚生Webリサーチ (健保・企業型DC等)
+- **加入健康保険組合**: **${br.healthInsurance.name}** (確度: ${br.healthInsurance.confidence === "high" ? "高" : br.healthInsurance.confidence === "medium" ? "中" : "推定"})
+${benefitsList}
+- **企業型確定拠出年金 (DC)**: ${br.corporateDC.hasDC === true ? "✅ 導入あり" : br.corporateDC.hasDC === false ? "❌ 導入なし" : "❓ 要確認"}${br.corporateDC.matchingContribution === true ? " (マッチング拠出可)" : ""}
+  - ${br.corporateDC.details}
+${br.workEnvironment?.annualHolidays ? `- **年間休日**: ${br.workEnvironment.annualHolidays}\n` : ""}${br.workEnvironment?.paidLeaveRate ? `- **有給消化率**: ${br.workEnvironment.paidLeaveRate}\n` : ""}${br.workEnvironment?.sideJobAllowed !== undefined ? `- **副業可否**: ${br.workEnvironment.sideJobAllowed === true ? "副業可" : br.workEnvironment.sideJobAllowed === false ? "副業不可" : "要確認"}\n` : ""}- **総合アドバイス**: ${br.summaryAdvice}
+
+### 🔗 情報ソース (参照Webページ)
+${sourcesList}
+`;
+  }
+
   let evaluationHistorySection = "";
   if (input.evaluationHistory && input.evaluationHistory.length > 0) {
     const historyList = input.evaluationHistory
@@ -144,7 +169,7 @@ ${positivesFormatted}
 
 ### ⚠️ 懸念点・確認事項
 ${concernsFormatted}
-${qualificationSection}${careerTrajectorySection}${evaluationHistorySection}
+${qualificationSection}${careerTrajectorySection}${benefitResearchSection}${evaluationHistorySection}
 ---
 
 ## 💬 エージェントへの逆質問・確認事項
@@ -397,6 +422,54 @@ export function parseJobMarkdownToJobResult(markdown: string): import("@/types/j
     tags: meta.tags || ["インポート"],
   };
 
+  let benefitResearch: import("@/types/job").CorporateBenefitResearch | undefined = undefined;
+  if (parsed.body.includes("企業・福利厚生Webリサーチ") || parsed.body.includes("加入健康保険組合")) {
+    const healthInsMatch = parsed.body.match(/加入健康保険組合\*\*:\s*\*\*([^*]+)\*\*(?:\s*\(確度:\s*([^)]+)\))?/);
+    const dcMatch = parsed.body.match(/企業型確定拠出年金 \(DC\)\*\*:\s*([^\n]+)/);
+    if (healthInsMatch || dcMatch) {
+      // Extract sources
+      const sources: import("@/types/job").WebSourceItem[] = [];
+      const sourcesSectionMatch = parsed.body.match(/(?:###\s*.*情報ソース|情報ソース)[\s\S]*?(?=\n##\s|$)/);
+      if (sourcesSectionMatch) {
+        const linkMatches = sourcesSectionMatch[0].matchAll(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g);
+        for (const lm of linkMatches) {
+          sources.push({ title: lm[1], url: lm[2] });
+        }
+      }
+
+      // Extract advice
+      const adviceMatch = parsed.body.match(/総合アドバイス\*\*:\s*([^\n]+)/);
+      const advice = adviceMatch ? adviceMatch[1].trim() : "インポートされた求人に基づく福利厚生リサーチ情報です。";
+
+      // Extract work environment
+      const holidaysMatch = parsed.body.match(/年間休日\*\*:\s*([^\n]+)/);
+      const leaveMatch = parsed.body.match(/有給消化率\*\*:\s*([^\n]+)/);
+      const sideJobMatch = parsed.body.match(/副業可否\*\*:\s*([^\n]+)/);
+
+      benefitResearch = {
+        companyName: fullMetadata.company,
+        researchedAt: today,
+        healthInsurance: {
+          name: healthInsMatch ? healthInsMatch[1].trim() : "要確認",
+          confidence: healthInsMatch && healthInsMatch[2]?.includes("高") ? "high" : "medium",
+          benefits: [],
+        },
+        corporateDC: {
+          hasDC: dcMatch && dcMatch[1].includes("あり") ? true : dcMatch && dcMatch[1].includes("なし") ? false : "不明",
+          matchingContribution: dcMatch && dcMatch[1].includes("マッチング") ? true : undefined,
+          details: dcMatch ? dcMatch[1].trim() : "インポートされた情報",
+        },
+        workEnvironment: {
+          annualHolidays: holidaysMatch ? holidaysMatch[1].trim() : undefined,
+          paidLeaveRate: leaveMatch ? leaveMatch[1].trim() : undefined,
+          sideJobAllowed: sideJobMatch ? sideJobMatch[1].includes("副業可") : undefined,
+        },
+        sources,
+        summaryAdvice: advice,
+      };
+    }
+  }
+
   return {
     metadata: fullMetadata,
     scoreBreakdown: {
@@ -410,6 +483,7 @@ export function parseJobMarkdownToJobResult(markdown: string): import("@/types/j
     agentQuestions: agentQuestions.length > 0 ? agentQuestions : [],
     appealPoints: appealPoints.length > 0 ? appealPoints : [],
     careerTrajectory,
+    benefitResearch,
     evaluationHistory: evaluationHistory.length > 0 ? evaluationHistory : undefined,
     jobDetails: {
       mustRequirements,
