@@ -38,13 +38,27 @@ export function checkIssueDocIntegrity(docsDir) {
   }
 
   // 2. Determine active (in-progress) issue from root pointer
+  const FOUR_DOCS = ['issue.md', 'pre_verification.md', 'plan.md', 'walkthrough.md'];
   const planPath = path.join(docsDir, 'implementation_plan.md');
+  const prePath = path.join(docsDir, 'pre_phase_verification.md');
   let activeIssueDir = null;
+
+  // Match link paths pointing to issue documents (e.g. issues/ISSUE-050_.../plan.md)
+  const ISSUE_LINK_REGEX = /(?:docs\/)?issues\/(ISSUE-\d+_[a-zA-Z0-9_-]+)\/(?:plan|pre_verification|walkthrough)\.md/;
+
   if (fs.existsSync(planPath)) {
     const planContent = fs.readFileSync(planPath, 'utf-8');
-    const match = planContent.match(/ISSUE-\d+_[a-zA-Z0-9_-]+/);
+    const match = planContent.match(ISSUE_LINK_REGEX);
     if (match) {
-      activeIssueDir = match[0];
+      activeIssueDir = match[1];
+    }
+  }
+
+  if (!activeIssueDir && fs.existsSync(prePath)) {
+    const preContent = fs.readFileSync(prePath, 'utf-8');
+    const match = preContent.match(ISSUE_LINK_REGEX);
+    if (match) {
+      activeIssueDir = match[1];
     }
   }
 
@@ -60,12 +74,22 @@ export function checkIssueDocIntegrity(docsDir) {
     return false;
   }
 
-  // Fallback if pointer not found
+  // Safe fallback if pointer not found: find the newest issue folder that has all 4 documents
   if (!activeIssueDir) {
-    activeIssueDir = issueDirs[issueDirs.length - 1];
+    for (let i = issueDirs.length - 1; i >= 0; i--) {
+      const dirPath = path.join(issuesDir, issueDirs[i]);
+      const hasAllFour = FOUR_DOCS.every((doc) => fs.existsSync(path.join(dirPath, doc)));
+      if (hasAllFour) {
+        activeIssueDir = issueDirs[i];
+        break;
+      }
+    }
+    // If still none found, fallback to the first folder
+    if (!activeIssueDir) {
+      activeIssueDir = issueDirs[0];
+    }
   }
 
-  const FOUR_DOCS = ['issue.md', 'pre_verification.md', 'plan.md', 'walkthrough.md'];
   let validCount = 0;
   let backlogCount = 0;
 
