@@ -33,3 +33,5 @@
 | [ADR-0013](file:///docs/adr/0013-antigravity-fleet-pr-review-workflow.md) | Antigravity IDE Fleet 主導の最上位モデル PR レビュー＆修正・人間承認マージワークフローへの刷新 | **Accepted** | 2026-09-05 |
 | [ADR-0014](file:///docs/adr/0014-harness-refactoring-and-responsibility-separation.md) | 開発ハーネス（Agent / Skill / Hook / Docs / Checkers）の抜本的リファクタリング＆責務分割刷新 | **Accepted** | 2026-09-05 |
 | [ADR-0015](file:///docs/adr/0015-corporate-benefit-research-and-model-separation.md) | Gemini Google Search Grounding による企業・福利厚生Web調査と用途別モデル分離・Thinking制御 | **Accepted** | 2026-09-06 |
+| [ADR-0016](file:///docs/adr/0016-loop-engineering-harness-refactoring.md) | ループエンジニアリング確立に向けた開発ハーネスの 6 段階リファクタリング＆責務分割 | **Accepted** | 2026-09-07 |
+
