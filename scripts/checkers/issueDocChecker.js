@@ -37,7 +37,32 @@ export function checkIssueDocIntegrity(docsDir) {
     }
   }
 
-  // 2. Scan issue folders
+  // 2. Determine active (in-progress) issue from root pointer
+  const FOUR_DOCS = ['issue.md', 'pre_verification.md', 'plan.md', 'walkthrough.md'];
+  const planPath = path.join(docsDir, 'implementation_plan.md');
+  const prePath = path.join(docsDir, 'pre_phase_verification.md');
+  let activeIssueDir = null;
+
+  // Match link paths pointing to issue documents (e.g. issues/ISSUE-050_.../plan.md)
+  const ISSUE_LINK_REGEX = /(?:docs\/)?issues\/(ISSUE-\d+_[a-zA-Z0-9_-]+)\/(?:plan|pre_verification|walkthrough)\.md/;
+
+  if (fs.existsSync(planPath)) {
+    const planContent = fs.readFileSync(planPath, 'utf-8');
+    const match = planContent.match(ISSUE_LINK_REGEX);
+    if (match) {
+      activeIssueDir = match[1];
+    }
+  }
+
+  if (!activeIssueDir && fs.existsSync(prePath)) {
+    const preContent = fs.readFileSync(prePath, 'utf-8');
+    const match = preContent.match(ISSUE_LINK_REGEX);
+    if (match) {
+      activeIssueDir = match[1];
+    }
+  }
+
+  // 3. Scan issue folders
   const entries = fs.readdirSync(issuesDir, { withFileTypes: true });
   const issueDirs = entries
     .filter((e) => e.isDirectory() && e.name.startsWith('ISSUE-'))
@@ -49,15 +74,29 @@ export function checkIssueDocIntegrity(docsDir) {
     return false;
   }
 
-  // Find the latest issue folder (e.g. ISSUE-040_...)
-  const latestIssueDir = issueDirs[issueDirs.length - 1];
+  // Safe fallback if pointer not found: find the newest issue folder that has all 4 documents
+  if (!activeIssueDir) {
+    for (let i = issueDirs.length - 1; i >= 0; i--) {
+      const dirPath = path.join(issuesDir, issueDirs[i]);
+      const hasAllFour = FOUR_DOCS.every((doc) => fs.existsSync(path.join(dirPath, doc)));
+      if (hasAllFour) {
+        activeIssueDir = issueDirs[i];
+        break;
+      }
+    }
+    // If still none found, fallback to the first folder
+    if (!activeIssueDir) {
+      activeIssueDir = issueDirs[0];
+    }
+  }
 
   let validCount = 0;
+  let backlogCount = 0;
+
   for (const dirName of issueDirs) {
     const dirPath = path.join(issuesDir, dirName);
-    const isLatest = dirName === latestIssueDir;
 
-    // issue.md is mandatory for all issue folders
+    // issue.md is mandatory for ALL issue folders (backlog, in-progress, completed)
     const issueMdPath = path.join(dirPath, 'issue.md');
     if (!fs.existsSync(issueMdPath)) {
       console.error(`\n❌ [Issue 仕様書欠落] ${dirName}/issue.md が存在しません。`);
@@ -65,16 +104,24 @@ export function checkIssueDocIntegrity(docsDir) {
       continue;
     }
 
-    // For the latest / in-progress issue, all 4 documents are strictly required
-    const FOUR_DOCS = ['issue.md', 'pre_verification.md', 'plan.md', 'walkthrough.md'];
-    if (isLatest) {
+    const isActive = dirName === activeIssueDir;
+    // Check if any post-specification doc exists (indicates an issue that was started or completed)
+    const hasWorkDocs = fs.existsSync(path.join(dirPath, 'pre_verification.md')) ||
+                        fs.existsSync(path.join(dirPath, 'plan.md')) ||
+                        fs.existsSync(path.join(dirPath, 'walkthrough.md'));
+
+    // An issue requires all 4 documents if it is active OR has started work (completed past issue)
+    if (isActive || hasWorkDocs) {
       for (const docName of FOUR_DOCS) {
         const docFile = path.join(dirPath, docName);
         if (!fs.existsSync(docFile)) {
-          console.error(`\n❌ [最新Issue必須ドキュメント欠落] ${dirName}/${docName} が存在しません（最新Issueは4ファイル完結が必須です）。`);
+          const statusName = isActive ? '現在進行中' : '着手・完了済';
+          console.error(`\n❌ [${statusName}Issue必須ドキュメント欠落] ${dirName}/${docName} が存在しません（${statusName}Issueは4ファイル完結が必須です）。`);
           hasError = true;
         }
       }
+    } else {
+      backlogCount++;
     }
 
     // Content completeness check for any present documents
@@ -92,7 +139,8 @@ export function checkIssueDocIntegrity(docsDir) {
     validCount++;
   }
 
-  console.log(`    ✓ docs/issues/: 全 ${validCount} 件の Issue フォルダ構造・仕様書および最新Issue(${latestIssueDir})の4ファイル完結性を確認済`);
+  console.log(`    ✓ docs/issues/: 全 ${validCount} 件の Issue フォルダ構造を確認済 (進行中: ${activeIssueDir}, バックログ: ${backlogCount}件)`);
 
   return !hasError;
 }
+
