@@ -1,4 +1,10 @@
-import { JobAnalysisResult, AgentSource, JudgmentRank } from "@/types/job";
+import {
+  JobAnalysisResult,
+  AgentSource,
+  JudgmentRank,
+  CareerTrajectory,
+  CorporateBenefitResearch
+} from "@/types/job";
 import { UserProfile } from "@/types/profile";
 import { AiProvider } from "./aiProvider";
 import { calculateJobMatchScore, ScoreInput } from "@/core/scoring/scoringEngine";
@@ -227,7 +233,7 @@ export class MockAiProvider implements AiProvider {
   async generateCareerTrajectory(
     jobResult: JobAnalysisResult,
     _profile: UserProfile
-  ): Promise<import("@/types/job").CareerTrajectory> {
+  ): Promise<CareerTrajectory> {
     await new Promise((resolve) => setTimeout(resolve, 400));
 
     const title = jobResult.metadata.title;
@@ -253,7 +259,7 @@ export class MockAiProvider implements AiProvider {
   async researchCorporateBenefits(
     jobResult: JobAnalysisResult,
     _profile: UserProfile
-  ): Promise<import("@/types/job").CorporateBenefitResearch> {
+  ): Promise<CorporateBenefitResearch> {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     const company = jobResult.metadata.company;

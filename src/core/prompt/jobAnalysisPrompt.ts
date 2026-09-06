@@ -1,5 +1,5 @@
 import { UserProfile } from "@/types/profile";
-import { AgentSource } from "@/types/job";
+import { AgentSource, JobAnalysisResult } from "@/types/job";
 
 export interface CleanedJobInput {
   cleanedText: string;
@@ -302,7 +302,7 @@ export const GEMINI_CAREER_TRAJECTORY_SCHEMA = {
  * Build prompt to generate career trajectory for an already analyzed job
  */
 export function buildCareerTrajectoryPrompt(
-  jobResult: import("@/types/job").JobAnalysisResult,
+  jobResult: JobAnalysisResult,
   profile: UserProfile
 ): { systemInstruction: string; userPrompt: string } {
   const systemInstruction = `あなたはトップITキャリアコンサルタントおよびテックリードメンターです。
@@ -337,7 +337,7 @@ export function buildCareerTrajectoryPrompt(
  * Build a re-evaluation prompt incorporating user feedback on previous AI analysis
  */
 export function buildJobReEvaluationPrompt(
-  previousResult: import("@/types/job").JobAnalysisResult,
+  previousResult: JobAnalysisResult,
   userFeedback: string,
   profile: UserProfile
 ): { systemInstruction: string; userPrompt: string } {
@@ -379,7 +379,7 @@ ${userFeedback}
  * Build prompt to research corporate benefits (Health Insurance, Corporate DC, WLB) via Google Search Grounding
  */
 export function buildCorporateBenefitPrompt(
-  jobResult: import("@/types/job").JobAnalysisResult
+  jobResult: JobAnalysisResult
 ): { systemInstruction: string; userPrompt: string } {
   const companyName = jobResult.metadata.company;
   const systemInstruction = `あなたは企業の雇用環境・福利厚生制度に精通した人事労務およびキャリアリサーチャーです。

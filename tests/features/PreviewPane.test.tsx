@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { PreviewPane } from "@/components/pane/PreviewPane";
 import { JobAnalysisResult } from "@/types/job";
 
@@ -229,7 +229,9 @@ describe("PreviewPane Component", () => {
     const reEvalBtn = screen.getByText("最新プロファイルで再評価");
     expect(reEvalBtn).toBeDefined();
 
-    fireEvent.click(reEvalBtn);
+    await act(async () => {
+      fireEvent.click(reEvalBtn);
+    });
     expect(handleReEvalProfile).toHaveBeenCalledTimes(1);
   });
 
@@ -275,7 +277,7 @@ describe("PreviewPane Component", () => {
     expect(screen.getByText("75点")).toBeDefined();
   });
 
-  it("renders corporate benefit research button and calls onResearchCorporateBenefits callback", () => {
+  it("renders corporate benefit research button and calls onResearchCorporateBenefits callback", async () => {
     const handleResearch = vi.fn().mockResolvedValue(undefined);
     render(
       <PreviewPane
@@ -288,7 +290,9 @@ describe("PreviewPane Component", () => {
     const researchBtn = screen.getByText("福利厚生をWeb調査");
     expect(researchBtn).toBeDefined();
 
-    fireEvent.click(researchBtn);
+    await act(async () => {
+      fireEvent.click(researchBtn);
+    });
     expect(handleResearch).toHaveBeenCalledTimes(1);
   });
 

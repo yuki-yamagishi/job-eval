@@ -1,4 +1,11 @@
-import { JobAnalysisResult, AgentSource, EvaluationTriggerReason, EvaluationHistoryItem } from "@/types/job";
+import {
+  JobAnalysisResult,
+  AgentSource,
+  EvaluationTriggerReason,
+  EvaluationHistoryItem,
+  CareerTrajectory,
+  CorporateBenefitResearch
+} from "@/types/job";
 import { UserProfile } from "@/types/profile";
 import { AiProvider } from "./aiProvider";
 import { MockAiProvider } from "./mockAiProvider";
@@ -173,7 +180,7 @@ export async function generateCareerTrajectoryWithProfile(
   jobResult: JobAnalysisResult,
   profile: UserProfile,
   customProvider?: AiProvider
-): Promise<import("@/types/job").CareerTrajectory> {
+): Promise<CareerTrajectory> {
   if (customProvider) {
     return customProvider.generateCareerTrajectory(jobResult, profile);
   }
@@ -199,7 +206,7 @@ export async function researchCorporateBenefitsWithProfile(
   jobResult: JobAnalysisResult,
   profile: UserProfile,
   customProvider?: AiProvider
-): Promise<import("@/types/job").CorporateBenefitResearch> {
+): Promise<CorporateBenefitResearch> {
   if (customProvider) {
     return customProvider.researchCorporateBenefits(jobResult, profile);
   }
