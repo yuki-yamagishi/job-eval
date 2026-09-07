@@ -9,6 +9,7 @@ lerna-debug.log*
 
 # Diagnostic working directories
 .system_generated
+.agents/state/
 
 node_modules
 dist
