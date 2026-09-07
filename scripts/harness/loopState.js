@@ -261,7 +261,7 @@ export function canStop() {
 
 // CLI Command Runner
 const isDirectExecution = process.argv[1] && 
-  (fileURLToPath(import.meta.url) === path.resolve(process.argv[1]));
+  (fileURLToPath(import.meta.url).toLowerCase() === path.resolve(process.argv[1]).toLowerCase());
 
 if (isDirectExecution) {
   const [,, command, ...args] = process.argv;
