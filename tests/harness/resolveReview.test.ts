@@ -329,6 +329,32 @@ describe('resolveReview', () => {
       expect(stdout).toContain('**対応コミット**: `abc1234`');
     });
 
+    it('handles summary values starting with a hyphen in CLI', async () => {
+      const { execFileSync } = await import('child_process');
+      const scriptPath = path.resolve(__dirname, '../../scripts/harness/resolveReview.js');
+
+      const stdout = execFileSync(
+        process.execPath,
+        [
+          scriptPath,
+          '--commit',
+          'abc1234',
+          '--summary',
+          '- Hyphen-prefixed summary description',
+          '--pr',
+          '48',
+          '--dry-run',
+        ],
+        {
+          encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }
+      );
+
+      expect(stdout).toContain('[OK] Review resolution report successfully processed!');
+      expect(stdout).toContain('**修正概要**: - Hyphen-prefixed summary description');
+    });
+
     it('exits with code 1 when required arguments are missing', async () => {
       const { execFileSync } = await import('child_process');
       const scriptPath = path.resolve(__dirname, '../../scripts/harness/resolveReview.js');

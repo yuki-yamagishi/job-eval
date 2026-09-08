@@ -54,7 +54,7 @@ export function resolveReview(options = {}) {
 
   const currentState = stateMachine.getState();
 
-  const rawPrNumber = prNumber !== null && prNumber !== undefined ? prNumber : currentState.prNumber;
+  const rawPrNumber = prNumber !== null && prNumber !== undefined ? prNumber : currentState?.prNumber;
   const numPr = Number(rawPrNumber);
   if (isNaN(numPr) || numPr <= 0 || !Number.isInteger(numPr)) {
     throw new Error(
@@ -75,7 +75,7 @@ export function resolveReview(options = {}) {
     }
   }
 
-  const existingIssues = Array.isArray(currentState.issues) ? currentState.issues : [];
+  const existingIssues = Array.isArray(currentState?.issues) ? currentState.issues : [];
 
   let targetIssues = [];
   if (targetIds && targetIds.length > 0) {
@@ -195,9 +195,18 @@ const isDirectExecution =
 if (isDirectExecution) {
   const args = process.argv.slice(2);
 
+  const KNOWN_FLAGS = new Set([
+    '--commit', '-c',
+    '--summary', '-s',
+    '--details', '-d',
+    '--issue-ids', '-i',
+    '--pr', '-p',
+    '--dry-run',
+  ]);
+
   function getArgValue(flags) {
     for (let i = 0; i < args.length; i++) {
-      if (flags.includes(args[i]) && args[i + 1] && !args[i + 1].startsWith('-')) {
+      if (flags.includes(args[i]) && args[i + 1] !== undefined && !KNOWN_FLAGS.has(args[i + 1])) {
         return args[i + 1];
       }
     }
