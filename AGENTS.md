@@ -94,23 +94,31 @@ Issue はプレフィックス付きラベル（`status:*`, `type:*`, `priority:
 ### ⑤ Pull Request 作成
 - PR 本文に `Closes #<Issue番号>` を含めて PR を作成（`gh pr create`）。
 - **【最重要】PR 作成直後の自動マージは厳禁。PR は必ず OPEN 状態を維持すること。**
+- PR 作成が検知されると、ライフサイクルフック（`postToolHook.js`）により `.agents/state/loop_state.json` が `PR_CREATED` 状態に遷移し、エージェントの勝手な作業完了終了（早期停止）が物理的に禁止されます。
 
 ### ⑥ Antigravity Fleet（独立サブエージェント）による最上位モデル客観レビュー
-- PR 作成後、メインエージェントは `invoke_subagent` を用いて、**思考コンテキストを完全に切り離した独立サブエージェント（Fleet）**を起動する。
+- PR 作成後、メインエージェントは `node scripts/harness/loopState.js review-requested --active-subagents` を実行して状態を更新した上で、`invoke_subagent` を用いて **思考コンテキストを完全に切り離した独立サブエージェント（Fleet: `fleet_reviewer`）** を起動する。
 - Fleet は実装者バイアスを完全に排除し、`git diff` および `AGENTS.md` 規約のみをインプットとして、**最上位モデル（Gemini 3.8 Flash）** による客観的第三者コードレビューを実施する。
 - レビュー規則：
   - 各指摘には Conventional Comments 形式の重要度接頭辞（`[must]`, `[should]`, `[imo]`, `[nits]`, `[ask]`, `[good]`）を付与。
   - コメント冒頭に凡例ガイドを提示。
   - 総合判定として `[LGTM]` または `[要修正]` を判定。
-- Fleet は `scripts/harness/postPrComment.js` または一時ファイル経由の `gh pr comment` を実行し、**GitHub PR の Web UI スレッドに公式コメントとして永続記録**する。
+- Fleet は `scripts/harness/postPrComment.js`（`--body-file` 経由）を実行し、**GitHub PR の Web UI スレッドに公式コメントとして永続記録**する。
+- メインエージェントは親プロセスとして Reactive Wakeup（待機通知）を受け取るまで待機し、レビュー完了後に通知を受ける。
 
-### ⑦ レビュー指摘に基づく手元自己修復コミット
-- レビュー結果に `[must]` や `[should]` の指摘がある場合、メインエージェントが Antigravity IDE 上でコードを迅速に修正。
-- `npm.cmd run check` で全品質ゲート 100% PASS を確認後、PR ブランチに追加コミット＆プッシュする。
+### ⑦ レビュー指摘に基づく手元自己修復コミット & 解決報告（DoD 遵守）
+- **ループエンジニアリング完了定義 (Definition of Done: DoD)**:
+  - **全指摘解消・`RESOLVED_LGTM` 到達前の作業完了・会話終了は物理的に禁止**（Stop フック `stopHook.js` によりブロックされます）。
+  - レビュー結果を受領後、`node scripts/harness/parseReviewResult.js <レビュー本文> --update-state` を実行して指摘事項を `loopState.js` に反映する。
+  - レビュー結果に `[must]` や `[should]` のブロッキング指摘がある場合、メインエージェントが Antigravity IDE 上でコードを迅速に修正・単体テストを拡充する。
+  - `npm.cmd run check` で全品質ゲート 100% PASS を確認後、PR ブランチに追加コミット＆プッシュする。
+  - 修正完了後、解決報告ツール `node scripts/harness/resolveReview.js --commit <コミットハッシュ> --summary "<修正概要>"` を実行し、PR スレッドに公式解決コメント（`[Resolved]`）を投稿して状態を `STATUS.RESOLVED_LGTM` に収束させる。
+  - 全てのブロッキング指摘が解消されて `RESOLVED_LGTM` に到達して初めて、Stop フックの終了ガードが解除される。
 
 ### ⑧ 人間（ユーザー）承認によるマージ
-- レビュー指摘の解消と総合判定 `[LGTM]` を確認し、ユーザーに PR の内容とレビュー結果を報告。
+- レビュー指摘の解消と総合判定 `[LGTM (All Resolved)]` を確認し、ユーザーに PR の内容とレビュー結果を報告。
 - **人間（ユーザー）の明示的な指示または承認を得てからのみ、マージ（`gh pr merge`）を実行する。**
+- マージ完了後、`node scripts/harness/loopState.js reset` を実行して状態を初期化し、Issue の `status:*` ラベルを外して完了とする。
 
 ---
 
@@ -139,6 +147,7 @@ Issue はプレフィックス付きラベル（`status:*`, `type:*`, `priority:
 | コマンド | 目的・実行内容 |
 | :--- | :--- |
 | `npm run check` | **ワンショット総合品質 & セキュリティゲート**: シークレットスキャン (`security-check`) + ドキュメント検査 (`doc-check`) + `tsc --noEmit`（型検査）+ `vitest run --coverage`（全単体テスト & カバレッジ）+ `vite build`（プロダクションビルド）を一括実行 |
+| `npm run check:fast` | **高速型・単体テスト検査**: `tsc --noEmit` + `vitest run`（2〜3秒で完了） |
 | `npm run security-check` | API キーやシークレットの誤混入を自動スキャン |
 | `npm run doc-check` | `docs/` 配下の必須ドキュメント整合性・記載充実度を自動検証 |
 | `npm run test:run` | 全単体テストを 1 回実行 |
@@ -146,6 +155,11 @@ Issue はプレフィックス付きラベル（`status:*`, `type:*`, `priority:
 | `npm run test` | テストをウォッチモードで実行 |
 | `npm run dev` | Vite ローカル開発サーバーを起動 (ポート 1420) |
 | `npm run build` | TypeScript コンパイルおよびフロントエンドのプロダクションビルド |
+| `node scripts/harness/loopState.js status` | 現在の自己修復ループ状態（State）を確認 |
+| `node scripts/harness/loopState.js can-stop` | Stop フックによる終了可否を事前判定 |
+| `node scripts/harness/parseReviewResult.js <file> --update-state` | レビュー結果 Markdown をパースし loopState を更新 |
+| `node scripts/harness/resolveReview.js --commit <hash> --summary "<概要>"` | 修正コミット紐付け解決報告コメントを投稿し loopState を収束 |
+| `node scripts/harness/loopState.js reset` | 自己修復ループ状態を IDLE にリセット |
 
 ---
 
