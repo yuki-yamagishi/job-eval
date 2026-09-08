@@ -9,8 +9,9 @@
 
 ### 成果サマリー
 1. **`parseReviewResult.js` のバッククォート対応**: バッククォート囲み（``- `[must]`: ○○``）指摘の抽出対応と凡例誤判定の根絶。
-2. **`preToolHook.js` の `npm.cmd` 対応**: `/\bnpm(?:\.cmd)?\s+(?:run\s+)?test\b/i` 拡張によるウォッチモードハング防止。
+2. **`preToolHook.js` の `npm.cmd` 対応**: `/\bnpm(?:\.cmd)?\s+(?:run\s+)?test\b/i` 拡張および `test:coverage` 除外による誤検知防止。
 3. **`postToolHook.js` の PR 番号解決安全性向上**: コマンドラインからの Issue 番号誤抽出フォールバックを排除。
 4. **`stopHook.js` / `loopState.js` の緊急脱出案内**: 停止拒否メッセージに `node scripts/harness/loopState.js reset` を明記。
 5. **Fleet レビュアーの最小権限と実行責務の整合化**: Fleet サブエージェントは読み取り専用でレビュー結果を出力し、PR 公式投稿は親エージェントが行うクリーンな責務分離。
-6. **単体テスト拡充**: `tests/harness/` の単体テスト拡充と全品質ゲート通過。
+6. **Fleet 客観コードレビュー**: 総合判定 `[LGTM]` 受領、`[should]` および `[nits]` の自己修復対応完了。
+7. **全品質ゲート通過**: ハーネステスト 64 件、全体単体テスト 167 件全件合格、フル品質ゲート `npm.cmd run check` PASS。

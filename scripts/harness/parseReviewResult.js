@@ -83,8 +83,8 @@ export function parseReviewResult(reviewText, options = {}) {
     }
 
     // Also skip typical legend definition lines if not inside an explicit section heading
-    // (e.g. definition list lines explaining prefixes with keywords like '修正必須', '強く推奨', '任意', etc.)
-    const isLegendDefinition = /^[-*]\s*(?:\*\*)?`?\[(must|should|imo|nits|ask|good)\]`?(?:\*\*)?[:\s]*(?:マージ前に|強く推奨|私見|些細な|質問|称賛|対応不要|修正必須|対応任意)/i.test(line);
+    // (e.g. definition lines matching exact prompt guide phrases ending with explanations like 'マージ前に修正必須（...')
+    const isLegendDefinition = /^[-*]\s*(?:\*\*)?`?\[(must|should|imo|nits|ask|good)\]`?(?:\*\*)?[:\s]*(?:マージ前に修正必須|強く推奨|私見・提案|些細な指摘|質問・確認|称賛・好ましい実装|修正必須|推奨)(?:[（(].*[）)])?\s*$/i.test(line);
     if (isLegendDefinition) {
       continue;
     }

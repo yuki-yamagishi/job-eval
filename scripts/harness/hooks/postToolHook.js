@@ -58,7 +58,7 @@ export function handlePostTool(payload = {}, stateMachine = defaultStateMachine)
         }
       }
 
-      // 4. Try git branch name or CI environment variables
+      // 3. Try git branch name or CI environment variables
       if (!prNumber) {
         try {
           const branchRef = process.env.GITHUB_HEAD_REF || 
@@ -76,7 +76,7 @@ export function handlePostTool(payload = {}, stateMachine = defaultStateMachine)
         }
       }
 
-      // 5. Safe fallback for tests / detached HEAD / offline environments
+      // 4. Safe fallback for tests / detached HEAD / offline environments
       if (!prNumber || isNaN(prNumber) || prNumber <= 0) {
         prNumber = 1;
       }

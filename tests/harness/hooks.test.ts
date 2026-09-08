@@ -235,7 +235,7 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       expect(result4.reason).toContain('Interactive test runner detected');
     });
 
-    it('allows non-hanging test commands (npm run test:run, npm test --run)', () => {
+    it('allows non-hanging test commands (npm run test:run, npm test --run, npm run test:coverage)', () => {
       const result1 = handlePreTool({
         toolCall: {
           name: 'run_command',
@@ -251,6 +251,22 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
         },
       });
       expect(result2.decision).toBe('allow');
+
+      const result3 = handlePreTool({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'npm run test:coverage' },
+        },
+      });
+      expect(result3.decision).toBe('allow');
+
+      const result4 = handlePreTool({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'npm.cmd run test:coverage' },
+        },
+      });
+      expect(result4.decision).toBe('allow');
     });
   });
 
