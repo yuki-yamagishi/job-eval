@@ -3,93 +3,138 @@ name: job-eval-harness
 description: JobEval 開発ガイドライン、AIアシスト Issue/PR 連携、ADR設計決定記録、Issueフォルダ完結型ドキュメント管理、独立Fleetレビュー、品質・セキュリティゲート、および完全日本語ドキュメント標準化スキル。JobEval プロジェクトの機能追加・改修・検証時に必ず使用する。
 ---
 
-# JobEval 開発・検証ハーネス スキル (刷新版)
+# JobEval 開発・自己修復実践 Runbook (job-eval-harness)
 
-このスキルは、**JobEval (AI求人適合度評価 & Markdown管理デスクトップアプリ)** の開発・検証・PR作成を最高品質で行うための公式ワークフローガイドです。
+このスキルは、**JobEval (AI求人適合度評価 & Markdown管理デスクトップアプリ)** において、エージェントがタスクを自律完走するための **「実践 Runbook（実行手順書・コマンド集）」** です。
+基本規約・アーキテクチャ決定・完了定義（DoD）の正本はリポジトリ直下の **`AGENTS.md`** を参照してください。
 
 ---
 
-## 1. 開発フロー（標準ハイブリッド 8 ステップ）
+## 1. 実践 Runbook: タスク着手から完了までの 7 フェーズ
 
 ```
-[ 1. AIアシスト Issue 起票 ] ───> [ 2. ADR 作成 (必要時) ] ───> [ 3. ブランチ & 実装 ] ───> [ 4. 品質ゲート (npm run check) ]
-                                                                                                        │
-[ 8. 人間承認マージ ] <─── [ 7. 手元自己修復コミット ] <─── [ 6. 独立Fleetレビュー ] <─── [ 5. PR作成 (OPEN維持) ]
+[ Phase 1: 着手・ブランチ ] ➔ [ Phase 2: 実装・ドキュメント ] ➔ [ Phase 3: 検証・コミット ]
+                                                                       │
+[ Phase 7: 承認マージ ]  [ Phase 6: 自己修復・解決報告 ]  [ Phase 5: Fleetレビュー ]  [ Phase 4: PR作成 ]
 ```
 
-1. **AIアシスト Issue 起票**: 要件・受入基準・設計論点を確定。
-2. **ADR（設計決定記録）の作成**: アーキテクチャ変更時は `docs/adr/000X-xxx.md` を作成し `docs/adr/README.md` に登録。
-3. **ブランチ作成 & 実装**: `feature/issue-<番号>-<概要>` でブランチを作成。
-4. **自動品質検査**: `npm.cmd run check`（ワンショット総合品質ゲート）で全件 PASS。
-5. **Pull Request 作成**: `Closes #<Issue番号>` を記載し、PR は必ず OPEN 状態を維持。
-6. **Antigravity Fleet による客観レビュー**: 独立サブエージェント（`.agents/subagents/fleet-reviewer/`）による第三者レビュー（Conventional Comments 接頭辞付き）を `gh pr comment` で投稿。
-7. **レビュー指摘に基づく手元修正**: 指摘を反映し追加コミット＆プッシュ。
-8. **人間（ユーザー）承認によるマージ**: ユーザーの明示的な指示または承認を得てからのみマージ。
+### Phase 1: Issue 着手 & トピックブランチ作成
+1. **着手判定**: `status: backlog` の場合はユーザー指示を待つ。指示または `status: ready` の場合は自律着手。
+2. **Issue ラベル更新**:
+   ```bash
+   gh issue edit <id> --remove-label "status: backlog,status: ready" --add-label "status: in-progress"
+   ```
+3. **トピックブランチ作成**:
+   ```bash
+   git checkout -b feature/issue-<番号>-<概要>
+   ```
+
+### Phase 2: コア実装 & 4軸ドキュメント整備 (`docs/` 配下)
+1. **設計原則**: クリーンアーキテクチャに基づき、`src/core/`（純粋ロジック）から実装。
+2. **Issue フォルダ完結型ドキュメントの作成**:
+   `docs/issues/ISSUE-XXX_<slug>/` 配下に以下の 4 ファイルを完全日本語で作成：
+   - `issue.md`: 要件定義・受入基準
+   - `pre_verification.md`: 4軸事前検証ログ（技術的ボトルネック、UX、データ永続性、テスト自律性）
+   - `plan.md`: 実装計画書（変更ファイル一覧、実装内容、検証手順）
+   - `walkthrough.md`: 実装成果レポート
+3. **ルートポインタの更新**:
+   `docs/pre_phase_verification.md`, `docs/implementation_plan.md`, `docs/walkthrough.md` を対象 Issue フォルダを指すよう更新。
+
+### Phase 3: 自動品質検証 & コミット & リモートプッシュ
+1. **開発中の高速反復**:
+   ```bash
+   npm.cmd run check:fast
+   ```
+2. **Conventional Commits 規約に準拠したコミット**:
+   - `feat:`, `fix:`, `docs:`, `chore:`, `test:`, `refactor:`, `ci:`
+3. **コミット・プッシュ前のフル品質ゲート**:
+   ```bash
+   npm.cmd run check
+   ```
+4. **リモートプッシュ**:
+   ```bash
+   git push origin <ブランチ名>
+   ```
+
+### Phase 4: Pull Request 作成 & 早期停止ガード発動
+1. **PR 作成**:
+   ```bash
+   gh pr create --title "<タイトル>" --body-file <一時ファイル>
+   ```
+   - PR 本文には `Closes #<Issue番号>` を必ず含める。
+   - **【最重要】PR 作成直後の自動マージは厳禁。PR は必ず OPEN 状態を維持すること。**
+2. **早期停止ガードの発動**:
+   - `postToolHook.js` が PR 作成を自動検知し、`loopState.js` の状態が `PR_CREATED` に遷移します。
+   - この時点でエージェントが作業終了（会話終了）しようとすると、Stop フック（`stopHook.js`）により物理的にブロックされます。
+
+### Phase 5: Antigravity Fleet（独立サブエージェント）客観レビュー
+1. **レビュー待機状態への遷移**:
+   ```bash
+   node scripts/harness/loopState.js review-requested --active-subagents
+   ```
+2. **Fleet サブエージェントの起動**:
+   - `invoke_subagent` で `fleet_reviewer`（最上位モデル Gemini 3.8 Flash）を起動。
+   - Fleet は `git diff` を読み取り、Conventional Comments 接頭辞（`[must]`, `[should]`, `[imo]`, `[nits]`, `[ask]`, `[good]`）を付与したレビューを作成。
+   - Fleet は `node scripts/harness/postPrComment.js <PR番号> <一時ファイル>` で GitHub PR スレッドに公式コメントを投稿。
+3. **Reactive Wakeup 待機**:
+   - 親エージェントはツールを呼ばずに待機し、Fleet の完了通知を受け取ります（サブエージェント待機中の Stop は許可されます）。
+
+### Phase 6: レビュー結果パース & 手元自己修復 & 解決報告（DoD 達成）
+1. **レビュー結果のパース & loopState 更新**:
+   ```bash
+   node scripts/harness/parseReviewResult.js <レビュー本文ファイル> --update-state
+   ```
+   - ブロッキング指摘（`[must]`, `[should]`）がある場合、状態は `STATUS.NEEDS_FIX` となります。
+2. **手元自己修復コミット**:
+   - 指摘事項を修正し、単体テストを追加。
+   - `npm.cmd run check` で 100% PASS を確認後、追加コミット＆プッシュ。
+3. **公式解決報告の投稿（収束）**:
+   ```bash
+   node scripts/harness/resolveReview.js --commit <コミットハッシュ> --summary "<修正概要>"
+   ```
+   - PR スレッドに公式解決コメントが投稿され、全ブロッキング指摘解消時に状態が `STATUS.RESOLVED_LGTM` に収束します。
+   - `RESOLVED_LGTM` に達して初めて、Stop フックの停止ガードが解除されます。
+
+### Phase 7: 人間（ユーザー）承認によるマージ & 完了
+1. **人間（ユーザー）への報告**:
+   - レビュー指摘の解消と総合判定 `[LGTM (All Resolved)]` を確認し、ユーザーにマージの可否を伺う。
+2. **承認マージ**:
+   - **人間（ユーザー）の明示的な指示または承認を得てからのみマージを実行する。**
+3. **状態リセット**:
+   ```bash
+   node scripts/harness/loopState.js reset
+   ```
+4. **Issue クローズ & ラベルクリーンアップ**:
+   - PR マージにより Issue は自動クローズされるため、`status:*` ラベルを外す：
+   ```bash
+   gh issue edit <id> --remove-label "status: in-progress"
+   ```
 
 ---
 
-## 2. ドキュメント管理規約 (`docs/` 配下)
+## 2. 開発 & ハーネス コマンドリファレンス
 
-すべての設計・検証資産はリポジトリの `docs/` 配下に完全な日本語で記録・保守します：
-
-1. **設計決定記録 (`docs/adr/`)**:
-   - スコアリング計算式や永続化形式、AIプロバイダー等の重要決定を番号付き不変レコードで蓄積。
-2. **Issue フォルダ完結型ドキュメント (`docs/issues/ISSUE-XXX_<slug>/`)**:
-   - 各 Issue ごとにフォルダを作成し、以下の4ファイルを完結配置：
-     - `issue.md`: 要件定義・受入基準
-     - `pre_verification.md`: 4軸事前検証ログ（技術的ボトルネック、UX、データ永続性、テスト自律性）
-     - `plan.md`: 実装計画書（変更ファイル一覧、実装内容、検証手順）
-     - `walkthrough.md`: 実装成果レポート（完了時の達成内容、検証結果）
-3. **過去ログアーカイブ (`docs/archive/phases/`)**:
-   - Issue に紐づかない過去フェーズを安全に退避・保全。
-4. **最新ポインタドキュメント (`docs/pre_phase_verification.md`, `docs/implementation_plan.md`, `docs/walkthrough.md`)**:
-   - 現在進行中の最新 Issue へのポインタ兼軽量サマリーを保持し、肥大化を防止。
+| コマンド | 用途・実行内容 |
+| :--- | :--- |
+| `npm run check` | **ワンショット総合品質 & セキュリティゲート**: シークレットスキャン + ドキュメント検査 + 型検査 + 全単体テスト & カバレッジ + 本番ビルドを一括実行 |
+| `npm run check:fast` | **高速型・単体テスト検査**: `tsc --noEmit` + `vitest run`（2〜3秒で完了） |
+| `npm run doc-check` | ドキュメント & ハーネス整合性自動検査 (`scripts/docCheck.js`) |
+| `npm run test:run` | 全単体テストを実行 |
+| `node scripts/harness/loopState.js status` | 現在の自己修復ループ状態を確認 |
+| `node scripts/harness/loopState.js can-stop` | Stop フックによる終了可否を判定 |
+| `node scripts/harness/parseReviewResult.js <file> --update-state` | レビュー結果 Markdown をパースし loopState を更新 |
+| `node scripts/harness/resolveReview.js --commit <hash> --summary "<概要>"` | 修正コミット紐付け解決報告コメントを投稿し loopState を収束 |
+| `node scripts/harness/loopState.js reset` | ループ状態を IDLE にリセット |
 
 ---
 
-## 3. ワンショット品質 & セキュリティゲート
+## 3. ガードレール & 安全規約
 
-変更後は必ず以下のコマンドで全件合格を確認します：
-
-```bash
-npm.cmd run check
-```
-
-**実行される自動検査**:
-1. **シークレットスキャン (`node scripts/securityCheck.js`)**: APIキー・トークン・秘密鍵・個人情報の誤混入を自動検知。
-2. **ドキュメント & ハーネス整合性検査 (`node scripts/docCheck.js`)**:
-   - `scripts/checkers/adrChecker.js`: ADR 採番・インデックス整合性検証。
-   - `scripts/checkers/agentSkillChecker.js`: AGENTS.md と SKILL.md の同期検証。
-   - `scripts/checkers/issueDocChecker.js`: docs/issues/ フォルダ完結性の検証。
-3. **TypeScript 型検査 (`tsc --noEmit`)**: Strict モードでの型完全性の検証。
-4. **単体・統合・UIテスト & カバレッジ (`vitest run --coverage`)**: コアロジック 90% 以上の網羅率。
-5. **本番バンドルビルド (`vite build`)**: バンドル破損・CSSリンク・循環参照の検証。
-
----
-
-## 4. Git コミット & PR 規約
-
-* **ブランチ命名**: `feature/issue-<番号>-<概要>`, `fix/issue-<番号>-<概要>`
-* **Conventional Commits 規約**:
-  - `feat:` 新機能追加
-  - `fix:` バグ修正
-  - `docs:` ドキュメント・ADR 作成・更新
-  - `chore:` ハーネス・依存関係・設定更新
-  - `test:` テストコード追加・修正
-  - `refactor:` リファクタリング
-  - `ci:` CI/CD 設定
-* **PR 本文への Issue 紐付け**: `Closes #<Issue番号>` を必ず含める。
-* **文字化け防止**: すべてのファイルは UTF-8 (LF) で保存（`.gitattributes` で強制）。
-* **言語標準**: すべてのドキュメント・解説・PR本文は **完全日本語** で記述。
-
----
-
-## 5. 自律的サブエージェント（並列実行）安全規約
-
-* **発動条件**: 独立した 3 つ以上の新規ファイル/テスト作成、または並行調査時のみ自律起動。
-* **安全ガードレール**:
-  - 最大並列数は **最大 4 体まで**。
-  - 各サブエージェントはコード編集のみ行い、**`npm run check` による最終一括品質検証およびコミット・プッシュは親エージェントが 1 回のみ実行**。
-* **PR レビューサブエージェント (Fleet)**:
-  - `.agents/subagents/fleet-reviewer/` の最小権限設定を使用。
-  - ファイル書き込み禁止、対話型ウォッチモード（`npm test`）厳禁、単発終了コマンド（`npm.cmd run test:run`）を義務化。
+1. **ウォッチモード（常駐プロセス）の実行厳禁**:
+   - エージェントは対話シェルではないため、`npm test`（ウォッチモード）を絶対に実行してはならない。必ず単発終了コマンド（`npm.cmd run test:run` または `npm.cmd run check`）を使用すること。
+2. **単一コマンド実行規約**:
+   - PowerShell のセミコロン（`;`）や `&&`、パイプ（`|`）を用いた複数コマンド連結は禁止。1 回のツール呼び出しで 1 コマンドを実行すること。
+3. **Windows PowerShell 環境での実行規約**:
+   - スクリプト実行ポリシーを回避するため、必ず `npm.cmd` を使用すること。
+4. **文字化け・クォート破損防止**:
+   - PR コメント投稿時は生文字列渡しを避け、必ず一時ファイル経由の `--body-file`（`postPrComment.js`）を使用すること。

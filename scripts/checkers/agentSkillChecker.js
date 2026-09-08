@@ -32,6 +32,9 @@ export function checkAgentSkillIntegrity(projectRoot) {
     { key: 'npm run check', name: 'ワンショット品質ゲート (npm run check)' },
     { key: 'Fleet', name: '独立レビューサブエージェント (Fleet)' },
     { key: 'docs/', name: 'ドキュメント管理規約 (docs/)' },
+    { key: 'loopState', name: 'ループ状態管理マシン (loopState)' },
+    { key: 'resolveReview', name: '解決報告ツール (resolveReview)' },
+    { key: 'DoD', name: 'ループエンジニアリング完了定義 (DoD)' },
   ];
 
   for (const policy of REQUIRED_CORE_POLICIES) {
