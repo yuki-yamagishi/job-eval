@@ -18,8 +18,10 @@ export const STATUS = Object.freeze({
   RESOLVED_LGTM: 'RESOLVED_LGTM',
 });
 
+const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../');
+
 export const DEFAULT_STATE_FILE = process.env.LOOP_STATE_FILE || 
-  path.resolve(process.cwd(), '.agents/state/loop_state.json');
+  path.resolve(ROOT_DIR, '.agents/state/loop_state.json');
 
 /**
  * Creates a blank initial state object.
@@ -30,6 +32,7 @@ export function createInitialState() {
     prNumber: null,
     reviewRequestedAt: null,
     issues: [],
+    activeSubagents: false,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -91,19 +94,38 @@ export class LoopStateMachine {
       prNumber: num,
       reviewRequestedAt: null,
       issues: [],
+      activeSubagents: false,
     };
     return this.saveState(newState);
   }
 
   /**
    * Transition: Fleet review requested -> status: REVIEW_REQUESTED
+   * 
+   * @param {Object} [options]
+   * @param {boolean} [options.activeSubagents=false] Whether subagents were spawned
    */
-  setReviewRequested() {
+  setReviewRequested(options = {}) {
     const current = this.getState();
     const updated = {
       ...current,
       status: STATUS.REVIEW_REQUESTED,
       reviewRequestedAt: new Date().toISOString(),
+      activeSubagents: Boolean(options.activeSubagents),
+    };
+    return this.saveState(updated);
+  }
+
+  /**
+   * Sets whether active subagents are currently running.
+   * 
+   * @param {boolean} [active=true]
+   */
+  setActiveSubagents(active = true) {
+    const current = this.getState();
+    const updated = {
+      ...current,
+      activeSubagents: Boolean(active),
     };
     return this.saveState(updated);
   }
@@ -136,6 +158,7 @@ export class LoopStateMachine {
       ...current,
       status: nextStatus,
       issues: formattedIssues,
+      activeSubagents: false,
     };
     return this.saveState(updated);
   }
@@ -197,10 +220,38 @@ export class LoopStateMachine {
 
   /**
    * Evaluates if agent execution / session is allowed to stop.
-   * Stop is only allowed when status is IDLE or RESOLVED_LGTM.
+   * 
+   * @param {Object} [options]
+   * @param {boolean} [options.hasActiveSubagents] Whether active subagents (e.g. Fleet reviewer) are running
+   * @param {boolean} [options.isSubagent] Whether execution is running inside a subagent context
+   * @returns {{ allowed: boolean, status: string, prNumber: number|null, reason: string }}
    */
-  canStop() {
+  canStop(options = {}) {
     const current = this.getState();
+    const isSubagent = Boolean(options.isSubagent);
+    const hasActiveSubagents = Boolean(options.hasActiveSubagents);
+
+    // 1. Subagent execution context bypass
+    if (isSubagent) {
+      return {
+        allowed: true,
+        status: current.status,
+        prNumber: current.prNumber,
+        reason: 'Stop allowed: Execution is running inside a subagent context.',
+      };
+    }
+
+    // 2. Active subagent waiting bypass (parent agent waiting for Reactive Wakeup)
+    if (hasActiveSubagents && (current.status === STATUS.PR_CREATED || current.status === STATUS.REVIEW_REQUESTED)) {
+      return {
+        allowed: true,
+        status: current.status,
+        prNumber: current.prNumber,
+        reason: `Stop allowed: Active subagent running in status "${current.status}". Parent agent is waiting for reactive wakeup notification.`,
+      };
+    }
+
+    // 3. Normal status check
     const allowed = current.status === STATUS.IDLE || current.status === STATUS.RESOLVED_LGTM;
 
     let reason = '';
@@ -239,8 +290,12 @@ export function setPrCreated(prNumber) {
   return defaultStateMachine.setPrCreated(prNumber);
 }
 
-export function setReviewRequested() {
-  return defaultStateMachine.setReviewRequested();
+export function setReviewRequested(options = {}) {
+  return defaultStateMachine.setReviewRequested(options);
+}
+
+export function setActiveSubagents(active = true) {
+  return defaultStateMachine.setActiveSubagents(active);
 }
 
 export function setReviewResult(result) {
@@ -255,8 +310,8 @@ export function reset() {
   return defaultStateMachine.reset();
 }
 
-export function canStop() {
-  return defaultStateMachine.canStop();
+export function canStop(options = {}) {
+  return defaultStateMachine.canStop(options);
 }
 
 // CLI Command Runner
@@ -273,7 +328,9 @@ if (isDirectExecution) {
       break;
     }
     case 'can-stop': {
-      const check = canStop();
+      const hasActive = args.includes('--has-active-subagents');
+      const isSub = args.includes('--is-subagent');
+      const check = canStop({ hasActiveSubagents: hasActive, isSubagent: isSub });
       if (check.allowed) {
         console.log(`[PASS] ${check.reason}`);
         process.exit(0);
@@ -294,8 +351,15 @@ if (isDirectExecution) {
       break;
     }
     case 'review-requested': {
-      const state = setReviewRequested();
-      console.log(`[OK] State transitioned to REVIEW_REQUESTED`);
+      const hasActive = args.includes('--active-subagents') || args.includes('true');
+      const state = setReviewRequested({ activeSubagents: hasActive });
+      console.log(`[OK] State transitioned to REVIEW_REQUESTED (activeSubagents: ${state.activeSubagents})`);
+      break;
+    }
+    case 'active-subagents': {
+      const flag = args[0] !== 'false';
+      const state = setActiveSubagents(flag);
+      console.log(`[OK] activeSubagents set to ${state.activeSubagents}`);
       break;
     }
     case 'reset': {
@@ -304,7 +368,7 @@ if (isDirectExecution) {
       break;
     }
     default: {
-      console.log('Usage: node loopState.js <status|can-stop|pr-created|review-requested|reset>');
+      console.log('Usage: node loopState.js <status|can-stop|pr-created|review-requested|active-subagents|reset>');
       process.exit(0);
     }
   }

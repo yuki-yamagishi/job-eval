@@ -74,6 +74,83 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       expect(result.decision).toBe('allow');
       expect(result.reason).toContain('RESOLVED_LGTM');
     });
+
+    it('allows stop when status is PR_CREATED but active subagents are running (payload.hasActiveSubagents: true)', () => {
+      testMachine.setPrCreated(46);
+      const result = handleStop({ hasActiveSubagents: true }, testMachine);
+      expect(result.decision).toBe('allow');
+      expect(result.reason).toContain('Active subagent running');
+      expect(result.reason).toContain('PR_CREATED');
+    });
+
+    it('allows stop when status is REVIEW_REQUESTED and state has activeSubagents: true', () => {
+      testMachine.setPrCreated(46);
+      testMachine.setReviewRequested({ activeSubagents: true });
+      const result = handleStop({}, testMachine);
+      expect(result.decision).toBe('allow');
+      expect(result.reason).toContain('Active subagent running');
+      expect(result.reason).toContain('REVIEW_REQUESTED');
+    });
+
+    it('allows stop when payload has activeSubagents array or count in REVIEW_REQUESTED', () => {
+      testMachine.setPrCreated(46);
+      testMachine.setReviewRequested({ activeSubagents: false });
+
+      const result1 = handleStop({ activeSubagents: 1 }, testMachine);
+      expect(result1.decision).toBe('allow');
+
+      const result2 = handleStop({ subagents: [{ role: 'fleet-reviewer' }] }, testMachine);
+      expect(result2.decision).toBe('allow');
+    });
+
+    it('allows stop when environment variable ACTIVE_SUBAGENTS is true', () => {
+      testMachine.setPrCreated(46);
+      process.env.ACTIVE_SUBAGENTS = 'true';
+      try {
+        const result = handleStop({}, testMachine);
+        expect(result.decision).toBe('allow');
+        expect(result.reason).toContain('Active subagent running');
+      } finally {
+        delete process.env.ACTIVE_SUBAGENTS;
+      }
+    });
+
+    it('allows stop unconditionally when payload specifies subagent context (isSubagent: true, role, agentType)', () => {
+      testMachine.setPrCreated(46);
+      testMachine.setReviewResult({
+        lgtm: false,
+        issues: [{ id: '1', type: 'must', description: 'Blocker', resolved: false }],
+      });
+
+      const result1 = handleStop({ isSubagent: true }, testMachine);
+      expect(result1.decision).toBe('allow');
+      expect(result1.reason).toContain('subagent context');
+
+      const result2 = handleStop({ role: 'fleet-reviewer' }, testMachine);
+      expect(result2.decision).toBe('allow');
+      expect(result2.reason).toContain('subagent context');
+
+      const result3 = handleStop({ agentRole: 'Code Reviewer' }, testMachine);
+      expect(result3.decision).toBe('allow');
+      expect(result3.reason).toContain('subagent context');
+    });
+
+    it('allows stop unconditionally when ANTIGRAVITY_SUBAGENT environment variable is set', () => {
+      testMachine.setPrCreated(46);
+      testMachine.setReviewResult({
+        lgtm: false,
+        issues: [{ id: '1', type: 'must', description: 'Blocker', resolved: false }],
+      });
+
+      process.env.ANTIGRAVITY_SUBAGENT = 'true';
+      try {
+        const result = handleStop({}, testMachine);
+        expect(result.decision).toBe('allow');
+        expect(result.reason).toContain('subagent context');
+      } finally {
+        delete process.env.ANTIGRAVITY_SUBAGENT;
+      }
+    });
   });
 
   describe('preToolHook', () => {
