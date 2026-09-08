@@ -177,4 +177,52 @@ describe('LoopStateMachine', () => {
     const check = machine.canStop();
     expect(check.allowed).toBe(true);
   });
+
+  it('allows stop when hasActiveSubagents is true in PR_CREATED or REVIEW_REQUESTED', () => {
+    machine.setPrCreated(45);
+    expect(machine.canStop().allowed).toBe(false);
+    expect(machine.canStop({ hasActiveSubagents: true }).allowed).toBe(true);
+    expect(machine.canStop({ hasActiveSubagents: true }).reason).toContain('Active subagent running');
+
+    machine.setReviewRequested();
+    expect(machine.canStop({ hasActiveSubagents: true }).allowed).toBe(true);
+    expect(machine.canStop({ hasActiveSubagents: false }).allowed).toBe(false);
+  });
+
+  it('allows stop unconditionally when isSubagent is true, even with blocking issues in NEEDS_FIX', () => {
+    machine.setPrCreated(45);
+    machine.setReviewResult({
+      lgtm: false,
+      issues: [{ id: '1', type: 'must', description: 'Blocker', resolved: false }],
+    });
+
+    expect(machine.canStop().allowed).toBe(false);
+    const check = machine.canStop({ isSubagent: true });
+    expect(check.allowed).toBe(true);
+    expect(check.reason).toContain('subagent context');
+  });
+
+  it('manages activeSubagents state flag via setReviewRequested, setActiveSubagents, and setReviewResult', () => {
+    machine.setPrCreated(45);
+    expect(machine.getState().activeSubagents).toBe(false);
+
+    // Default setReviewRequested sets activeSubagents to false unless specified
+    machine.setReviewRequested();
+    expect(machine.getState().activeSubagents).toBe(false);
+    expect(machine.canStop({ hasActiveSubagents: machine.getState().activeSubagents }).allowed).toBe(false);
+
+    // Explicit true
+    machine.setReviewRequested({ activeSubagents: true });
+    expect(machine.getState().activeSubagents).toBe(true);
+    expect(machine.canStop({ hasActiveSubagents: machine.getState().activeSubagents }).allowed).toBe(true);
+
+    // Manual setActiveSubagents
+    machine.setActiveSubagents(true);
+    expect(machine.getState().activeSubagents).toBe(true);
+    expect(machine.canStop({ hasActiveSubagents: machine.getState().activeSubagents }).allowed).toBe(true);
+
+    // Completing review resets activeSubagents to false
+    machine.setReviewResult({ lgtm: true, issues: [] });
+    expect(machine.getState().activeSubagents).toBe(false);
+  });
 });
