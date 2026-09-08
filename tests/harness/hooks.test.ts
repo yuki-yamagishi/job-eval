@@ -172,7 +172,7 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       expect(testMachine.getState().status).toBe(STATUS.IDLE);
     });
 
-    it('transitions state to PR_CREATED on successful gh pr create', () => {
+    it('transitions state to PR_CREATED on successful gh pr create (fallback)', () => {
       const result = handlePostTool(
         {
           toolCall: {
@@ -184,6 +184,38 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       );
       expect(result).toEqual({});
       expect(testMachine.getState().status).toBe(STATUS.PR_CREATED);
+      expect(testMachine.getState().prNumber).toBeGreaterThan(0);
+    });
+
+    it('extracts PR number from tool output URL', () => {
+      const result = handlePostTool(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create' },
+          },
+          result: 'https://github.com/yuki-yamagishi/job-eval/pull/99\n',
+        },
+        testMachine
+      );
+      expect(result).toEqual({});
+      expect(testMachine.getState().status).toBe(STATUS.PR_CREATED);
+      expect(testMachine.getState().prNumber).toBe(99);
+    });
+
+    it('extracts PR number from command line issue reference', () => {
+      const result = handlePostTool(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create --body "Closes #46"' },
+          },
+        },
+        testMachine
+      );
+      expect(result).toEqual({});
+      expect(testMachine.getState().status).toBe(STATUS.PR_CREATED);
+      expect(testMachine.getState().prNumber).toBe(46);
     });
   });
 });
