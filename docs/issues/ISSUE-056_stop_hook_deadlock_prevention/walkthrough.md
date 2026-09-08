@@ -38,6 +38,12 @@
   - payload / 環境変数による `isSubagent` 時のバイパス allow 判定。
   - アクティブサブエージェント非存在時の従来通りのブロッキング継続判定。
 
+### (4) Fleet レビュー指摘への自己修復対応
+- `scripts/harness/loopState.js`: CLI `review-requested` コマンドにおける `--active-subagents` 引数対応および `active-subagents` コマンド新設 (`[should]` 対応)。
+- `scripts/harness/hooks/stopHook.js`: `detectSubagentContext` における環境変数ロール判定の正規表現を単語境界 `\b` を用いて堅牢化 (`[nits]` 対応)。
+- `docs/issues/ISSUE-056_stop_hook_deadlock_prevention/plan.md`: `activeSubagents` の安全側デフォルト設計の記述を同期 (`[imo]` 対応)。
+
 ## 3. テスト・検証結果
 - `npm.cmd run test:run tests/harness`: 46 tests 全件合格 (100% PASS)。
 - `npm.cmd run check`: ワンショット総合品質ゲート全項目合格。
+- **Fleet 客観第三者コードレビュー**: 総合判定 `[LGTM]` 受領後、指摘事項を即時全件解消 (`[LGTM (All Resolved)]`)。

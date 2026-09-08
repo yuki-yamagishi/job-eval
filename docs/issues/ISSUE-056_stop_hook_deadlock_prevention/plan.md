@@ -38,11 +38,13 @@
     3. 通常判定:
        - `allowed = current.status === STATUS.IDLE || current.status === STATUS.RESOLVED_LGTM`
 - **`setReviewRequested(options = {})`**:
-  - `activeSubagents: Boolean(options.activeSubagents ?? true)` をセット。
+  - `activeSubagents: Boolean(options.activeSubagents)` をセット（安全側設計としてデフォルト `false`、明示指定時または CLI `--active-subagents` 時に `true` となる）。
 - **`setReviewResult(result)`**:
   - `activeSubagents: false` をセット。
 - **`setActiveSubagents(active = true)`**:
   - 明示的に `activeSubagents` を更新するメソッドを追加。
+- **CLI コマンド拡張**:
+  - `review-requested --active-subagents` および `active-subagents [true|false]` を追加。
 
 ### (2) `scripts/harness/hooks/stopHook.js`
 - **`detectSubagentContext(payload)`**:

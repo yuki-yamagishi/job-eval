@@ -22,13 +22,13 @@ export function detectSubagentContext(payload = {}) {
   if (payload.isSubagent === true || payload.subagent === true) {
     return true;
   }
-  if (typeof payload.role === 'string' && /reviewer|fleet|subagent/i.test(payload.role)) {
+  if (typeof payload.role === 'string' && /\b(reviewer|fleet|subagent)\b/i.test(payload.role)) {
     return true;
   }
-  if (typeof payload.agentRole === 'string' && /reviewer|fleet|subagent/i.test(payload.agentRole)) {
+  if (typeof payload.agentRole === 'string' && /\b(reviewer|fleet|subagent)\b/i.test(payload.agentRole)) {
     return true;
   }
-  if (typeof payload.agentType === 'string' && /reviewer|fleet|subagent/i.test(payload.agentType)) {
+  if (typeof payload.agentType === 'string' && /\b(reviewer|fleet|subagent)\b/i.test(payload.agentType)) {
     return true;
   }
   if (payload.conversationType === 'subagent') {
@@ -44,7 +44,7 @@ export function detectSubagentContext(payload = {}) {
   }
   if (process.env.SUBAGENT_ROLE || process.env.AGENT_ROLE) {
     const envRole = process.env.SUBAGENT_ROLE || process.env.AGENT_ROLE || '';
-    if (/reviewer|fleet|subagent/i.test(envRole)) {
+    if (/\b(reviewer|fleet|subagent)\b/i.test(envRole)) {
       return true;
     }
   }

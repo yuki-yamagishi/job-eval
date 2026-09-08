@@ -351,8 +351,15 @@ if (isDirectExecution) {
       break;
     }
     case 'review-requested': {
-      const state = setReviewRequested();
-      console.log(`[OK] State transitioned to REVIEW_REQUESTED`);
+      const hasActive = args.includes('--active-subagents') || args.includes('true');
+      const state = setReviewRequested({ activeSubagents: hasActive });
+      console.log(`[OK] State transitioned to REVIEW_REQUESTED (activeSubagents: ${state.activeSubagents})`);
+      break;
+    }
+    case 'active-subagents': {
+      const flag = args[0] !== 'false';
+      const state = setActiveSubagents(flag);
+      console.log(`[OK] activeSubagents set to ${state.activeSubagents}`);
       break;
     }
     case 'reset': {
@@ -361,7 +368,7 @@ if (isDirectExecution) {
       break;
     }
     default: {
-      console.log('Usage: node loopState.js <status|can-stop|pr-created|review-requested|reset>');
+      console.log('Usage: node loopState.js <status|can-stop|pr-created|review-requested|active-subagents|reset>');
       process.exit(0);
     }
   }
