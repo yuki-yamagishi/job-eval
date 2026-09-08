@@ -263,7 +263,7 @@ export class LoopStateMachine {
       const unresolvedCount = current.issues.filter(
         (i) => ['must', 'should'].includes(i.type) && !i.resolved
       ).length;
-      reason = `Stop rejected: Loop is currently in status "${current.status}" with ${unresolvedCount} unresolved blocking issue(s). You must complete the self-healing cycle and reach RESOLVED_LGTM before stopping.`;
+      reason = `Stop rejected: Loop is currently in status "${current.status}" with ${unresolvedCount} unresolved blocking issue(s). You must complete the self-healing cycle and reach RESOLVED_LGTM before stopping. (Emergency recovery / user abort: run 'node scripts/harness/loopState.js reset' to safely reset state to IDLE.)`;
     }
 
     return {

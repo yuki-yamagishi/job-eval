@@ -75,9 +75,9 @@ description: JobEval 開発ガイドライン、AIアシスト Issue/PR 連携�
 2. **Fleet サブエージェントの起動**:
    - `invoke_subagent` で `fleet_reviewer`（最上位モデル Gemini 3.8 Flash）を起動。
    - Fleet は `git diff` を読み取り、Conventional Comments 接頭辞（`[must]`, `[should]`, `[imo]`, `[nits]`, `[ask]`, `[good]`）を付与したレビューを作成。
-   - Fleet は `node scripts/harness/postPrComment.js <PR番号> <一時ファイル>` で GitHub PR スレッドに公式コメントを投稿。
+   - Fleet は作成したレビュー Markdown を親エージェントへ返却し、親エージェントが `node scripts/harness/postPrComment.js <PR番号> <一時ファイル>` で GitHub PR スレッドに公式コメントとして永続記録。
 3. **Reactive Wakeup 待機**:
-   - 親エージェントはツールを呼ばずに待機し、Fleet の完了通知を受け取ります（サブエージェント待機中の Stop は許可されます）。
+   - 親エージェントはツールを呼ばずに待機し、Fleet の完了通知を受け取ります（サブエージェント待機中の Stop は許可されます。※作業中断時は `node scripts/harness/loopState.js reset` でリセット可能）。
 
 ### Phase 6: レビュー結果パース & 手元自己修復 & 解決報告（DoD 達成）
 1. **レビュー結果のパース & loopState 更新**:

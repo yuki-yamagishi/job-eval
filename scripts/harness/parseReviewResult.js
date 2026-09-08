@@ -40,7 +40,9 @@ export function parseReviewResult(reviewText, options = {}) {
   // 1. [nits] description
   // ### [good] description
   // [ask] description
-  const prefixRegex = /^(?:[-*#\d.]+\s*)?(?:\*\*)?\[(must|should|imo|nits|ask|good)\](?:\*\*)?[:\s]*(.*)$/i;
+  // - `[must]`: description
+  // * **`[should]`**: description
+  const prefixRegex = /^(?:[-*#\d.]+\s*)?(?:\*\*)?`?\[(must|should|imo|nits|ask|good)\]`?(?:\*\*)?[:\s]*(.*)$/i;
 
   const issues = [];
   const praises = [];
@@ -75,8 +77,15 @@ export function parseReviewResult(reviewText, options = {}) {
       inLegendSection = false;
     }
 
-    // Skip legend lines (definition lines wrapped in backticks or within legend section)
-    if (inLegendSection || line.includes('`[must]`') || line.includes('`[good]`') || line.includes('`[should]`') || line.includes('`[nits]`')) {
+    // Skip lines inside legend section
+    if (inLegendSection) {
+      continue;
+    }
+
+    // Also skip typical legend definition lines if not inside an explicit section heading
+    // (e.g. definition list lines explaining prefixes with keywords like '修正必須', '強く推奨', '任意', etc.)
+    const isLegendDefinition = /^[-*]\s*(?:\*\*)?`?\[(must|should|imo|nits|ask|good)\]`?(?:\*\*)?[:\s]*(?:マージ前に|強く推奨|私見|些細な|質問|称賛|対応不要|修正必須|対応任意)/i.test(line);
+    if (isLegendDefinition) {
       continue;
     }
 

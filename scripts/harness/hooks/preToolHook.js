@@ -36,7 +36,7 @@ export function handlePreTool(payload = {}) {
   }
 
   // Block 2: Prohibit interactive watch test execution that causes hanging
-  if (/\bnpm\s+(?:run\s+)?test\b/i.test(trimmed) && !/--run\b/i.test(trimmed) && !/\btest:run\b/i.test(trimmed)) {
+  if (/\bnpm(?:\.cmd)?\s+(?:run\s+)?test\b/i.test(trimmed) && !/--run\b/i.test(trimmed) && !/\btest:run\b/i.test(trimmed)) {
     return {
       decision: 'deny',
       reason: "[PreToolHook Denied] Interactive test runner detected. Use 'npm run check:fast' or 'npm run test:run' for deterministic execution.",

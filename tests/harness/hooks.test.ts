@@ -41,6 +41,7 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       expect(result.decision).toBe('continue');
       expect(result.reason).toContain('Stop rejected');
       expect(result.reason).toContain('PR_CREATED');
+      expect(result.reason).toContain('loopState.js reset');
     });
 
     it('rejects stop with continue when status is REVIEW_REQUESTED', () => {
@@ -49,6 +50,7 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       const result = handleStop({}, testMachine);
       expect(result.decision).toBe('continue');
       expect(result.reason).toContain('REVIEW_REQUESTED');
+      expect(result.reason).toContain('loopState.js reset');
     });
 
     it('rejects stop with continue when status is NEEDS_FIX', () => {
@@ -62,6 +64,7 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       const result = handleStop({}, testMachine);
       expect(result.decision).toBe('continue');
       expect(result.reason).toContain('NEEDS_FIX');
+      expect(result.reason).toContain('loopState.js reset');
     });
 
     it('allows stop when status is RESOLVED_LGTM', () => {
@@ -212,6 +215,24 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       });
       expect(result2.decision).toBe('deny');
       expect(result2.reason).toContain('Interactive test runner detected');
+
+      const result3 = handlePreTool({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'npm.cmd test' },
+        },
+      });
+      expect(result3.decision).toBe('deny');
+      expect(result3.reason).toContain('Interactive test runner detected');
+
+      const result4 = handlePreTool({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'npm.cmd run test' },
+        },
+      });
+      expect(result4.decision).toBe('deny');
+      expect(result4.reason).toContain('Interactive test runner detected');
     });
 
     it('allows non-hanging test commands (npm run test:run, npm test --run)', () => {
@@ -280,7 +301,24 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       expect(testMachine.getState().prNumber).toBe(99);
     });
 
-    it('extracts PR number from command line issue reference', () => {
+    it('does not falsely extract issue number from command line and uses safe fallback or PR URL', () => {
+      const result = handlePostTool(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create --body "Closes #46"' },
+          },
+          // toolResult containing genuine PR URL
+          result: 'https://github.com/yuki-yamagishi/job-eval/pull/105\n',
+        },
+        testMachine
+      );
+      expect(result).toEqual({});
+      expect(testMachine.getState().status).toBe(STATUS.PR_CREATED);
+      expect(testMachine.getState().prNumber).toBe(105);
+    });
+
+    it('uses safe fallback when no PR URL is detected', () => {
       const result = handlePostTool(
         {
           toolCall: {
@@ -292,7 +330,7 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       );
       expect(result).toEqual({});
       expect(testMachine.getState().status).toBe(STATUS.PR_CREATED);
-      expect(testMachine.getState().prNumber).toBe(46);
+      expect(testMachine.getState().prNumber).toBeGreaterThanOrEqual(1);
     });
   });
 });

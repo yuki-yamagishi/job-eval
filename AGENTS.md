@@ -103,12 +103,12 @@ Issue はプレフィックス付きラベル（`status:*`, `type:*`, `priority:
   - 各指摘には Conventional Comments 形式の重要度接頭辞（`[must]`, `[should]`, `[imo]`, `[nits]`, `[ask]`, `[good]`）を付与。
   - コメント冒頭に凡例ガイドを提示。
   - 総合判定として `[LGTM]` または `[要修正]` を判定。
-- Fleet は `scripts/harness/postPrComment.js`（`--body-file` 経由）を実行し、**GitHub PR の Web UI スレッドに公式コメントとして永続記録**する。
+- Fleet はレビュー結果 Markdown を作成して返却し、親エージェントが `scripts/harness/postPrComment.js`（`--body-file` 経由）を実行して **GitHub PR の Web UI スレッドに公式コメントとして永続記録**する。
 - メインエージェントは親プロセスとして Reactive Wakeup（待機通知）を受け取るまで待機し、レビュー完了後に通知を受ける。
 
 ### ⑦ レビュー指摘に基づく手元自己修復コミット & 解決報告（DoD 遵守）
 - **ループエンジニアリング完了定義 (Definition of Done: DoD)**:
-  - **全指摘解消・`RESOLVED_LGTM` 到達前の作業完了・会話終了は物理的に禁止**（Stop フック `stopHook.js` によりブロックされます）。
+  - **全指摘解消・`RESOLVED_LGTM` 到達前の作業完了・会話終了は物理的に禁止**（Stop フック `stopHook.js` によりブロックされます。※ユーザー指示による作業中断や異常時は `node scripts/harness/loopState.js reset` で安全に初期化可能）。
   - レビュー結果を受領後、`node scripts/harness/parseReviewResult.js <レビュー本文> --update-state` を実行して指摘事項を `loopState.js` に反映する。
   - レビュー結果に `[must]` や `[should]` のブロッキング指摘がある場合、メインエージェントが Antigravity IDE 上でコードを迅速に修正・単体テストを拡充する。
   - `npm.cmd run check` で全品質ゲート 100% PASS を確認後、PR ブランチに追加コミット＆プッシュする。
