@@ -44,8 +44,19 @@ export function handlePostTool(payload = {}, stateMachine = defaultStateMachine)
           prNumber = parsed;
         }
       } catch {
-        // Fallback: check if PR number was passed directly or use placeholder
-        prNumber = 1;
+        // Fallback: deduce from current branch name (e.g., feature/issue-46-... -> 46)
+        try {
+          const branchOutput = execSync('git branch --show-current', {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+          });
+          const match = branchOutput.match(/issue-(\d+)/i);
+          if (match) {
+            prNumber = parseInt(match[1], 10);
+          }
+        } catch {
+          // Ignored
+        }
       }
 
       if (prNumber) {

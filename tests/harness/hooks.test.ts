@@ -118,24 +118,41 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
     });
 
     it('denies hanging interactive npm test command', () => {
-      const result = handlePreTool({
+      const result1 = handlePreTool({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm test' },
         },
       });
-      expect(result.decision).toBe('deny');
-      expect(result.reason).toContain('Interactive test runner detected');
+      expect(result1.decision).toBe('deny');
+      expect(result1.reason).toContain('Interactive test runner detected');
+
+      const result2 = handlePreTool({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'npm run test' },
+        },
+      });
+      expect(result2.decision).toBe('deny');
+      expect(result2.reason).toContain('Interactive test runner detected');
     });
 
-    it('allows npm run test:run command', () => {
-      const result = handlePreTool({
+    it('allows non-hanging test commands (npm run test:run, npm test --run)', () => {
+      const result1 = handlePreTool({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm run test:run' },
         },
       });
-      expect(result.decision).toBe('allow');
+      expect(result1.decision).toBe('allow');
+
+      const result2 = handlePreTool({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'npm test --run' },
+        },
+      });
+      expect(result2.decision).toBe('allow');
     });
   });
 
