@@ -1,14 +1,14 @@
-﻿# 4軸事前検証ログ (Pre-Phase Verification)
+# 4軸事前検証ログ (Pre-Phase Verification)
 
 > [!NOTE]
 > 本ファイルは最新の進行中フェーズの事前検証ログを保持します。
 > 過去のフェーズ（Phase 4〜33, Issue #40, #42, #44, #50等）は docs/issues/ および docs/archive/phases/ に個別に保全されています。
 
-## 現在進行中: Issue #45 (ループ状態管理マシン（State Machine）の設計と単体実装)
-詳細は [docs/issues/ISSUE-045_loop_state_machine/pre_verification.md](./issues/ISSUE-045_loop_state_machine/pre_verification.md) を参照。
+## 現在進行中: Issue #46 (ライフサイクルフック（hooks.json）による機械的インターセプトの配備)
+詳細は [docs/issues/ISSUE-046_lifecycle_hooks/pre_verification.md](./issues/ISSUE-046_lifecycle_hooks/pre_verification.md) を参照。
 
 ### 4軸事前検証サマリー
-1. **事前検証 / 技術的ボトルネック**: ローカル同期 JSON 読み書きにより、オーバーヘッド皆無（ミリ秒未満）。
-2. **UX / 開発者体験**: コンテキストドリフトによるループ現在位置の忘却を決定論的に防止。
-3. **データ永続性 / 互換性**: `.agents/state/` を `.gitignore` に追加し、リモート・既存機能を汚染しない。
-4. **テスト自律性**: Vitest による 100% カバレッジ単体テストで自律検証。
+1. **設計整合性**: Clean Architecture および ADR-0016 Step 3 準拠。
+2. **破壊的変更リスク**: 通常終了および自己修復完了（RESOLVED_LGTM）時は正常停止。
+3. **パフォーマンス影響**: Node.js 軽量プロセスによるミリ秒単位の判定。
+4. **セキュリティ保護**: 外部通信なし、シークレット非混入。
