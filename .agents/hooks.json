@@ -1,0 +1,36 @@
+{
+  "loop-engineering-gate": {
+    "enabled": true,
+    "Stop": [
+      {
+        "type": "command",
+        "command": "if exist ../scripts/harness/hooks/stopHook.js (node ../scripts/harness/hooks/stopHook.js) else (node ./scripts/harness/hooks/stopHook.js)",
+        "timeout": 15
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if exist ../scripts/harness/hooks/preToolHook.js (node ../scripts/harness/hooks/preToolHook.js) else (node ./scripts/harness/hooks/preToolHook.js)",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if exist ../scripts/harness/hooks/postToolHook.js (node ../scripts/harness/hooks/postToolHook.js) else (node ./scripts/harness/hooks/postToolHook.js)",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
