@@ -99,10 +99,10 @@ Issue はプレフィックス付きラベル（`status:*`, `type:*`, `priority:
 - PR 作成後、メインエージェントは `invoke_subagent` を用いて、**思考コンテキストを完全に切り離した独立サブエージェント（Fleet）**を起動する。
 - Fleet は実装者バイアスを完全に排除し、`git diff` および `AGENTS.md` 規約のみをインプットとして、**最上位モデル（Gemini 3.8 Flash）** による客観的第三者コードレビューを実施する。
 - レビュー規則：
-  - 各指摘には Conventional Comments 形式の重要度接頭辞（`[must]`, `[should]`, `[imo]`, `[nits]`, `[ask]`）を付与。
+  - 各指摘には Conventional Comments 形式の重要度接頭辞（`[must]`, `[should]`, `[imo]`, `[nits]`, `[ask]`, `[good]`）を付与。
   - コメント冒頭に凡例ガイドを提示。
   - 総合判定として `[LGTM]` または `[要修正]` を判定。
-- Fleet は `gh pr comment <PR番号> --body "..."` を実行し、**GitHub PR の Web UI スレッドに公式コメントとして永続記録**する。
+- Fleet は `scripts/harness/postPrComment.js` または一時ファイル経由の `gh pr comment` を実行し、**GitHub PR の Web UI スレッドに公式コメントとして永続記録**する。
 
 ### ⑦ レビュー指摘に基づく手元自己修復コミット
 - レビュー結果に `[must]` や `[should]` の指摘がある場合、メインエージェントが Antigravity IDE 上でコードを迅速に修正。
