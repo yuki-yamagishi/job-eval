@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { execSync } from 'child_process';
 import { LoopStateMachine, STATUS } from '../../.agents/state/loopState.js';
 import { handleStop } from '../../.agents/hooks/stopHook.js';
 import { handlePreTool } from '../../.agents/hooks/preToolHook.js';
@@ -788,6 +789,23 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
           },
         });
         expect(result.decision).toBe('allow');
+      });
+
+      it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
+        const handlerPath = path.resolve(__dirname, '../../.agents/hooks/handlers/safetyGuard.js');
+        const inputPayload = JSON.stringify({
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr merge 50 --auto' },
+          },
+        });
+        const stdout = execSync(`node "${handlerPath}"`, {
+          input: inputPayload,
+          encoding: 'utf8',
+        });
+        const parsed = JSON.parse(stdout.trim());
+        expect(parsed.decision).toBe('deny');
+        expect(parsed.reason).toContain('gh pr merge');
       });
     });
 

@@ -57,4 +57,25 @@ AGY（Antigravity）公式仕様（`https://antigravity.google/docs/hooks/`）�
 
 ### 3.2. フル品質ゲート (Outer Loop)
 - **コマンド**: `npm.cmd run check`
-- **結果**: 次ステップで検証（シークレットスキャン、ドキュメント完全性、型検査、全単体テスト & カバレッジ、本番ビルド）
+- **結果**: **100% PASS**
+  - シークレット漏洩検査 (`securityCheck.js`): 0 secrets found (Clean)
+  - ドキュメント完全性検査 (`docCheck.js`): 全 21 件 ADR、スキル同期、全 38 件 Issue フォルダ整合性確認完了
+  - TypeScript Strict 型検査 (`tsc --noEmit`): エラー 0 件
+  - 全テスト & カバレッジ (`vitest run --coverage`): **26 テストファイル、全 212 テスト PASS**
+  - プロダクションビルド (`vite build`): 4.71s で正常完了
+
+---
+
+## 4. 設計上のトレードオフと境界設計 (Boundary Design)
+
+### issueDocChecker.js との二重管理解消見送り（自己完結優先）の理由
+Issue #72 の着手当初は、Git Hook から呼ばれる `scripts/checkers/issueDocChecker.js` と `prePrAuditGate.js` のドキュメント検査ロジックを単一の共有モジュールへ統合することを検討していました。
+
+しかし、次フェーズでの **「独立した GitHub プラグイン（`antigravity-loop-plugin`）への切り出し」** を見据えた場合、以下の重大なトレードオフが存在することが判明しました：
+1. **依存関係の逆転・ポータビリティの喪失**:
+   もし `.agents/hooks/handlers/prePrAuditGate.js` がプロジェクト固有の `scripts/checkers/` に依存してしまうと、プラグインを別リポジトリ（または `~/.gemini/config/plugins/`）へ切り出した際に、プロジェクト側の特定スクリプトが存在しなければ動かないという密結合が生じる。
+2. **自己完結（Self-Containment）の優先**:
+   AGY プラグインのベストプラクティスに基づき、`.agents/` 内のフック基盤はプロジェクトの `scripts/` や `src/` に一切依存しない自律完結構造（Zero External Dependencies）とすることを最優先した。
+
+以上の理由から、本 Issue では安易な共通化（パッチワーク的結合）を見送り、`.agents/` 側を自律完結な境界設計として独立性を担保しました。今後のプラグイン化完了時に、プラグイン側が提供する汎用チェッカーをプロジェクト側がオプトインする形で真の統合を図る方針とします。
+
