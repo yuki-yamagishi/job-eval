@@ -6,6 +6,10 @@ import { LoopStateMachine, STATUS } from '../../.agents/state/loopState.js';
 import { handleStop } from '../../.agents/hooks/stopHook.js';
 import { handlePreTool } from '../../.agents/hooks/preToolHook.js';
 import { handlePostTool } from '../../.agents/hooks/postToolHook.js';
+import { handleSafetyGuard } from '../../.agents/hooks/handlers/safetyGuard.js';
+import { handleBranchDoRGate } from '../../.agents/hooks/handlers/branchDoRGate.js';
+import { handlePrePrAuditGate } from '../../.agents/hooks/handlers/prePrAuditGate.js';
+import { handlePostPrCreate } from '../../.agents/hooks/handlers/postPrCreate.js';
 
 describe('Lifecycle Hooks (.agents/hooks/)', () => {
   let tempDir: string;
@@ -749,6 +753,99 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       expect(result).toEqual({});
       expect(testMachine.getState().status).toBe(STATUS.PR_CREATED);
       expect(testMachine.getState().prNumber).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('Modular Handlers (.agents/hooks/handlers/)', () => {
+    describe('safetyGuard', () => {
+      it('denies direct gh pr merge', () => {
+        const result = handleSafetyGuard({
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr merge 123 --merge' },
+          },
+        });
+        expect(result.decision).toBe('deny');
+        expect(result.reason).toContain('gh pr merge');
+      });
+
+      it('denies interactive test command', () => {
+        const result = handleSafetyGuard({
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'npm test' },
+          },
+        });
+        expect(result.decision).toBe('deny');
+        expect(result.reason).toContain('Interactive test runner detected');
+      });
+
+      it('allows deterministic fast test command', () => {
+        const result = handleSafetyGuard({
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'npm run test:fast' },
+          },
+        });
+        expect(result.decision).toBe('allow');
+      });
+    });
+
+    describe('branchDoRGate', () => {
+      it('allows non-branch commands immediately', () => {
+        const result = handleBranchDoRGate({
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'git status' },
+          },
+        });
+        expect(result.decision).toBe('allow');
+      });
+
+      it('denies branch creation when loopState is not IDLE', () => {
+        testMachine.setPrCreated(99);
+        const result = handleBranchDoRGate(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'git checkout -b feature/issue-99-test' },
+            },
+          },
+          { stateMachine: testMachine, execFn: () => '' }
+        );
+        expect(result.decision).toBe('deny');
+        expect(result.reason).toContain('An active review loop is still running');
+      });
+    });
+
+    describe('prePrAuditGate', () => {
+      it('allows non-PR commands immediately', () => {
+        const result = handlePrePrAuditGate({
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'git push origin main' },
+          },
+        });
+        expect(result.decision).toBe('allow');
+      });
+    });
+
+    describe('postPrCreate', () => {
+      it('transitions state to PR_CREATED with parsed PR number', () => {
+        const result = handlePostPrCreate(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'gh pr create --title "test"' },
+            },
+            result: 'https://github.com/yuki-yamagishi/job-eval/pull/77\n',
+          },
+          testMachine
+        );
+        expect(result).toEqual({});
+        expect(testMachine.getState().status).toBe(STATUS.PR_CREATED);
+        expect(testMachine.getState().prNumber).toBe(77);
+      });
     });
   });
 });

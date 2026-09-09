@@ -1,4 +1,4 @@
 # 事前検証ポインタ (Pre-Phase Verification Pointer)
 
-現在進行中のフェーズの事前検証ログは以下を参照してください：
-- [Issue #70 事前検証ログ (ISSUE-070_fast_inner_loop_and_impact_check)](./issues/ISSUE-070_fast_inner_loop_and_impact_check/pre_verification.md)
+現在進行中のフェーズの事前検証記録は以下を参照してください：
+- [Issue #72 事前検証記録 (ISSUE-072_refactor_lifecycle_hooks_separation)](./issues/ISSUE-072_refactor_lifecycle_hooks_separation/pre_verification.md)
