@@ -8,8 +8,8 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo "📝 [Git Hook] Running automated document integrity & completeness check..."
-node scripts/docCheck.js
+echo "📝 [Git Hook] Running automated document integrity & completeness check (pre-commit mode)..."
+node scripts/docCheck.js --pre-commit
 if [ $? -ne 0 ]; then
   echo "❌ [Git Hook] Document integrity check FAILED. Commit aborted."
   exit 1
