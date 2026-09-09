@@ -1,14 +1,77 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from "vitest";
 import { cloudSyncService } from "@/services/sync/cloudSyncService";
 import { storageAdapter } from "@/services/storage/storageAdapter";
 import { DEFAULT_USER_PROFILE } from "@/core/constants/defaultProfile";
 import { encryptJson } from "@/core/crypto/e2eeCrypto";
 
+// In-memory MockWebSocket to prevent all real external network calls to wss://ntfy.sh
+class MockWebSocket {
+  public url: string;
+  public readyState: number = 1; // OPEN
+  public onopen: (() => void) | null = null;
+  public onmessage: ((event: any) => void) | null = null;
+  public onerror: ((event: any) => void) | null = null;
+  public onclose: ((event: any) => void) | null = null;
+
+  constructor(url: string) {
+    this.url = url;
+  }
+
+  public send(_data: string) {}
+  public close() {
+    this.readyState = 3; // CLOSED
+    if (this.onclose) this.onclose({} as any);
+  }
+}
+
 describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
   const originalFetch = global.fetch;
+  const originalWebSocket = global.WebSocket;
+
+  beforeAll(() => {
+    global.WebSocket = MockWebSocket as any;
+  });
+
+  afterAll(() => {
+    global.WebSocket = originalWebSocket;
+  });
+
+  const createSafeDefaultFetch = () =>
+    vi.fn().mockImplementation((_url: string, options?: any) => {
+      if (typeof options?.body === "string") {
+        try {
+          const parsed = JSON.parse(options.body);
+          if (parsed.action === "pull") {
+            return Promise.resolve({
+              ok: true,
+              json: () =>
+                Promise.resolve({
+                  success: true,
+                  exists: false,
+                  profile: null,
+                  jobs: [],
+                }),
+            });
+          }
+          if (parsed.action === "push") {
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({ success: true }),
+            });
+          }
+        } catch {
+          // ignore
+        }
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+    });
 
   beforeEach(async () => {
     localStorage.clear();
+    global.fetch = createSafeDefaultFetch();
     await cloudSyncService.configure({
       enabled: false,
       roomId: "",
@@ -16,8 +79,15 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await cloudSyncService.configure({
+      enabled: false,
+      roomId: "",
+      autoSync: false,
+    });
+    localStorage.clear();
     global.fetch = originalFetch;
+    vi.restoreAllMocks();
   });
 
   it("generates a human-readable room code with JE- prefix and secure suffix", () => {
@@ -105,7 +175,7 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
     const encryptedJob = await encryptJson(remoteJob, activeRoom);
 
     // Mock fetch for D1 pull
-    global.fetch = vi.fn().mockImplementation((url: string, options?: any) => {
+    global.fetch = vi.fn().mockImplementation((_url: string, options?: any) => {
       if (typeof options?.body === "string" && options.body.includes('"action":"pull"')) {
         return Promise.resolve({
           ok: true,
@@ -168,7 +238,7 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
     };
     const encryptedProfile = await encryptJson(cloudProfile, activeRoom);
 
-    global.fetch = vi.fn().mockImplementation((url: string, options?: any) => {
+    global.fetch = vi.fn().mockImplementation((_url: string, options?: any) => {
       if (typeof options?.body === "string" && options.body.includes('"action":"pull"')) {
         return Promise.resolve({
           ok: true,
@@ -218,7 +288,7 @@ describe("Cloud Real-Time Sync Service & StorageAdapter Integration", () => {
     localStorage.setItem("jobeval_saved_jobs_v1", JSON.stringify([localJob]));
 
     const pushCalls: any[] = [];
-    global.fetch = vi.fn().mockImplementation((url: string, options?: any) => {
+    global.fetch = vi.fn().mockImplementation((_url: string, options?: any) => {
       if (typeof options?.body === "string") {
         const parsed = JSON.parse(options.body);
         if (parsed.action === "pull") {
