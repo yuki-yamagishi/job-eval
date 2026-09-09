@@ -33,7 +33,7 @@ export interface ParsedJobMarkdown {
 }
 
 /**
- * Generate formatted Markdown matching Requirement.md Section 5
+ * Generate formatted Markdown matching JobEval Markdown persistence schema (docs/architecture_overview.md)
  */
 export function generateJobMarkdown(input: MarkdownGenerationInput): string {
   const {

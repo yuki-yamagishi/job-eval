@@ -7,11 +7,16 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Diagnostic working directories
+# Diagnostic & Temporary working files
 .system_generated
 .agents/state/
 diff*.txt
 *review*.md
+.*pr_body*.md
+*.pr_body*.md
+*pr_body*.md
+*.tmp
+.tmp*
 
 node_modules
 dist

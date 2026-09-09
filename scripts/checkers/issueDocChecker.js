@@ -1,14 +1,17 @@
 /**
  * Issue & Root Document Integrity Checker
  * Verifies docs/issues/ folder completeness and root pointer docs
+ * Supports gradual verification mode (--pre-commit) for intermediate commits
  */
 
 import fs from 'fs';
 import path from 'path';
 
-export function checkIssueDocIntegrity(docsDir) {
+export function checkIssueDocIntegrity(docsDir, options = {}) {
+  const isPreCommit = Boolean(options.isPreCommit);
   let hasError = false;
-  console.log('  📂 [Issue Doc Checker] Verifying docs/issues/ and root document completeness...');
+  const modeDesc = isPreCommit ? ' (段階的検証: pre-commit モード)' : ' (厳格フル検証モード)';
+  console.log(`  📂 [Issue Doc Checker] Verifying docs/issues/ and root document completeness...${modeDesc}`);
 
   const issuesDir = path.resolve(docsDir, 'issues');
   if (!fs.existsSync(issuesDir)) {
@@ -17,21 +20,27 @@ export function checkIssueDocIntegrity(docsDir) {
   }
 
   // 1. Verify root pointer files
-  const REQUIRED_ROOT_DOCS = [
-    { filename: 'pre_phase_verification.md', title: '4軸事前検証ログ' },
-    { filename: 'implementation_plan.md', title: '実装計画書' },
-    { filename: 'walkthrough.md', title: '実装成果レポート' },
+  // In pre-commit mode, walkthrough.md is not mandatory so intermediate commits are allowed
+  const ROOT_DOCS_CONFIG = [
+    { filename: 'pre_phase_verification.md', title: '4軸事前検証ログ', requiredInPreCommit: false },
+    { filename: 'implementation_plan.md', title: '実装計画書', requiredInPreCommit: true },
+    { filename: 'walkthrough.md', title: '実装成果レポート', requiredInPreCommit: false },
   ];
 
-  for (const doc of REQUIRED_ROOT_DOCS) {
+  for (const doc of ROOT_DOCS_CONFIG) {
     const docPath = path.join(docsDir, doc.filename);
+    const isRequired = isPreCommit ? doc.requiredInPreCommit : true;
+
     if (!fs.existsSync(docPath)) {
-      console.error(`\n❌ [ルートドキュメント欠落] docs/${doc.filename} が存在しません。`);
-      hasError = true;
+      if (isRequired) {
+        console.error(`\n❌ [ルートドキュメント欠落] docs/${doc.filename} が存在しません。`);
+        hasError = true;
+      }
       continue;
     }
+
     const content = fs.readFileSync(docPath, 'utf-8').trim();
-    if (content.length < 50) {
+    if (isRequired && content.length < 50) {
       console.error(`\n❌ [ルートドキュメント内容不足] docs/${doc.filename} の内容が極めて短小です (${content.length}文字)。`);
       hasError = true;
     }
@@ -110,13 +119,18 @@ export function checkIssueDocIntegrity(docsDir) {
                         fs.existsSync(path.join(dirPath, 'plan.md')) ||
                         fs.existsSync(path.join(dirPath, 'walkthrough.md'));
 
-    // An issue requires all 4 documents if it is active OR has started work (completed past issue)
+    // An issue requires documents if it is active OR has started work (completed past issue)
     if (isActive || hasWorkDocs) {
-      for (const docName of FOUR_DOCS) {
+      // In pre-commit mode for active issue, only issue.md and plan.md are strictly required
+      const requiredDocs = (isActive && isPreCommit)
+        ? ['issue.md', 'plan.md']
+        : FOUR_DOCS;
+
+      for (const docName of requiredDocs) {
         const docFile = path.join(dirPath, docName);
         if (!fs.existsSync(docFile)) {
           const statusName = isActive ? '現在進行中' : '着手・完了済';
-          console.error(`\n❌ [${statusName}Issue必須ドキュメント欠落] ${dirName}/${docName} が存在しません（${statusName}Issueは4ファイル完結が必須です）。`);
+          console.error(`\n❌ [${statusName}Issue必須ドキュメント欠落] ${dirName}/${docName} が存在しません（${statusName}Issueは${requiredDocs.join(', ')}が必須です）。`);
           hasError = true;
         }
       }
@@ -139,8 +153,7 @@ export function checkIssueDocIntegrity(docsDir) {
     validCount++;
   }
 
-  console.log(`    ✓ docs/issues/: 全 ${validCount} 件の Issue フォルダ構造を確認済 (進行中: ${activeIssueDir}, バックログ: ${backlogCount}件)`);
+  console.log(`    ✓ docs/issues/: 全 ${validCount} 件の Issue フォルダ構造を確認済 (進行中: ${activeIssueDir}, バックログ: ${backlogCount}件${isPreCommit ? ', pre-commit 段階的検証' : ''})`);
 
   return !hasError;
 }
-
