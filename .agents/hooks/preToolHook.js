@@ -118,6 +118,89 @@ export function handlePreTool(payload = {}, options = {}) {
     }
   }
 
+  // Block 4: Pre-PR Final Audit Gate (Mechanical "Is this really ready to submit?" validation)
+  if (/\bgh\s+pr\s+create\b/i.test(trimmed)) {
+    const exec = options.execFn || execSync;
+    const projectRoot = options.projectRoot || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+
+    // 4A: Detect current branch and issue number
+    let currentBranch = options.currentBranch || '';
+    if (!currentBranch) {
+      try {
+        currentBranch = exec('git branch --show-current', { cwd: projectRoot, encoding: 'utf8' }).trim();
+      } catch {}
+    }
+
+    const issueNumMatch = currentBranch.match(/issue-(\d+)/i) || trimmed.match(/#(\d+)/);
+    if (issueNumMatch) {
+      const issueNum = parseInt(issueNumMatch[1], 10);
+      const issuesDir = path.resolve(projectRoot, 'docs/issues');
+
+      let targetIssueDir = null;
+      if (fs.existsSync(issuesDir)) {
+        const entries = fs.readdirSync(issuesDir);
+        const prefixPadded = `ISSUE-${String(issueNum).padStart(3, '0')}`;
+        const prefixRaw = `ISSUE-${issueNum}`;
+        targetIssueDir = entries.find((e) => e.startsWith(prefixPadded) || e.startsWith(prefixRaw));
+      }
+
+      if (targetIssueDir) {
+        const targetPath = path.resolve(issuesDir, targetIssueDir);
+
+        // 4A-1: 4-axis documents completeness check
+        const REQUIRED_DOCS = ['issue.md', 'pre_verification.md', 'plan.md', 'walkthrough.md'];
+        const missingDocs = [];
+        for (const doc of REQUIRED_DOCS) {
+          const docPath = path.resolve(targetPath, doc);
+          if (!fs.existsSync(docPath) || fs.readFileSync(docPath, 'utf8').trim().length < 20) {
+            missingDocs.push(doc);
+          }
+        }
+        if (missingDocs.length > 0) {
+          return {
+            decision: 'deny',
+            reason: `[PreToolHook Denied] Pre-PR Audit Failed: Missing or incomplete 4-axis document(s) in docs/issues/${targetIssueDir}: ${missingDocs.join(', ')}. (Remediation Guidance: Complete all 4 documents before creating a PR.)`,
+          };
+        }
+
+        // 4A-2: Acceptance Criteria (DoD) completion check
+        const issueMdContent = fs.readFileSync(path.resolve(targetPath, 'issue.md'), 'utf8');
+        const hasUncheckedCriteria = /- \[\s\]/i.test(issueMdContent);
+        if (hasUncheckedCriteria) {
+          return {
+            decision: 'deny',
+            reason: `[PreToolHook Denied] Pre-PR Audit Failed: Unchecked acceptance criteria (- [ ]) found in docs/issues/${targetIssueDir}/issue.md. (Remediation Guidance: Verify all criteria are completed and mark them as [-x] before creating a PR.)`,
+          };
+        }
+      }
+    }
+
+    // 4B: SSOT (architecture_overview.md) & latest ADR synchronization check
+    const adrDir = path.resolve(projectRoot, 'docs/adr');
+    const ssotPath = path.resolve(projectRoot, 'docs/architecture_overview.md');
+    if (fs.existsSync(adrDir) && fs.existsSync(ssotPath)) {
+      const adrFiles = fs.readdirSync(adrDir)
+        .filter((f) => /^\d{4}-.*\.md$/.test(f))
+        .sort();
+
+      if (adrFiles.length > 0) {
+        const latestAdrFile = adrFiles[adrFiles.length - 1];
+        const latestAdrNumMatch = latestAdrFile.match(/^(\d{4})/);
+        if (latestAdrNumMatch) {
+          const latestNum = latestAdrNumMatch[1];
+          const ssotContent = fs.readFileSync(ssotPath, 'utf8');
+          const hasLatestAdr = ssotContent.includes(`ADR-${latestNum}`) || ssotContent.includes(latestNum);
+          if (!hasLatestAdr) {
+            return {
+              decision: 'deny',
+              reason: `[PreToolHook Denied] Pre-PR Audit Failed: The latest ADR (${latestAdrFile}) is not synchronized in docs/architecture_overview.md (SSOT). (Remediation Guidance: Update docs/architecture_overview.md to reference ADR-${latestNum} before creating a PR.)`,
+            };
+          }
+        }
+      }
+    }
+  }
+
   return { decision: 'allow' };
 }
 

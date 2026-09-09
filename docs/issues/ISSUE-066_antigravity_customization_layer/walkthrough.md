@@ -69,6 +69,24 @@
      - `tests/harness/loopState.test.ts` に各ステータスの Remediation Guidance を検証する単体テスト 3 件を追加（計 23 テスト PASS）。
      - ハーネステスト全 81 件、プロジェクト全体 185 単体テストが 100% PASS。
 
+## 7. 「本当にこれで終わりか？」の物理的仕組み化 (Pre-PR Final Audit Gate)
+- **背景と目的**:
+  - 人間から「本当にこれで終わりでよいですか？」と指摘されて初めて監査し、ADR追従やDoDチェックボックスの同期漏れが発覚した反省から、「エージェントの注意力や作文に頼る精神論」を完全根絶。
+  - PR 作成（`gh pr create`）の直前に、システムが機械的に「本当にこれで終わりか？」を検証する物理ゲートを配備。
+- **改修内容**:
+  1. **`preToolHook.js` (Block 4)**:
+     - `gh pr create` の呼び出しを捕捉し、以下の 3 項目を物理検証：
+       - **4A-1**: `docs/issues/<Issue>/` 配下の 4軸ドキュメント（`issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md`）が完備されていること。
+       - **4A-2**: `issue.md` 内に未チェック項目（`- [ ]`）が 1 件も残っていないこと。
+       - **4B**: `docs/adr/` の最新 ADR が `docs/architecture_overview.md`（SSOT）に登録・同期されていること。
+     - 違反時は PR 作成を物理拒絶し、具体的な修復指示（Remediation Guidance）を出力。
+  2. **Runbook 同期**:
+     - `.agents/skills/review-self-healing/SKILL.md` のセクション 1 に Pre-PR Final Audit の事前確認要件を明文化。
+  3. **単体テスト (`tests/harness/hooks.test.ts`)**:
+     - Block 4 の全分岐（4軸ドキュメント欠落拒絶、未完了チェックボックス拒絶、SSOT最新ADR未登録拒絶、全合格時許可）の単体テスト 4 件を追加（計 32 テスト PASS）。
+     - ハーネステスト全 85 件が 100% PASS。
+
+
 
 
 

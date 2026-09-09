@@ -382,6 +382,109 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
         fs.rmSync(tempProject, { recursive: true, force: true });
       }
     });
+
+    describe('Block 4: Pre-PR Final Audit Gate (gh pr create)', () => {
+      let tempProject: string;
+      let issueDir: string;
+      let adrDir: string;
+
+      beforeEach(() => {
+        tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'pre-pr-audit-'));
+        issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
+        adrDir = path.join(tempProject, 'docs/adr');
+        fs.mkdirSync(issueDir, { recursive: true });
+        fs.mkdirSync(adrDir, { recursive: true });
+
+        // Setup complete 4-axis docs
+        fs.writeFileSync(path.join(issueDir, 'issue.md'), '# Issue 99\n\n## 5. 受け入れ基準\n- [x] All done\n');
+        fs.writeFileSync(path.join(issueDir, 'pre_verification.md'), '# Pre Verification\nSome verification details here\n');
+        fs.writeFileSync(path.join(issueDir, 'plan.md'), '# Implementation Plan\nDetailed plan content here\n');
+        fs.writeFileSync(path.join(issueDir, 'walkthrough.md'), '# Walkthrough Report\nDetailed walkthrough results\n');
+
+        // Setup ADR and synchronized SSOT
+        fs.writeFileSync(path.join(adrDir, '0018-test-architecture.md'), '# ADR-0018\nContent\n');
+        fs.writeFileSync(
+          path.join(tempProject, 'docs/architecture_overview.md'),
+          '# SSOT\nCovers ADR-0001 to ADR-0018\n'
+        );
+      });
+
+      afterEach(() => {
+        fs.rmSync(tempProject, { recursive: true, force: true });
+      });
+
+      it('denies gh pr create if any 4-axis document is missing or empty', () => {
+        // Remove walkthrough.md
+        fs.unlinkSync(path.join(issueDir, 'walkthrough.md'));
+
+        const result = handlePreTool(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'gh pr create --title "feat: test"' },
+            },
+          },
+          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+        );
+
+        expect(result.decision).toBe('deny');
+        expect(result.reason).toContain('Pre-PR Audit Failed: Missing or incomplete 4-axis document');
+        expect(result.reason).toContain('walkthrough.md');
+      });
+
+      it('denies gh pr create if acceptance criteria contains unchecked items (- [ ])', () => {
+        fs.writeFileSync(
+          path.join(issueDir, 'issue.md'),
+          '# Issue 99\n\n## 5. 受け入れ基準\n- [x] Item 1 done\n- [ ] Item 2 pending\n'
+        );
+
+        const result = handlePreTool(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'gh pr create --title "feat: test"' },
+            },
+          },
+          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+        );
+
+        expect(result.decision).toBe('deny');
+        expect(result.reason).toContain('Pre-PR Audit Failed: Unchecked acceptance criteria (- [ ])');
+      });
+
+      it('denies gh pr create if latest ADR is not synchronized in architecture_overview.md (SSOT)', () => {
+        // Add ADR-0019 without updating SSOT
+        fs.writeFileSync(path.join(adrDir, '0019-new-feature.md'), '# ADR-0019\n');
+
+        const result = handlePreTool(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'gh pr create --title "feat: test"' },
+            },
+          },
+          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+        );
+
+        expect(result.decision).toBe('deny');
+        expect(result.reason).toContain('Pre-PR Audit Failed: The latest ADR (0019-new-feature.md) is not synchronized');
+        expect(result.reason).toContain('architecture_overview.md');
+      });
+
+      it('allows gh pr create when all pre-PR audit checks pass', () => {
+        const result = handlePreTool(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'gh pr create --title "feat: test"' },
+            },
+          },
+          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+        );
+
+        expect(result.decision).toBe('allow');
+      });
+    });
   });
 
   describe('postToolHook', () => {

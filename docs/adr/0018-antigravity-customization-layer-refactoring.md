@@ -54,6 +54,8 @@ Google Antigravity の公式アーキテクチャに準拠し、本プロジェ�
 9. **内外分離（Boundary Design）による言語ポリシーとトークン効率の最適化**:
    - 人間向け意思決定レイヤー（`docs/` 配下の設計書・ADR・Issue・レポート、PR 本文、チャット報告）は完全日本語を維持する。
    - エージェント向け内部制御レイヤー（Hooks の判定メッセージ、State Machine のエラー、Remediation Guidance）は英語に完全統一することで、トークン消費量を約 60〜70% 削減し、LLM の指示追従性と自律修復性を極大化する。
+10. **PR 作成前最終監査 (Pre-PR Final Audit Gate) の配備**:
+   - `preToolHook.js` の Block 4 において、`gh pr create` の呼び出しを物理インターセプトし、① 4軸ドキュメント（`walkthrough.md` 等）の完備、② `issue.md` 内の受け入れ基準（DoD）チェックボックス（`- [ ]`）の未完了残存、③ `docs/architecture_overview.md`（SSOT）への最新 ADR 反映漏れを機械的に全件検査し、未達があれば PR 作成を物理拒絶する。「本当にこれで終わりか？」をエージェントの注意力ではなくコードで物理保証する。
 
 ---
 
