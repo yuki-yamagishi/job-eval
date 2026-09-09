@@ -25,9 +25,11 @@
 ## 5. 受け入れ基準 (Acceptance Criteria / Definition of Done)
 - [ ] 課題が解消され、それを検証する単体テストが存在すること。
 - [ ] 排除対象のリスクに対する物理的ガードレール（Hook / 状態マシン）が機能していること。
+- [ ] 重複・パッチワーク点検（Impact & Duplication Check）が pre_verification.md に完了・記録されていること。
 - [ ] ワンショット品質ゲート（npm.cmd run check）が 100% PASS すること。
-- [ ] 独立レビュアー（fleet_reviewer）による客観的再レビューで LGTM を受領すること。
+- [ ] 2者合議レビュー（fleet_reviewer ＋ fleet_completion_auditor）による客観的再レビューで両者 LGTM を受領すること。
 
 ## 6. 関連ドキュメント・仕様正本 (References & SSOT)
+- 事前検証記録: docs/issues/ISSUE-XXX/pre_verification.md (template_pre_verification.md 準拠)
 - 関連 ADR: ADR-XXXX
 - 影響を受けるアーキテクチャ設計書: docs/architecture_overview.md

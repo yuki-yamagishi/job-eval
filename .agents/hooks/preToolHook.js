@@ -120,6 +120,24 @@ export function handlePreTool(payload = {}, options = {}) {
           reason: `[PreToolHook Denied] Missing required sections in ${targetIssueDir}/issue.md: ${missing.join(', ')}. Define the root problem (Why) and risks before jumping into implementation (What). (Remediation Guidance: Refer to 'docs/issues/template_issue.md' and add the required sections.)`,
         };
       }
+
+      // 3D: Impact & Duplication Check in pre_verification.md
+      const preVerifPath = path.resolve(issuesDir, targetIssueDir, 'pre_verification.md');
+      if (!fs.existsSync(preVerifPath)) {
+        return {
+          decision: 'deny',
+          reason: `[PreToolHook Denied] pre_verification.md does not exist in ${targetIssueDir}. Perform and document an Impact & Duplication Check before creating a branch. (Remediation Guidance: Create 'docs/issues/${targetIssueDir}/pre_verification.md' using 'docs/issues/template_pre_verification.md'.)`,
+        };
+      }
+
+      const preVerifContent = fs.readFileSync(preVerifPath, 'utf8');
+      const hasImpactSection = /##\s+(?:\d+\.\s+)?(?:重複・パッチワーク点検|重複・影響調査|Impact\s*(?:&|and)\s*Duplication\s*Check)/i.test(preVerifContent);
+      if (!hasImpactSection) {
+        return {
+          decision: 'deny',
+          reason: `[PreToolHook Denied] Missing 'Impact & Duplication Check' section in ${targetIssueDir}/pre_verification.md. Audit existing codebase, utilities, and past ADRs to prevent duplicated logic or patchwork fixes before creating a branch. (Remediation Guidance: Refer to 'docs/issues/template_pre_verification.md' and document Section 3 '重複・パッチワーク点検'.)`,
+        };
+      }
     }
   }
 

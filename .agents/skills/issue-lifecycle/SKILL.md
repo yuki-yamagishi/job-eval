@@ -33,9 +33,10 @@ description: JobEval における GitHub Issue のステータスラベル運用
    ```
 3. **★【物理制約】着手準備完了 (Definition of Ready) の確認**:
    ブランチ作成前（`git checkout -b` 実行前）に、以下が満たされている必要があります（満たされていない場合は `preToolHook` により物理ブロックされます）：
-   - **ワーキングツリーの清浄度**: 未コミットの変更が一切ないこと（clean）。
-   - **前タスクの完了**: 前回のレビュー状態マシンが `IDLE` であること（未マージの PR が残存していないこと）。
-   - **Issue 仕様書 (`issue.md`) の作成**: `docs/issues/template_issue.md` をベースに `docs/issues/ISSUE-<番号>_<slug>/issue.md` を作成し、特に **「Why（解決すべき課題・背景）」** および **「排除するリスク」** の両セクションを具体的に定義すること。
+   - **ワーキングツリーの清浄度 (Block 3A)**: 未コミットの変更が一切ないこと（clean、新Issueのdocs/issues/のみ許容）。
+   - **前タスクの完了 (Block 3B)**: 前回のレビュー状態マシンが `IDLE` であること（未マージの PR が残存していないこと）。
+   - **Issue 仕様書 (`issue.md`) の作成 (Block 3C)**: `docs/issues/template_issue.md` をベースに `docs/issues/ISSUE-<番号>_<slug>/issue.md` を作成し、特に **「Why（解決すべき課題・背景）」** および **「排除するリスク」** の両セクションを具体的に定義すること。
+   - **事前検証・パッチワーク点検 (`pre_verification.md`) の作成 (Block 3D)**: `docs/issues/template_pre_verification.md` をベースに `pre_verification.md` を作成し、特に **「重複・パッチワーク点検 (Impact & Duplication Check)」** を実施・記録すること。未実施の場合はブランチ作成が物理拒絶される。
 4. **トピックブランチ作成**:
    ```bash
    git checkout -b feature/issue-<番号>-<概要>

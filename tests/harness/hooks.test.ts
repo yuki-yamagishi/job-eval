@@ -309,8 +309,12 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
         path.join(issueDir, 'issue.md'),
         '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nWhy details\n\n## 3. 排除するリスク\nRisk details\n'
       );
+      fs.writeFileSync(
+        path.join(issueDir, 'pre_verification.md'),
+        '# Pre-Verification\n\n## 1. 日時\n2026-09-09\n\n## 3. 重複・パッチワーク点検 (Impact & Duplication Check)\nNo duplication found.\n'
+      );
 
-      const mockExec = vi.fn().mockReturnValue('?? docs/issues/ISSUE-099_test/issue.md\n');
+      const mockExec = vi.fn().mockReturnValue('?? docs/issues/ISSUE-099_test/issue.md\n?? docs/issues/ISSUE-099_test/pre_verification.md\n');
       try {
         const result = handlePreTool(
           {
@@ -383,7 +387,67 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       }
     });
 
-    it('allows branch creation when tree is clean, state is IDLE, and issue.md has Why and Risk sections', () => {
+    it('denies branch creation if pre_verification.md does not exist in target issue dir', () => {
+      const mockExec = vi.fn().mockReturnValue('');
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'pre-verif-missing-'));
+      const issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
+      fs.mkdirSync(issueDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk'
+      );
+
+      try {
+        const result = handlePreTool(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'git checkout -b feature/issue-99-test' },
+            },
+          },
+          { execFn: mockExec, stateMachine: testMachine, projectRoot: tempProject }
+        );
+        expect(result.decision).toBe('deny');
+        expect(result.reason).toContain('pre_verification.md does not exist');
+        expect(result.reason).toContain('template_pre_verification.md');
+      } finally {
+        fs.rmSync(tempProject, { recursive: true, force: true });
+      }
+    });
+
+    it('denies branch creation if pre_verification.md lacks Impact & Duplication Check section', () => {
+      const mockExec = vi.fn().mockReturnValue('');
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'impact-missing-'));
+      const issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
+      fs.mkdirSync(issueDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk'
+      );
+      fs.writeFileSync(
+        path.join(issueDir, 'pre_verification.md'),
+        '# Pre Verification\n\n## 1. 日時\n2026-09-09\n\n## 2. 課題\n課題記述のみ'
+      );
+
+      try {
+        const result = handlePreTool(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'git checkout -b feature/issue-99-test' },
+            },
+          },
+          { execFn: mockExec, stateMachine: testMachine, projectRoot: tempProject }
+        );
+        expect(result.decision).toBe('deny');
+        expect(result.reason).toContain("Missing 'Impact & Duplication Check' section");
+        expect(result.reason).toContain('template_pre_verification.md');
+      } finally {
+        fs.rmSync(tempProject, { recursive: true, force: true });
+      }
+    });
+
+    it('allows branch creation when tree is clean, state is IDLE, issue.md has Why/Risk, and pre_verification.md has Impact Check', () => {
       const mockExec = vi.fn().mockReturnValue('');
       const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'why-pass-'));
       const issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
@@ -391,6 +455,10 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       fs.writeFileSync(
         path.join(issueDir, 'issue.md'),
         '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk'
+      );
+      fs.writeFileSync(
+        path.join(issueDir, 'pre_verification.md'),
+        '# Pre Verification\n\n## 1. 日時\n2026-09-09\n\n## 3. 重複・パッチワーク点検 (Impact & Duplication Check)\n既存コード調査済み。重複なし。'
       );
 
       try {
