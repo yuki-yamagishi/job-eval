@@ -2,13 +2,15 @@
 
 > [!NOTE]
 > 本ファイルは最新の進行中フェーズの計画書を保持します。
-> 過去のフェーズ（Phase 4〜33, Issue #40, #42, #44, #45, #46, #47, #48, #50, #56等）は docs/issues/ および docs/archive/phases/ に個別に保全されています。
+> 過去のフェーズ（Phase 4〜33, Issue #40, #42, #44, #45, #46, #47, #48, #49, #50, #56等）は docs/issues/ および docs/archive/phases/ に個別に保全されています。
 
-## 現在進行中: Issue #49 (AGENTS.md / SKILL.md 規約改編・二重管理解消と自己修復ループ E2E 検証)
-詳細は [docs/issues/ISSUE-049_governance_harness_integration/plan.md](./issues/ISSUE-049_governance_harness_integration/plan.md) を参照。
+## 現在進行中: Issue #60 (自己修復ループの信頼性向上（バッククォート接頭辞パース、npm.cmdウォッチ防止、Fleet権限整合、緊急脱出案内）)
+詳細は [docs/issues/ISSUE-060_harness_reliability_improvements/plan.md](./issues/ISSUE-060_harness_reliability_improvements/plan.md) を参照。
 
 ### 実装計画サマリー
-1. **`AGENTS.md` の改訂**: ループエンジニアリング完了定義（DoD: 全指摘解消・LGTM到達まで作業終了禁止）の明文化と、最新ハーネスツール群の標準規約化。
-2. **`job-eval-harness/SKILL.md` の再構成**: 重複文章の廃止、実践 Runbook（開発・検証・レビュー・解決報告コマンド集）への特化。
-3. **チェッカーの更新 (`scripts/checkers/agentSkillChecker.js`)**: 新規約・Runbook 構造に対応した検証項目の同期。
-4. **自己修復ループの E2E 結合検証 (`tests/harness/e2eLoop.test.ts`)**: PR作成から解決報告、LGTM到達、正常終了までの一連サイクルの完全結合テスト。
+1. **`parseReviewResult.js` のバッククォート対応**: バッククォート囲み（``- `[must]`: ○○``）指摘の抽出対応と凡例誤判定の根絶。
+2. **`preToolHook.js` の `npm.cmd` 対応**: `/\bnpm(?:\.cmd)?\s+(?:run\s+)?test\b/i` 拡張によるウォッチモードハング防止。
+3. **`postToolHook.js` の PR 番号解決安全性向上**: コマンドラインからの Issue 番号誤抽出フォールバックを排除。
+4. **`stopHook.js` / `loopState.js` の緊急脱出案内**: 停止拒否メッセージに `node scripts/harness/loopState.js reset` を明記。
+5. **Fleet レビュアーの最小権限と実行責務の整合化**: Fleet サブエージェントは読み取り専用でレビュー結果を出力し、PR 公式投稿は親エージェントが行うクリーンな責務分離。
+6. **単体テスト拡充**: `tests/harness/` の単体テスト拡充と全品質ゲート通過。

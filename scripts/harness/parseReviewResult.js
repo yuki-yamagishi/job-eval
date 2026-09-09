@@ -40,7 +40,9 @@ export function parseReviewResult(reviewText, options = {}) {
   // 1. [nits] description
   // ### [good] description
   // [ask] description
-  const prefixRegex = /^(?:[-*#\d.]+\s*)?(?:\*\*)?\[(must|should|imo|nits|ask|good)\](?:\*\*)?[:\s]*(.*)$/i;
+  // - `[must]`: description
+  // * **`[should]`**: description
+  const prefixRegex = /^(?:[-*#\d.]+\s*)?(?:\*\*)?`?\[(must|should|imo|nits|ask|good)\]`?(?:\*\*)?[:\s]*(.*)$/i;
 
   const issues = [];
   const praises = [];
@@ -75,8 +77,15 @@ export function parseReviewResult(reviewText, options = {}) {
       inLegendSection = false;
     }
 
-    // Skip legend lines (definition lines wrapped in backticks or within legend section)
-    if (inLegendSection || line.includes('`[must]`') || line.includes('`[good]`') || line.includes('`[should]`') || line.includes('`[nits]`')) {
+    // Skip lines inside legend section
+    if (inLegendSection) {
+      continue;
+    }
+
+    // Also skip typical legend definition lines if not inside an explicit section heading
+    // (e.g. definition lines matching exact prompt guide phrases ending with explanations like 'マージ前に修正必須（...')
+    const isLegendDefinition = /^[-*]\s*(?:\*\*)?`?\[(must|should|imo|nits|ask|good)\]`?(?:\*\*)?[:\s]*(?:マージ前に修正必須|強く推奨|私見・提案|些細な指摘|質問・確認|称賛・好ましい実装|修正必須|推奨)(?:[（(].*[）)])?\s*$/i.test(line);
+    if (isLegendDefinition) {
       continue;
     }
 

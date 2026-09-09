@@ -41,15 +41,7 @@ export function handlePostTool(payload = {}, stateMachine = defaultStateMachine)
         prNumber = parseInt(urlMatch[1], 10);
       }
 
-      // 2. Try extracting from command line (e.g. #46, Closes #46, issue-46)
-      if (!prNumber) {
-        const cmdMatch = commandLine.match(/(?:closes\s+#|issue-?)(\d+)/i);
-        if (cmdMatch) {
-          prNumber = parseInt(cmdMatch[1], 10);
-        }
-      }
-
-      // 3. Try gh CLI query
+      // 2. Try gh CLI query
       if (!prNumber) {
         try {
           const output = execSync('gh pr view --json number -q .number', {
@@ -66,7 +58,7 @@ export function handlePostTool(payload = {}, stateMachine = defaultStateMachine)
         }
       }
 
-      // 4. Try git branch name or CI environment variables
+      // 3. Try git branch name or CI environment variables
       if (!prNumber) {
         try {
           const branchRef = process.env.GITHUB_HEAD_REF || 
@@ -75,7 +67,7 @@ export function handlePostTool(payload = {}, stateMachine = defaultStateMachine)
               encoding: 'utf8',
               stdio: ['ignore', 'pipe', 'ignore'],
             });
-          const match = branchRef.match(/(?:issue-|pull\/)(\d+)/i);
+          const match = branchRef.match(/(?:pull\/|pr[/-])(\d+)/i);
           if (match) {
             prNumber = parseInt(match[1], 10);
           }
@@ -84,7 +76,7 @@ export function handlePostTool(payload = {}, stateMachine = defaultStateMachine)
         }
       }
 
-      // 5. Safe fallback for tests / detached HEAD / offline environments
+      // 4. Safe fallback for tests / detached HEAD / offline environments
       if (!prNumber || isNaN(prNumber) || prNumber <= 0) {
         prNumber = 1;
       }

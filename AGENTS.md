@@ -103,12 +103,12 @@ Issue はプレフィックス付きラベル（`status:*`, `type:*`, `priority:
   - 各指摘には Conventional Comments 形式の重要度接頭辞（`[must]`, `[should]`, `[imo]`, `[nits]`, `[ask]`, `[good]`）を付与。
   - コメント冒頭に凡例ガイドを提示。
   - 総合判定として `[LGTM]` または `[要修正]` を判定。
-- Fleet は `scripts/harness/postPrComment.js`（`--body-file` 経由）を実行し、**GitHub PR の Web UI スレッドに公式コメントとして永続記録**する。
+- Fleet はレビュー結果 Markdown を作成して返却し、親エージェントが `scripts/harness/postPrComment.js`（`--body-file` 経由）を実行して **GitHub PR の Web UI スレッドに公式コメントとして永続記録**する。
 - メインエージェントは親プロセスとして Reactive Wakeup（待機通知）を受け取るまで待機し、レビュー完了後に通知を受ける。
 
 ### ⑦ レビュー指摘に基づく手元自己修復コミット & 解決報告（DoD 遵守）
 - **ループエンジニアリング完了定義 (Definition of Done: DoD)**:
-  - **全指摘解消・`RESOLVED_LGTM` 到達前の作業完了・会話終了は物理的に禁止**（Stop フック `stopHook.js` によりブロックされます）。
+  - **全指摘解消・`RESOLVED_LGTM` 到達前の作業完了・会話終了は物理的に禁止**（Stop フック `stopHook.js` によりブロックされます。※ユーザー指示による作業中断や異常時は `node scripts/harness/loopState.js reset` で安全に初期化可能）。
   - レビュー結果を受領後、`node scripts/harness/parseReviewResult.js <レビュー本文> --update-state` を実行して指摘事項を `loopState.js` に反映する。
   - レビュー結果に `[must]` や `[should]` のブロッキング指摘がある場合、メインエージェントが Antigravity IDE 上でコードを迅速に修正・単体テストを拡充する。
   - `npm.cmd run check` で全品質ゲート 100% PASS を確認後、PR ブランチに追加コミット＆プッシュする。
@@ -176,8 +176,8 @@ Issue はプレフィックス付きラベル（`status:*`, `type:*`, `priority:
    - **スタイル統一**: 親エージェントは既存の類似テストやコンポーネントを参考例として各サブエージェントに渡し、実装のブレを防ぐこと。
 3. **PR レビューサブエージェント（Fleet）の運用規則**:
    - PR 発行後、メインエージェントとは別の独立サブエージェントを 1 体起動して客観的レビューを実行させる。
-   - サブエージェントは `git diff` を解析し、重要度接頭辞付きで `gh pr comment` に公式記録を投稿する。
-   - レビュー完了後、親エージェントは指摘を確認し、必要に応じて手元で修正コミットを行う。
+    - サブエージェントは `git diff` を解析して重要度接頭辞付きレビュー Markdown を作成し、親エージェントが一時ファイル経由の `scripts/harness/postPrComment.js` で PR スレッドに公式記録を投稿する。
+    - レビュー完了後、親エージェントは指摘を確認し、必要に応じて手元で修正コミットを行う。
    - **指摘対応・解決（Resolved）の記録**: 指摘に対応した場合は、対応コミットの内容を PR コメントに紐付けて報告し、指摘が解消されたことを明記して最終総合判定 `[LGTM (All Resolved)]` を記録すること。
    - **ウォッチモード（常駐プロセス）の実行厳禁**: エージェントおよびサブエージェントは対話シェルではないため、`npm test`（ウォッチモード）を絶対に実行してはならない。必ず単発終了コマンド（`npm.cmd run test:run` または `npm.cmd run check`）を使用すること。
    - **PR のマージは必ず人間の承認を得てから親エージェントが実行する（自動マージの厳禁）。**

@@ -193,4 +193,58 @@ describe('parseReviewResult', () => {
     expect(result2.counts.totalIssues).toBe(0);
     expect(result2.issues).toEqual([]);
   });
+
+  it('correctly parses backtick-wrapped prefixes and distinguishes them from legend definitions', () => {
+    const markdown = `
+# Fleet Code Review
+
+## 凡例
+- \`[must]\`: マージ前に修正必須
+- \`[should]\`: 強く推奨
+- \`[good]\`: 称賛・好ましい実装
+
+## 指摘事項
+- \`[must]\`: 型安全性の欠落を修正してください。
+* **\`[should]\`**: エラーハンドリングを強化してください。
+- \`[nits]\`: typo を修正してください。
+- \`[good]\`: テストカバレッジが充実しています。
+
+## 総合判定: [要修正]
+`;
+    const result = parseReviewResult(markdown);
+
+    expect(result.isLgtm).toBe(false);
+    expect(result.verdict).toBe(STATUS.NEEDS_FIX);
+    expect(result.counts.blocking).toBe(2);
+    expect(result.counts.must).toBe(1);
+    expect(result.counts.should).toBe(1);
+    expect(result.counts.nits).toBe(1);
+    expect(result.counts.good).toBe(1);
+    expect(result.issues).toHaveLength(3); // must, should, nits
+    expect(result.issues[0].description).toBe('型安全性の欠落を修正してください。');
+    expect(result.issues[1].description).toBe('エラーハンドリングを強化してください。');
+    expect(result.issues[2].description).toBe('typo を修正してください。');
+    expect(result.praises).toHaveLength(1);
+    expect(result.praises[0].description).toBe('テストカバレッジが充実しています。');
+  });
+
+  it('does not falsely skip genuine review issues that start with legend keywords like "マージ前に" or "強く推奨"', () => {
+    const markdown = `
+# Fleet Code Review
+
+- [must]: マージ前に環境変数の設定ファイルを更新してください。
+- [should]: 強く推奨されるパターンに従ってリファクタリングを検討してください。
+
+## 総合判定: [要修正]
+`;
+    const result = parseReviewResult(markdown);
+
+    expect(result.isLgtm).toBe(false);
+    expect(result.counts.blocking).toBe(2);
+    expect(result.counts.must).toBe(1);
+    expect(result.counts.should).toBe(1);
+    expect(result.issues).toHaveLength(2);
+    expect(result.issues[0].description).toBe('マージ前に環境変数の設定ファイルを更新してください。');
+    expect(result.issues[1].description).toBe('強く推奨されるパターンに従ってリファクタリングを検討してください。');
+  });
 });
