@@ -13,8 +13,9 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
 1. **クリーンアーキテクチャの不可侵**:
    - `src/core/`（純粋ビジネスロジック: スコアリング、Markdown、プロンプト）は UI・外部依存ゼロ、100% 単体テスト可能を維持すること。
 2. **仕様正本 (Single Source of Truth: SSOT) の遵守**:
-   - システム仕様および ADR-0001〜0019 の統合正本は **`docs/architecture_overview.md`** および **`docs/adr/`** です。
+   - システム仕様および ADR-0001〜0020 の統合正本は **`docs/architecture_overview.md`** および **`docs/adr/`** です。
    - すべての Issue は **`docs/issues/`** 配下に 4 ファイル完結（`issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md`）で記録・保全すること。
+   - ブランチ作成前には `pre_verification.md` にて重複・パッチワーク点検（Impact & Duplication Check）を必ず完了すること（Hookにより物理強制）。
 
 ---
 
@@ -36,8 +37,9 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
 
 1. **Conventional Commits 規約**:
    - すべてのコミットは Conventional Commits（`feat:`, `fix:`, `docs:`, `chore:`, `test:`, `refactor:`, `ci:`）に厳格に準拠すること。
-2. **ワンショット品質ゲート (`npm run check`)**:
-   - コミット・プッシュ前には必ず `npm run check`（シークレットスキャン + ドキュメント検査 + 型検査 + 全単体テスト & カバレッジ + 本番ビルド）を実行し、全項目 100% PASS を確認すること。
+2. **Inner/Outer Loop の分離とワンショット品質ゲート (`npm run check`)**:
+   - **Inner Loop（開発・TDD反復時）**: `npm.cmd run test:fast` や `npm.cmd run test:related`、`npm.cmd run check:fast` をミリ秒単位で高速反復し、開発生産性を維持すること。
+   - **Outer Loop（プッシュ前・PR作成前・CI）**: 必ず `npm.cmd run check`（シークレットスキャン + ドキュメント検査 + 型検査 + 全単体テスト & カバレッジ + 本番ビルド）を実行し、全項目 100% PASS を確認すること。
 3. **PR 作成後の自動マージ厳禁**:
    - PR 発行直後の自動マージは厳禁。PR は必ず OPEN 状態を維持すること。
 4. **2者 Fleet 並行合議レビューの必須受領**:

@@ -23,11 +23,20 @@
   - 将来的な拡張機能、無関係な別モジュールの改修。
 
 ## 5. 受け入れ基準 (Acceptance Criteria / Definition of Done)
+
+### 5.1. PR作成前完了基準 (Pre-PR DoD)
 - [ ] 課題が解消され、それを検証する単体テストが存在すること。
 - [ ] 排除対象のリスクに対する物理的ガードレール（Hook / 状態マシン）が機能していること。
-- [ ] ワンショット品質ゲート（npm.cmd run check）が 100% PASS すること。
-- [ ] 独立レビュアー（fleet_reviewer）による客観的再レビューで LGTM を受領すること。
+- [ ] 重複・パッチワーク点検（Impact & Duplication Check）が pre_verification.md に完了・記録されていること。
+- [ ] 4軸ドキュメント（issue, pre_verification, plan, walkthrough）が揃っていること。
+- [ ] フル品質ゲート（npm.cmd run check）が 100% PASS すること。
+
+### 5.2. マージ前完了ゲート (Pre-Merge Gate)
+- [ ] GitHub Actions CI が PASS していること。
+- [ ] 2者合議レビュー（fleet_reviewer ＋ fleet_completion_auditor）による客観的再レビューで両者 LGTM を受領すること。
+- [ ] 人間（ユーザー）による最終確認とマージが完了していること。
 
 ## 6. 関連ドキュメント・仕様正本 (References & SSOT)
+- 事前検証記録: docs/issues/ISSUE-XXX/pre_verification.md (template_pre_verification.md 準拠)
 - 関連 ADR: ADR-XXXX
 - 影響を受けるアーキテクチャ設計書: docs/architecture_overview.md
