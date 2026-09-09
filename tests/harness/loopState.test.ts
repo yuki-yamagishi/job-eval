@@ -145,6 +145,42 @@ describe('LoopStateMachine', () => {
     expect(check.allowed).toBe(false);
     expect(check.status).toBe(STATUS.NEEDS_FIX);
     expect(check.reason).toContain('1 unresolved blocking issue(s)');
+    expect(check.reason).toContain('resolveReview.js');
+  });
+
+  describe('Remediation Guidance Verification', () => {
+    it('provides clear next-action guidance in PR_CREATED state', () => {
+      machine.setPrCreated(45);
+      const check = machine.canStop();
+      expect(check.allowed).toBe(false);
+      expect(check.reason).toContain('Remediation Guidance');
+      expect(check.reason).toContain('Wait for GitHub Actions CI to pass on PR #45');
+      expect(check.reason).toContain('review-requested');
+      expect(check.reason).toContain('fleet_reviewer');
+    });
+
+    it('provides clear next-action guidance in REVIEW_REQUESTED state', () => {
+      machine.setPrCreated(45);
+      machine.setReviewRequested({ skipCiCheck: true });
+      const check = machine.canStop();
+      expect(check.allowed).toBe(false);
+      expect(check.reason).toContain('Remediation Guidance');
+      expect(check.reason).toContain('fleet_reviewer');
+      expect(check.reason).toContain('parseReviewResult.js');
+    });
+
+    it('provides clear next-action guidance in NEEDS_FIX state', () => {
+      machine.setPrCreated(45);
+      machine.setReviewRequested({ skipCiCheck: true });
+      machine.setReviewResult({
+        lgtm: false,
+        issues: [{ id: 'issue-1', type: 'must', description: 'Fix bug', resolved: false }],
+      });
+      const check = machine.canStop();
+      expect(check.allowed).toBe(false);
+      expect(check.reason).toContain('Remediation Guidance');
+      expect(check.reason).toContain('resolveReview.js');
+    });
   });
 
   it('transitions to RESOLVED_LGTM if review has LGTM and only non-blocking issues ([imo], [nits], [good])', () => {

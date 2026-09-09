@@ -350,7 +350,8 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
           { execFn: mockExec, stateMachine: testMachine, projectRoot: tempProject }
         );
         expect(result.decision).toBe('deny');
-        expect(result.reason).toContain('必須セクションが不足しています');
+        expect(result.reason).toContain('Missing required sections');
+        expect(result.reason).toContain('template_issue.md');
       } finally {
         fs.rmSync(tempProject, { recursive: true, force: true });
       }

@@ -274,7 +274,24 @@ export class LoopStateMachine {
       const unresolvedCount = current.issues.filter(
         (i) => ['must', 'should'].includes(i.type) && !i.resolved
       ).length;
-      reason = `Stop rejected: Loop is currently in status "${current.status}" with ${unresolvedCount} unresolved blocking issue(s). You must complete the self-healing cycle and reach RESOLVED_LGTM before stopping. (Emergency recovery / user abort: run 'node .agents/state/loopState.js reset' to safely reset state to IDLE.)`;
+
+      let guidance = '';
+      switch (current.status) {
+        case STATUS.PR_CREATED:
+          guidance = `Wait for GitHub Actions CI to pass on PR #${current.prNumber}, then run 'node .agents/state/loopState.js review-requested' and launch 'fleet_reviewer' subagent.`;
+          break;
+        case STATUS.REVIEW_REQUESTED:
+          guidance = `Third-party review is in progress or pending. Launch or await 'fleet_reviewer' subagent. Once completed, parse results with 'node .agents/skills/review-self-healing/scripts/parseReviewResult.js <review_file> --update-state'.`;
+          break;
+        case STATUS.NEEDS_FIX:
+          guidance = `Fix the ${unresolvedCount} unresolved blocking issue(s), commit changes, push to remote, and run 'node .agents/skills/review-self-healing/scripts/resolveReview.js' to report fixes and request re-review.`;
+          break;
+        default:
+          guidance = `Complete the self-healing review cycle and reach RESOLVED_LGTM.`;
+          break;
+      }
+
+      reason = `Stop rejected: Loop is currently in status "${current.status}" with ${unresolvedCount} unresolved blocking issue(s). (Remediation Guidance: ${guidance}) (Emergency abort: run 'node .agents/state/loopState.js reset --force')`;
     }
 
     return {

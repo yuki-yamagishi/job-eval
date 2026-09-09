@@ -50,10 +50,25 @@
      - `setReviewRequested` 実行時、PR の GitHub Actions CI（`gh pr checks`）が `pending` または `failure` の場合はエラーを投げてレビュー依頼状態への遷移を物理拒絶。
   4. **Merge Verification Gate (`loopState.js`)**:
      - `reset()` 実行時、PR が GitHub 上で `MERGED` になっていない場合はリセットを物理拒絶（`--force` フラグ時のみ緊急オーバーライド許可）。
-- **テストによる検証**:
-  - `tests/harness/hooks.test.ts`: Block 3 の各検査ケース（dirty拒絶、非IDLE拒絶、Issue不在拒絶、Why/Risk欠落拒絶、合格時通過）の 5 テストを追加（計 28 テスト PASS）。
+  - `tests/harness/hooks.test.ts`: Block 3 の各検査ケース（dirty拒絶、非IDLE拒絶、Issue不在拒読、Why/Risk欠落拒絶、合格時通過）の 5 テストを追加（計 28 テスト PASS）。
   - `tests/harness/loopState.test.ts`: CI Gate（pending/fail 拒絶、全通過時許可、skipCiCheck時バイパス）および Reset Gate（OPEN 拒絶、MERGED 許可、force 許可）の 8 テストを追加（計 20 テスト PASS）。
-  - ハーネステスト全 78 件およびプロジェクト全 182 テストが 100% PASS。
+
+## 6. 内外分離（Boundary Design）に基づく Hook / State メッセージの英語統一と Remediation Guidance 強化
+- **設計方針と背景**:
+  - 人間向け情報（意思決定・承認）と機械・エージェント向け情報（内部統制・自動修復）の境界を明確に分離（Boundary Design）。
+  - 人間向け（`docs/` 配下の設計書・ADR・Issue、PR 本文、チャット報告）は母国語である完全日本語を維持。
+  - エージェント向け（Hooks、ステートマシン、エラーメッセージ、Remediation Guidance）は、トークン消費量を約 60〜70% 削減でき、モデルの指示追従性（Instruction Following）が最も堅牢な英語に完全統一。
+- **改修内容**:
+  1. **`preToolHook.js`**:
+     - Block 3C のメッセージを英語に統一し、`docs/issues/template_issue.md` を参照・コピーして作成する具体的な Remediation Guidance を注入。
+  2. **`loopState.js`**:
+     - `canStop()` の拒絶理由をステータス別（`PR_CREATED`, `REVIEW_REQUESTED`, `NEEDS_FIX`）に完全分岐。
+     - 各ステータスで「次に実行すべき具体的コマンド（`review-requested`, `fleet_reviewer` 起動, `resolveReview.js` 実行）」を手取り足取り案内する Remediation Guidance を英語で提供。
+  3. **単体テスト追従**:
+     - `tests/harness/hooks.test.ts` のアサーションを英語に追従。
+     - `tests/harness/loopState.test.ts` に各ステータスの Remediation Guidance を検証する単体テスト 3 件を追加（計 23 テスト PASS）。
+     - ハーネステスト全 81 件、プロジェクト全体 185 単体テストが 100% PASS。
+
 
 
 

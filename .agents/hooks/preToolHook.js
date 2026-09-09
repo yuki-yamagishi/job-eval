@@ -89,7 +89,7 @@ export function handlePreTool(payload = {}, options = {}) {
       if (!targetIssueDir) {
         return {
           decision: 'deny',
-          reason: `[PreToolHook Denied] No issue document found for Issue #${issueNum} under docs/issues/. Create the issue document (docs/issues/ISSUE-${String(issueNum).padStart(3, '0')}_.../issue.md) before creating a branch.`,
+          reason: `[PreToolHook Denied] No issue document found for Issue #${issueNum} under docs/issues/. (Remediation Guidance: Create the issue document 'docs/issues/ISSUE-${String(issueNum).padStart(3, '0')}_.../issue.md' using 'docs/issues/template_issue.md' before creating a branch.)`,
         };
       }
 
@@ -97,7 +97,7 @@ export function handlePreTool(payload = {}, options = {}) {
       if (!fs.existsSync(issueMdPath)) {
         return {
           decision: 'deny',
-          reason: `[PreToolHook Denied] issue.md does not exist in ${targetIssueDir}. Create docs/issues/${targetIssueDir}/issue.md before creating a branch.`,
+          reason: `[PreToolHook Denied] issue.md does not exist in ${targetIssueDir}. (Remediation Guidance: Create 'docs/issues/${targetIssueDir}/issue.md' using 'docs/issues/template_issue.md' before creating a branch.)`,
         };
       }
 
@@ -108,11 +108,11 @@ export function handlePreTool(payload = {}, options = {}) {
 
       if (!hasWhySection || !hasRiskSection) {
         const missing = [];
-        if (!hasWhySection) missing.push('「解決すべき課題・背景 (Why)」');
-        if (!hasRiskSection) missing.push('「排除するリスク (Risks to Eliminate)」');
+        if (!hasWhySection) missing.push("'Why (Background & Problem)'");
+        if (!hasRiskSection) missing.push("'Risks to Eliminate'");
         return {
           decision: 'deny',
-          reason: `[PreToolHook Denied] ${targetIssueDir}/issue.md に必須セクションが不足しています: ${missing.join(', ')}。表層的な作業(What)の前に、なぜこの作業を行うのか・どのリスクを排除するのかを定義してください。`,
+          reason: `[PreToolHook Denied] Missing required sections in ${targetIssueDir}/issue.md: ${missing.join(', ')}. Define the root problem (Why) and risks before jumping into implementation (What). (Remediation Guidance: Refer to 'docs/issues/template_issue.md' and add the required sections.)`,
         };
       }
     }
