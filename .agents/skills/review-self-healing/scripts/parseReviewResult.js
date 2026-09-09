@@ -17,14 +17,17 @@ export function parseReviewResult(reviewText, options = {}) {
 
   // Detect agentType from JSON block if not explicitly specified
   let detectedAgentType = options.agentType || null;
-  const jsonMatch = reviewText.match(/```json\s*([\s\S]*?)\s*```/i);
-  if (jsonMatch && !detectedAgentType) {
-    try {
-      const parsedJson = JSON.parse(jsonMatch[1]);
-      if (parsedJson.agentType) {
-        detectedAgentType = parsedJson.agentType;
-      }
-    } catch {}
+  if (!detectedAgentType) {
+    const jsonMatches = [...reviewText.matchAll(/```json\s*([\s\S]*?)\s*```/gi)];
+    for (let i = jsonMatches.length - 1; i >= 0; i--) {
+      try {
+        const parsedJson = JSON.parse(jsonMatches[i][1]);
+        if (parsedJson && parsedJson.agentType) {
+          detectedAgentType = parsedJson.agentType;
+          break;
+        }
+      } catch {}
+    }
   }
 
   const lines = reviewText.split(/\r?\n/);

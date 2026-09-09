@@ -205,12 +205,13 @@ export class LoopStateMachine {
     const hasBothReviews = updatedReviews.codeReviewer !== null && updatedReviews.completionAuditor !== null;
 
     let nextStatus = STATUS.REVIEW_REQUESTED;
-    if (hasAnyRejection) {
-      nextStatus = STATUS.NEEDS_FIX;
-    } else if (hasBothReviews && updatedReviews.codeReviewer.verdict === 'LGTM' && updatedReviews.completionAuditor.verdict === 'LGTM') {
-      nextStatus = STATUS.RESOLVED_LGTM;
-    } else {
+    if (!hasBothReviews) {
+      // Both reviews must be submitted before deciding final consensus to prevent premature NEEDS_FIX and deadlock
       nextStatus = STATUS.REVIEW_REQUESTED;
+    } else if (hasAnyRejection) {
+      nextStatus = STATUS.NEEDS_FIX;
+    } else if (updatedReviews.codeReviewer.verdict === 'LGTM' && updatedReviews.completionAuditor.verdict === 'LGTM') {
+      nextStatus = STATUS.RESOLVED_LGTM;
     }
 
     const updated = {
@@ -218,7 +219,7 @@ export class LoopStateMachine {
       status: nextStatus,
       reviews: updatedReviews,
       issues: allIssues,
-      activeSubagents: false,
+      activeSubagents: hasBothReviews ? false : Boolean(current.activeSubagents),
     };
     return this.saveState(updated);
   }

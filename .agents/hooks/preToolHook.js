@@ -56,7 +56,7 @@ export function handlePreTool(payload = {}, options = {}) {
       if (statusOut.length > 0) {
         const lines = statusOut.split('\n').map((l) => l.trim()).filter(Boolean);
         // Allow untracked docs/issues/ files created for the new issue, but block any modified, deleted, staged, or other untracked files
-        const dirtyLines = lines.filter((l) => !l.startsWith('?? docs/issues/'));
+        const dirtyLines = lines.filter((l) => !/^\?\?\s+"?docs[/\\]issues[/\\]/i.test(l));
         if (dirtyLines.length > 0) {
           return {
             decision: 'deny',

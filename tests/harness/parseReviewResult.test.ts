@@ -268,6 +268,32 @@ All criteria met!
     expect(result.isLgtm).toBe(true);
   });
 
+  it('extracts agentType from the trailing JSON metadata block when multiple JSON blocks are present', () => {
+    const markdown = `
+# Fleet Code Review
+
+Here is an example snippet of a JSON config:
+\`\`\`json
+{
+  "exampleConfig": true,
+  "threshold": 100
+}
+\`\`\`
+
+And the final review verdict:
+\`\`\`json
+{
+  "agentType": "codeReviewer",
+  "verdict": "LGTM",
+  "issues": []
+}
+\`\`\`
+`;
+    const result = parseReviewResult(markdown);
+    expect(result.agentType).toBe('codeReviewer');
+    expect(result.isLgtm).toBe(true);
+  });
+
   it('passes agentType to stateUpdater when updateState is enabled', () => {
     const mockUpdater = vi.fn().mockReturnValue({ status: 'REVIEW_REQUESTED' });
     const markdown = `

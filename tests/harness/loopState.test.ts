@@ -392,6 +392,61 @@ describe('LoopStateMachine', () => {
       expect(machine.canStop().reason).toContain('fleet_completion_auditor');
     });
 
+    it('stays in REVIEW_REQUESTED and preserves activeSubagents when first reviewer submits REQUEST_CHANGES (preventing deadlock)', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ activeSubagents: true, skipCiCheck: true });
+
+      const state = machine.recordReview('codeReviewer', {
+        verdict: 'REQUEST_CHANGES',
+        issues: [
+          { id: 'code-1', type: 'must', description: 'Fix race condition', resolved: false },
+        ],
+      });
+
+      // Crucial: Must stay in REVIEW_REQUESTED until second reviewer finishes
+      expect(state.status).toBe(STATUS.REVIEW_REQUESTED);
+      expect(state.activeSubagents).toBe(true);
+      expect(state.reviews.codeReviewer?.verdict).toBe('REQUEST_CHANGES');
+      expect(state.reviews.completionAuditor).toBeNull();
+      // Because activeSubagents is still true, canStop allows turn termination for Reactive Wakeup!
+      expect(machine.canStop({ hasActiveSubagents: machine.getState().activeSubagents }).allowed).toBe(true);
+
+      // Now second reviewer finishes with LGTM -> transitions to NEEDS_FIX because codeReviewer requested changes
+      const finalState = machine.recordReview('completionAuditor', {
+        verdict: 'LGTM',
+        issues: [],
+      });
+      expect(finalState.status).toBe(STATUS.NEEDS_FIX);
+      expect(finalState.activeSubagents).toBe(false);
+      expect(machine.canStop().allowed).toBe(false);
+      expect(machine.canStop().reason).toContain('NEEDS_FIX');
+    });
+
+    it('transitions to NEEDS_FIX and accumulates issues when both reviewers submit REQUEST_CHANGES', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ skipCiCheck: true });
+
+      machine.recordReview('codeReviewer', {
+        verdict: 'REQUEST_CHANGES',
+        issues: [
+          { id: 'code-1', type: 'must', description: 'Code issue', resolved: false },
+        ],
+      });
+
+      const state = machine.recordReview('completionAuditor', {
+        verdict: 'REQUEST_CHANGES',
+        issues: [
+          { id: 'ca-1', type: 'should', description: 'Auditor issue', resolved: false },
+        ],
+      });
+
+      expect(state.status).toBe(STATUS.NEEDS_FIX);
+      expect(state.issues.length).toBe(2);
+      expect(state.issues.map((i: { id: string }) => i.id)).toEqual(['code-1', 'ca-1']);
+      expect(machine.canStop().allowed).toBe(false);
+      expect(machine.canStop().reason).toContain('NEEDS_FIX');
+    });
+
     it('transitions to NEEDS_FIX when one reviewer submits REQUEST_CHANGES even if other is LGTM', () => {
       machine.setPrCreated(68);
       machine.setReviewRequested({ skipCiCheck: true });
