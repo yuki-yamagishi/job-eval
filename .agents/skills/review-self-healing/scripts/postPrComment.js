@@ -57,9 +57,9 @@ const isDirectExecution = process.argv[1] &&
 if (isDirectExecution) {
   const [,, prNumberArg, bodyOrFileArg] = process.argv;
 
-  if (!prNumberArg) {
-    console.error('Usage: node postPrComment.js <prNumber> [body|filePath]');
-    process.exit(1);
+  if (!prNumberArg || prNumberArg === '--help' || prNumberArg === '-h') {
+    console.log('Usage: node postPrComment.js <prNumber> [body|filePath]');
+    process.exit(prNumberArg && (prNumberArg === '--help' || prNumberArg === '-h') ? 0 : 1);
   }
 
   let body = '';
@@ -69,7 +69,7 @@ if (isDirectExecution) {
     } else {
       body = bodyOrFileArg;
     }
-  } else {
+  } else if (!process.stdin.isTTY) {
     try {
       body = fs.readFileSync(0, 'utf8');
     } catch {}
