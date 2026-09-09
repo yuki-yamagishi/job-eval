@@ -1,5 +1,5 @@
 /**
- * Safety Guard Handler (.agents/hooks/handlers/safetyGuard.js)
+ * Safety Guard Hook (.agents/hooks/safetyGuard.js)
  * 
  * Enforces execution safety:
  * 1. Prohibits direct gh pr merge by the agent (merging is exclusively performed by human).

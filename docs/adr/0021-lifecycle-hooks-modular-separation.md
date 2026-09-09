@@ -45,10 +45,10 @@ JobEval における自律エージェントのガバナンス機構は、ADR-00
 
 各フックは、CLI からの直接実行（`node ...` ＋ stdin/stdout JSON プロトコル）と、他のスクリプトからの関数インポート呼び出し（`handleSafetyGuard(payload)` 等）のデュアル実行に対応する。
 
-### 2.3 ファサード（Facade）の完全撤廃とテストの直接的追随
-- 過去のテスト（`tests/harness/hooks.test.ts`, `tests/harness/e2eLoop.test.ts`）で使われていた `preToolHook.js` および `postToolHook.js` のファサードは、ランタイム実行において不要な中間層（デッドコード）となるため完全に削除・撤廃した。
+### 2.3 ファサード（Facade）および不要な中間階層の完全撤廃
+- 過去のテスト（`tests/harness/hooks.test.ts`, `tests/harness/e2eLoop.test.ts`）で使われていた `preToolHook.js` および `postToolHook.js` のファサード、ならびに余計な中間サブ階層（`.agents/hooks/handlers/`）は、不要な中間層・死にコード・先送りの負債となるため完全に削除・撤廃した。
 - テストスイートはファサードを経由せず、各フックモジュールを直接インポートして検証する構造へ健全に追従させた（テストのアサーションロジック・検証網羅性は 100% 維持）。
-- 移行期の現行セッション保護のため、`.agents/hooks/handlers/` は本体への薄いフォワーダーとして残存させ、ランタイムキャッシュとの互換性を確保する。
+- これにより、死にコードや不要な抽象化が 1 行も存在しない、AGY 公式仕様に最も素直で純粋なフラット構成を実現した。
 
 ---
 

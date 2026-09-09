@@ -14,7 +14,7 @@
 
 ## 2. 期待される成果と価値 (Desired Outcome / Value)
 - `hooks.json` が AGY 公式スキーマに完全準拠し、`safety-guard`, `branch-dor-gate`, `pre-pr-audit-gate`, `review-loop-guard` に名前付き分割される。
-- 各フックのロジックが独立したハンドラー（`hooks/handlers/`）にモジュール化され、単一責任の原則（SRP）が確立される。
+- 各フックのロジックが独立したモジュール（`.agents/hooks/` 直下）に配置され、単一責任の原則（SRP）が確立される。
 - 既存の安全ガード（`gh pr merge` 禁止、停止ガード、DoR 検査等）の振る舞いが 100% 完全に維持され、`tests/harness/hooks.test.ts` が全件合格する。
 
 ## 3. 排除するリスク (Risks to Eliminate)

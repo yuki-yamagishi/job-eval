@@ -19,20 +19,23 @@
   - `tests/harness/hooks.test.ts`: 755 行に及ぶ詳細なテストスイートが存在し、`handleStop`, `handlePreTool`, `handlePostTool` の入力と出力を網羅している。
 - **車輪の再発明・パッチワークの防止方針**:
   - 新たなフック機構をつぎはぎするのではなく、AGY 公式の `hooks.json` スキーマ（名前付きキー分割）にネイティブ準拠させる。
-  - 各ハンドラーは単一責任を持つ独立モジュール（関数）として `.agents/hooks/handlers/` に配置する。
-  - 既存の `preToolHook.js` は、それらのハンドラーを順次呼び出すファサード（Facade）として残すことで、`tests/harness/hooks.test.ts` の既存テストに対する 100% の後方互換性を保証する。
-  - つまり、既存テストの書き換えやテスト削除を行わず、新しいハンドラー単位のテストを追加する形で「無破壊リファクタリング」を実現する。
+  - 各フックは単一責任を持つ独立モジュールとして `.agents/hooks/` 直下にフラット配置する。
+  - 当初検討された「互換ファサード（`preToolHook.js`, `postToolHook.js`）および `handlers/` サブ階層の温存案」は、不要な中間層・死にコード・先送りの技術的負債となるため完全に廃止・却下した。
+  - テストスイート（`tests/harness/hooks.test.ts`）のアサーション検証ロジックを 1 つも弱体化させずに、テストのインポート先を新モジュールへ直接追随させ、かつ Node CLI 直接実行（stdin/stdout JSON プロトコル）テストを完備することで、真の無破壊リファクタリングを実現する。
 
 ## 4. 改修方針 (Implementation Strategy)
-1. **ハンドラーモジュールの新規作成 (`.agents/hooks/handlers/`)**:
+1. **フックモジュールの新規作成・フラット配置 (`.agents/hooks/`)**:
    - `safetyGuard.js`: `gh pr merge` 禁止、インタラクティブテスト抑止
    - `branchDoRGate.js`: ワーキングツリー清浄度、LoopState IDLE、Why / 排除リスク、重複点検の検証
    - `prePrAuditGate.js`: 4軸ドキュメント完備、Pre-PR DoD 完了、SSOT / ADR 同期の検証
    - `postPrCreate.js`: PR 作成検知と `loopState` 遷移
-2. **`preToolHook.js` のリファクタリング**:
-   - 上記ハンドラーを合成（Compose）して実行するスリムな構造へ再編成。
+   - `stopHook.js`: サブエージェント待機および完了条件の判定
+2. **不要な中間ファサード・中間階層の完全撤廃**:
+   - `preToolHook.js`, `postToolHook.js`, および `.agents/hooks/handlers/` ディレクトリを完全に物理削除し、死にコードや過剰な抽象化を根絶。
 3. **`hooks.json` のスキーマ更新**:
-   - `safety-guard`, `branch-dor-gate`, `pre-pr-audit-gate`, `review-loop-guard` の 4 つの名前付きフックに分割。
+   - `safety-guard`, `branch-dor-gate`, `pre-pr-audit-gate`, `review-loop-guard` の 4 つの名前付きフックに分割し、個別の `"enabled": false` 制御に対応。
 4. **テスト検証**:
-   - `npm.cmd run test:fast` で `tests/harness/hooks.test.ts` の全件 PASS を確認。
+   - `tests/harness/hooks.test.ts` を直下モジュールへ直接追随させ、CLI 直接実行テスト（stdin/stdout）を追加。
+   - `npm.cmd run test:fast` で 44 件のフックテストおよび 108 件の Harness 全テスト PASS を確認。
    - `npm.cmd run check`（フル品質ゲート）の PASS を確認。
+
