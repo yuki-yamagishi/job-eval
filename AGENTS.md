@@ -13,7 +13,7 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
 1. **クリーンアーキテクチャの不可侵**:
    - `src/core/`（純粋ビジネスロジック: スコアリング、Markdown、プロンプト）は UI・外部依存ゼロ、100% 単体テスト可能を維持すること。
 2. **仕様正本 (Single Source of Truth: SSOT) の遵守**:
-   - システム仕様および ADR-0001〜0018 の統合正本は **`docs/architecture_overview.md`** および **`docs/adr/`** です。
+   - システム仕様および ADR-0001〜0019 の統合正本は **`docs/architecture_overview.md`** および **`docs/adr/`** です。
    - すべての Issue は **`docs/issues/`** 配下に 4 ファイル完結（`issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md`）で記録・保全すること。
 
 ---
@@ -40,8 +40,8 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
    - コミット・プッシュ前には必ず `npm run check`（シークレットスキャン + ドキュメント検査 + 型検査 + 全単体テスト & カバレッジ + 本番ビルド）を実行し、全項目 100% PASS を確認すること。
 3. **PR 作成後の自動マージ厳禁**:
    - PR 発行直後の自動マージは厳禁。PR は必ず OPEN 状態を維持すること。
-4. **独立 Fleet レビューの必須受領**:
-   - PR 発行後、思考コンテキストを切り離した独立サブエージェント（Fleet: `fleet_reviewer`）を起動し、最上位モデルによる客観的第三者コードレビューを受領して PR スレッドに記録すること。
+4. **2者 Fleet 並行合議レビューの必須受領**:
+   - PR 発行後、思考コンテキストを切り離した独立サブエージェント 2 体（`fleet_reviewer` と `fleet_completion_auditor`）を並行起動し、コード品質（How）と批判的完了性（Why / What）の両面から客観的レビューを受領して合議（両者 LGTM）を成立させること。
 5. **ループエンジニアリング完了定義 (DoD) & 早期停止ガード**:
    - ループ状態マシン（`loopState`）により、PR 作成後の早期停止・会話終了は物理的にブロックされる。
    - レビュー指摘の修正後、解決報告ツール `resolveReview` を実行し、さらに Fleet の再レビュー（Re-review）を受領して状態を `RESOLVED_LGTM` に収束させること（自己承認は物理禁止）。

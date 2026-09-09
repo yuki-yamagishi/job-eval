@@ -365,4 +365,175 @@ describe('LoopStateMachine', () => {
     machine.setReviewResult({ lgtm: true, issues: [] });
     expect(machine.getState().activeSubagents).toBe(false);
   });
+
+  describe('Review Consortium (2-Agent Consensus Gate)', () => {
+    it('initializes with null review slots for codeReviewer and completionAuditor', () => {
+      machine.setPrCreated(68);
+      const state = machine.getState();
+      expect(state.reviews).toBeDefined();
+      expect(state.reviews.codeReviewer).toBeNull();
+      expect(state.reviews.completionAuditor).toBeNull();
+    });
+
+    it('stays in REVIEW_REQUESTED when only one reviewer submits review', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ skipCiCheck: true });
+
+      const state = machine.recordReview('codeReviewer', {
+        verdict: 'LGTM',
+        issues: [],
+      });
+
+      expect(state.status).toBe(STATUS.REVIEW_REQUESTED);
+      expect(state.reviews.codeReviewer).not.toBeNull();
+      expect(state.reviews.codeReviewer.verdict).toBe('LGTM');
+      expect(state.reviews.completionAuditor).toBeNull();
+      expect(machine.canStop().allowed).toBe(false);
+      expect(machine.canStop().reason).toContain('fleet_completion_auditor');
+    });
+
+    it('stays in REVIEW_REQUESTED and preserves activeSubagents when first reviewer submits REQUEST_CHANGES (preventing deadlock)', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ activeSubagents: true, skipCiCheck: true });
+
+      const state = machine.recordReview('codeReviewer', {
+        verdict: 'REQUEST_CHANGES',
+        issues: [
+          { id: 'code-1', type: 'must', description: 'Fix race condition', resolved: false },
+        ],
+      });
+
+      // Crucial: Must stay in REVIEW_REQUESTED until second reviewer finishes
+      expect(state.status).toBe(STATUS.REVIEW_REQUESTED);
+      expect(state.activeSubagents).toBe(true);
+      expect(state.reviews.codeReviewer?.verdict).toBe('REQUEST_CHANGES');
+      expect(state.reviews.completionAuditor).toBeNull();
+      // Because activeSubagents is still true, canStop allows turn termination for Reactive Wakeup!
+      expect(machine.canStop({ hasActiveSubagents: machine.getState().activeSubagents }).allowed).toBe(true);
+
+      // Now second reviewer finishes with LGTM -> transitions to NEEDS_FIX because codeReviewer requested changes
+      const finalState = machine.recordReview('completionAuditor', {
+        verdict: 'LGTM',
+        issues: [],
+      });
+      expect(finalState.status).toBe(STATUS.NEEDS_FIX);
+      expect(finalState.activeSubagents).toBe(false);
+      expect(machine.canStop().allowed).toBe(false);
+      expect(machine.canStop().reason).toContain('NEEDS_FIX');
+    });
+
+    it('transitions to NEEDS_FIX and accumulates issues when both reviewers submit REQUEST_CHANGES', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ skipCiCheck: true });
+
+      machine.recordReview('codeReviewer', {
+        verdict: 'REQUEST_CHANGES',
+        issues: [
+          { id: 'code-1', type: 'must', description: 'Code issue', resolved: false },
+        ],
+      });
+
+      const state = machine.recordReview('completionAuditor', {
+        verdict: 'REQUEST_CHANGES',
+        issues: [
+          { id: 'ca-1', type: 'should', description: 'Auditor issue', resolved: false },
+        ],
+      });
+
+      expect(state.status).toBe(STATUS.NEEDS_FIX);
+      expect(state.issues.length).toBe(2);
+      expect(state.issues.map((i: { id: string }) => i.id)).toEqual(['code-1', 'ca-1']);
+      expect(machine.canStop().allowed).toBe(false);
+      expect(machine.canStop().reason).toContain('NEEDS_FIX');
+    });
+
+    it('transitions to NEEDS_FIX when one reviewer submits REQUEST_CHANGES even if other is LGTM', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ skipCiCheck: true });
+
+      machine.recordReview('codeReviewer', {
+        verdict: 'LGTM',
+        issues: [],
+      });
+
+      const state = machine.recordReview('completionAuditor', {
+        verdict: 'REQUEST_CHANGES',
+        issues: [
+          { id: 'ca-1', type: 'must', description: 'Why section is not addressed in implementation', resolved: false },
+        ],
+      });
+
+      expect(state.status).toBe(STATUS.NEEDS_FIX);
+      expect(state.issues.length).toBe(1);
+      expect(state.issues[0].id).toBe('ca-1');
+      expect(machine.canStop().allowed).toBe(false);
+      expect(machine.canStop().reason).toContain('NEEDS_FIX');
+    });
+
+    it('transitions to RESOLVED_LGTM only when both reviewers submit LGTM with zero blocking issues', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ skipCiCheck: true });
+
+      machine.recordReview('codeReviewer', {
+        verdict: 'LGTM',
+        issues: [],
+      });
+      expect(machine.getState().status).toBe(STATUS.REVIEW_REQUESTED);
+
+      const state = machine.recordReview('completionAuditor', {
+        verdict: 'LGTM',
+        issues: [
+          { id: 'ca-nits', type: 'nits', description: 'Small markdown polish' },
+        ],
+      });
+
+      expect(state.status).toBe(STATUS.RESOLVED_LGTM);
+      expect(state.reviews.codeReviewer.verdict).toBe('LGTM');
+      expect(state.reviews.completionAuditor.verdict).toBe('LGTM');
+      expect(machine.canStop().allowed).toBe(true);
+      expect(machine.canStop().reason).toContain('RESOLVED_LGTM');
+    });
+
+    it('resets reviews slots when setReviewRequested is called for re-review', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ skipCiCheck: true });
+      machine.recordReview('codeReviewer', { verdict: 'LGTM', issues: [] });
+      expect(machine.getState().reviews.codeReviewer).not.toBeNull();
+
+      machine.setReviewRequested({ skipCiCheck: true });
+      expect(machine.getState().reviews.codeReviewer).toBeNull();
+      expect(machine.getState().reviews.completionAuditor).toBeNull();
+    });
+
+    it('invalidates and resets reviews slots when resolveIssues transitions to REVIEW_REQUESTED, requiring fresh consensus from both reviewers', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ skipCiCheck: true });
+
+      // completionAuditor gives LGTM, but codeReviewer requests changes
+      machine.recordReview('completionAuditor', { verdict: 'LGTM', issues: [] });
+      machine.recordReview('codeReviewer', {
+        verdict: 'REQUEST_CHANGES',
+        issues: [{ id: 'code-1', type: 'must', description: 'Fix race condition', resolved: false }],
+      });
+      expect(machine.getState().status).toBe(STATUS.NEEDS_FIX);
+      expect(machine.getState().reviews.completionAuditor?.verdict).toBe('LGTM');
+
+      // Parent agent fixes issue and reports resolution
+      const resolvedState = machine.resolveIssues('commit-fix1', ['code-1']);
+      expect(resolvedState.status).toBe(STATUS.REVIEW_REQUESTED);
+      // Both slots MUST be invalidated (set to null) because new code was committed!
+      expect(resolvedState.reviews.codeReviewer).toBeNull();
+      expect(resolvedState.reviews.completionAuditor).toBeNull();
+
+      // If only codeReviewer re-reviews and grants LGTM, still cannot terminate because completionAuditor has not re-audited
+      machine.recordReview('codeReviewer', { verdict: 'LGTM', issues: [] });
+      expect(machine.getState().status).toBe(STATUS.REVIEW_REQUESTED);
+      expect(machine.canStop().allowed).toBe(false);
+
+      // Only when completionAuditor also re-audits and grants LGTM, consensus is reached
+      machine.recordReview('completionAuditor', { verdict: 'LGTM', issues: [] });
+      expect(machine.getState().status).toBe(STATUS.RESOLVED_LGTM);
+      expect(machine.canStop().allowed).toBe(true);
+    });
+  });
 });

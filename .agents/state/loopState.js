@@ -31,6 +31,10 @@ export function createInitialState() {
     status: STATUS.IDLE,
     prNumber: null,
     reviewRequestedAt: null,
+    reviews: {
+      codeReviewer: null,
+      completionAuditor: null,
+    },
     issues: [],
     activeSubagents: false,
     updatedAt: new Date().toISOString(),
@@ -55,7 +59,15 @@ export class LoopStateMachine {
       if (!parsed || typeof parsed !== 'object' || !parsed.status) {
         return createInitialState();
       }
-      return parsed;
+      return {
+        ...createInitialState(),
+        ...parsed,
+        reviews: {
+          codeReviewer: null,
+          completionAuditor: null,
+          ...(parsed.reviews || {}),
+        },
+      };
     } catch {
       return createInitialState();
     }
@@ -83,6 +95,10 @@ export class LoopStateMachine {
       status: STATUS.PR_CREATED,
       prNumber: num,
       reviewRequestedAt: null,
+      reviews: {
+        codeReviewer: null,
+        completionAuditor: null,
+      },
       issues: [],
       activeSubagents: false,
     };
@@ -125,6 +141,10 @@ export class LoopStateMachine {
       ...current,
       status: STATUS.REVIEW_REQUESTED,
       reviewRequestedAt: new Date().toISOString(),
+      reviews: {
+        codeReviewer: null,
+        completionAuditor: null,
+      },
       activeSubagents: Boolean(options.activeSubagents),
     };
     return this.saveState(updated);
@@ -139,7 +159,73 @@ export class LoopStateMachine {
     return this.saveState(updated);
   }
 
+  /**
+   * Records an individual review from a specific agent in the review consortium.
+   * Consensus Gate: RESOLVED_LGTM is only reached when both codeReviewer and
+   * completionAuditor have completed reviews and both have verdict === 'LGTM' with 0 blocking issues.
+   */
+  recordReview(agentType, { verdict = 'LGTM', issues = [] } = {}) {
+    const current = this.getState();
+    const validAgents = ['codeReviewer', 'completionAuditor'];
+    const normalizedAgent = validAgents.includes(agentType) ? agentType : 'codeReviewer';
+
+    const formattedIssues = issues.map((issue, idx) => ({
+      id: issue.id || `${normalizedAgent}-${idx + 1}`,
+      source: normalizedAgent,
+      type: (issue.type || 'should').toLowerCase(),
+      description: issue.description || '',
+      resolved: Boolean(issue.resolved),
+      resolvedCommit: issue.resolvedCommit || null,
+    }));
+
+    const updatedReviews = {
+      ...(current.reviews || { codeReviewer: null, completionAuditor: null }),
+      [normalizedAgent]: {
+        verdict: String(verdict).toUpperCase(),
+        issues: formattedIssues,
+        reviewedAt: new Date().toISOString(),
+      },
+    };
+
+    // Aggregate issues from all recorded reviews
+    const allIssues = [
+      ...(updatedReviews.codeReviewer?.issues || []),
+      ...(updatedReviews.completionAuditor?.issues || []),
+    ];
+
+    const unresolvedBlocking = allIssues.filter(
+      (issue) => ['must', 'should'].includes(issue.type) && !issue.resolved
+    );
+
+    const hasAnyRejection = 
+      updatedReviews.codeReviewer?.verdict === 'REQUEST_CHANGES' ||
+      updatedReviews.completionAuditor?.verdict === 'REQUEST_CHANGES' ||
+      unresolvedBlocking.length > 0;
+
+    const hasBothReviews = updatedReviews.codeReviewer !== null && updatedReviews.completionAuditor !== null;
+
+    let nextStatus = STATUS.REVIEW_REQUESTED;
+    if (!hasBothReviews) {
+      // Both reviews must be submitted before deciding final consensus to prevent premature NEEDS_FIX and deadlock
+      nextStatus = STATUS.REVIEW_REQUESTED;
+    } else if (hasAnyRejection) {
+      nextStatus = STATUS.NEEDS_FIX;
+    } else if (updatedReviews.codeReviewer.verdict === 'LGTM' && updatedReviews.completionAuditor.verdict === 'LGTM') {
+      nextStatus = STATUS.RESOLVED_LGTM;
+    }
+
+    const updated = {
+      ...current,
+      status: nextStatus,
+      reviews: updatedReviews,
+      issues: allIssues,
+      activeSubagents: hasBothReviews ? false : Boolean(current.activeSubagents),
+    };
+    return this.saveState(updated);
+  }
+
   setReviewResult({ lgtm, issues = [] }) {
+    // Backward compatibility wrapper for single-agent tests
     const current = this.getState();
     const formattedIssues = issues.map((issue, idx) => ({
       id: issue.id || `issue-${idx + 1}`,
@@ -159,6 +245,18 @@ export class LoopStateMachine {
     const updated = {
       ...current,
       status: nextStatus,
+      reviews: {
+        codeReviewer: {
+          verdict: isLgtm ? 'LGTM' : 'REQUEST_CHANGES',
+          issues: formattedIssues,
+          reviewedAt: new Date().toISOString(),
+        },
+        completionAuditor: {
+          verdict: isLgtm ? 'LGTM' : 'REQUEST_CHANGES',
+          issues: [],
+          reviewedAt: new Date().toISOString(),
+        },
+      },
       issues: formattedIssues,
       activeSubagents: false,
     };
@@ -193,13 +291,18 @@ export class LoopStateMachine {
     // ガバナンス厳格化: 全ての指摘に対応コミットを紐付けた場合でも、
     // 親エージェントが独断で RESOLVED_LGTM に遷移することは物理的に禁止。
     // 必ず STATUS.REVIEW_REQUESTED（再レビュー待ち）に遷移し、
-    // 第三者レビュアー（fleet_reviewer）による Re-review での LGTM 判定を必須とする。
-    const nextStatus = unresolvedBlocking.length === 0 ? STATUS.REVIEW_REQUESTED : STATUS.NEEDS_FIX;
+    // コード変更が入ったため過去のレビュー判定は Stale（無効化）とし、
+    // Fleet レビュー 2 者（codeReviewer, completionAuditor）双方による再レビュー・再監査を必須とする。
+    const isAllResolved = unresolvedBlocking.length === 0;
+    const nextStatus = isAllResolved ? STATUS.REVIEW_REQUESTED : STATUS.NEEDS_FIX;
 
     const updated = {
       ...current,
       status: nextStatus,
       issues: updatedIssues,
+      reviews: isAllResolved
+        ? { codeReviewer: null, completionAuditor: null }
+        : current.reviews,
       activeSubagents: false,
     };
     return this.saveState(updated);
@@ -278,13 +381,18 @@ export class LoopStateMachine {
       let guidance = '';
       switch (current.status) {
         case STATUS.PR_CREATED:
-          guidance = `Wait for GitHub Actions CI to pass on PR #${current.prNumber}, then run 'node .agents/state/loopState.js review-requested' and launch 'fleet_reviewer' subagent.`;
+          guidance = `Wait for GitHub Actions CI to pass on PR #${current.prNumber}, then run 'node .agents/state/loopState.js review-requested' and launch fleet reviewers ('fleet_reviewer' and 'fleet_completion_auditor').`;
           break;
-        case STATUS.REVIEW_REQUESTED:
-          guidance = `Third-party review is in progress or pending. Launch or await 'fleet_reviewer' subagent. Once completed, parse results with 'node .agents/skills/review-self-healing/scripts/parseReviewResult.js <review_file> --update-state'.`;
+        case STATUS.REVIEW_REQUESTED: {
+          const pending = [];
+          if (!current.reviews?.codeReviewer) pending.push('fleet_reviewer');
+          if (!current.reviews?.completionAuditor) pending.push('fleet_completion_auditor');
+          const pendingStr = pending.length > 0 ? pending.join(' and ') : 'fleet reviewers';
+          guidance = `Multi-agent review consortium is in progress. Await review from [${pendingStr}]. Parse results with 'node .agents/skills/review-self-healing/scripts/parseReviewResult.js <file> --agent-type <codeReviewer|completionAuditor> --update-state'.`;
           break;
+        }
         case STATUS.NEEDS_FIX:
-          guidance = `Fix the ${unresolvedCount} unresolved blocking issue(s), commit changes, push to remote, and run 'node .agents/skills/review-self-healing/scripts/resolveReview.js' to report fixes and request re-review.`;
+          guidance = `Fix the ${unresolvedCount} unresolved blocking issue(s) from review consortium, commit changes, push to remote, and run 'node .agents/skills/review-self-healing/scripts/resolveReview.js' to report fixes and request re-review.`;
           break;
         default:
           guidance = `Complete the self-healing review cycle and reach RESOLVED_LGTM.`;
@@ -310,6 +418,7 @@ export function saveState(state) { return defaultStateMachine.saveState(state); 
 export function setPrCreated(prNumber) { return defaultStateMachine.setPrCreated(prNumber); }
 export function setReviewRequested(options = {}) { return defaultStateMachine.setReviewRequested(options); }
 export function setActiveSubagents(active = true) { return defaultStateMachine.setActiveSubagents(active); }
+export function recordReview(agentType, result) { return defaultStateMachine.recordReview(agentType, result); }
 export function setReviewResult(result) { return defaultStateMachine.setReviewResult(result); }
 export function resolveIssues(resolvedCommit, resolvedIssueIds = null) { return defaultStateMachine.resolveIssues(resolvedCommit, resolvedIssueIds); }
 export function reset(options = {}) { return defaultStateMachine.reset(options); }
@@ -367,6 +476,21 @@ if (isDirectExecution) {
       console.log(`[OK] activeSubagents set to ${state.activeSubagents}`);
       break;
     }
+    case 'record-review': {
+      const agentType = args[0] || 'codeReviewer';
+      const verdict = args[1] || 'LGTM';
+      let issues = [];
+      if (args[2]) {
+        try {
+          issues = JSON.parse(args[2]);
+        } catch {
+          issues = [];
+        }
+      }
+      const state = recordReview(agentType, { verdict, issues });
+      console.log(`[OK] Review recorded for ${agentType}: status = ${state.status}`);
+      break;
+    }
     case 'reset': {
       const isForce = args.includes('--force');
       try {
@@ -379,7 +503,7 @@ if (isDirectExecution) {
       break;
     }
     default: {
-      console.log('Usage: node loopState.js <status|can-stop|pr-created|review-requested|active-subagents|reset>');
+      console.log('Usage: node loopState.js <status|can-stop|pr-created|review-requested|active-subagents|record-review|reset>');
       process.exit(0);
     }
   }

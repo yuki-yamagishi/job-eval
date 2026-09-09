@@ -54,10 +54,15 @@ export function handlePreTool(payload = {}, options = {}) {
     try {
       const statusOut = exec('git status --porcelain', { cwd: projectRoot, encoding: 'utf8' }).trim();
       if (statusOut.length > 0) {
-        return {
-          decision: 'deny',
-          reason: "[PreToolHook Denied] Working tree is dirty. Commit, stash, or clean up uncommitted changes before creating a new branch.",
-        };
+        const lines = statusOut.split('\n').map((l) => l.trim()).filter(Boolean);
+        // Allow untracked docs/issues/ files created for the new issue, but block any modified, deleted, staged, or other untracked files
+        const dirtyLines = lines.filter((l) => !/^\?\?\s+"?docs[/\\]issues[/\\]/i.test(l));
+        if (dirtyLines.length > 0) {
+          return {
+            decision: 'deny',
+            reason: "[PreToolHook Denied] Working tree is dirty. Commit, stash, or clean up uncommitted changes before creating a new branch.",
+          };
+        }
       }
     } catch {
       // Ignored if git fails in mock/test

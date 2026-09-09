@@ -165,9 +165,7 @@ describe('resolveReview', () => {
       expect(commentBody).toContain('単体テスト 10 件を追加し、網羅率 100% を達成しました。');
       expect(commentBody).toContain('- [x] **`issue-1`** `[must]`: Fix SQL injection vulnerability');
       expect(commentBody).toContain('- [x] **`issue-2`** `[should]`: Add error boundary wrapper');
-      expect(commentBody).toContain('**ステータス**: `[修正完了 / 再レビュー待機中 (Pending Re-review)]`');
-      expect(commentBody).toContain('**未解消ブロッキング指摘**: 0件');
-      expect(commentBody).toContain('第三者レビュアー（`fleet_reviewer`）を再起動し、客観的再レビュー（Re-review）を受領してください。');
+      expect(commentBody).toContain('Fleet レビュアー 2 者（コード品質担当 `fleet_reviewer` および 批判的完了性監査担当 `fleet_completion_auditor`）を両方再起動し、客観的再レビュー・最終監査を受領してください。');
 
       // stateMachine.resolveIssues was called with target IDs
       expect(mockStateMachine.resolveIssues).toHaveBeenCalledTimes(1);

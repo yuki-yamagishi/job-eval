@@ -88,7 +88,7 @@ export function resolveReview(options = {}) {
 
   const isAllResolved = remainingBlockingIssues.length === 0;
   // ガバナンス厳格化: 全ての指摘が修正されても、親エージェントによる独断の LGTM 収束は禁止。
-  // REVIEW_REQUESTED に遷移させ、fleet_reviewer による客観的再レビューを必須とする。
+  // REVIEW_REQUESTED に遷移させ、Fleet 2者（codeReviewer & completionAuditor）による客観的再レビュー・再監査を必須とする。
   const nextStatus = isAllResolved ? STATUS.REVIEW_REQUESTED : STATUS.NEEDS_FIX;
 
   const commentLines = [
@@ -125,7 +125,7 @@ export function resolveReview(options = {}) {
     commentLines.push('- **ステータス**: `[修正完了 / 再レビュー待機中 (Pending Re-review)]`');
     commentLines.push('- **未解消ブロッキング指摘**: 0件（すべての指摘に対応コミットを紐付け完了）');
     commentLines.push(`- **ステータス遷移**: \`${currentState.status || STATUS.NEEDS_FIX}\` ➔ \`${STATUS.REVIEW_REQUESTED}\``);
-    commentLines.push('- **次の必須アクション**: 第三者レビュアー（`fleet_reviewer`）を再起動し、客観的再レビュー（Re-review）を受領してください。');
+    commentLines.push('- **次の必須アクション**: Fleet レビュアー 2 者（コード品質担当 `fleet_reviewer` および 批判的完了性監査担当 `fleet_completion_auditor`）を両方再起動し、客観的再レビュー・最終監査を受領してください。');
   } else {
     commentLines.push(`- **判定**: \`[要修正 (Remaining Blocking: ${remainingBlockingIssues.length}件)]\``);
     commentLines.push(`- **未解消ブロッキング指摘**: ${remainingBlockingIssues.length}件`);
@@ -217,7 +217,7 @@ if (isDirectExecution) {
     console.log(`  Remaining Blocking: ${result.unresolvedBlockingCount}`);
     console.log(`  Posted to PR: ${result.posted}`);
     if (result.isAllResolved) {
-      console.log(`  👉 次の必須アクション: fleet_reviewer を再起動して Re-review を受領してください（親エージェントの自己LGTMは物理禁止されています）。`);
+      console.log(`  👉 次の必須アクション: Fleet レビュアー 2 者（fleet_reviewer & fleet_completion_auditor）を両方再起動して再レビュー・最終監査を受領してください（親エージェントの自己LGTMおよび片方のみの通過は物理禁止されています）。`);
     }
 
     if (dryRun) {

@@ -34,34 +34,41 @@ description: Pull Request 作成、GitHub Actions CI 監視、Fleet レビュー
 
 ---
 
-## 2. Antigravity Fleet レビュー
+## 2. Antigravity 2者 Fleet 並行レビュー (Review Consortium)
 
 1. **レビュー待機状態への遷移**:
    ```bash
    node .agents/state/loopState.js review-requested --active-subagents
    ```
-2. **Fleet サブエージェントの起動**:
-   - `invoke_subagent` で `fleet_reviewer` を起動。
-   - Fleet は `git diff` を読み取り、Conventional Comments 形式（`[must]`, `[should]`, `[imo]`, `[nits]`, `[ask]`, `[good]`）で客観的レビューを作成して返却。
-   - 親エージェントが一時ファイル経由で PR スレッドに公式コメントとして投稿：
-     ```bash
-     node .agents/skills/review-self-healing/scripts/postPrComment.js <PR番号> <一時ファイル>
-     ```
+2. **Fleet 2者の並行起動 (invoke_subagent)**:
+   - Antigravity の `invoke_subagent` ツールを用い、以下の 2 体の専門サブエージェントを配列で**同時に並行起動**します：
+     - **`fleet_reviewer`**: コード品質・型安全性・セキュリティ・アーキテクチャ原則・デッドロック防止の専門レビュー
+     - **`fleet_completion_auditor`**: 批判的完了性・Why / 排除リスク・受け入れ基準（DoD）・やり残し・ユーザー視点での死角監査
+   - 各 Fleet は Conventional Comments 形式（`[must]`, `[should]`, `[imo]`, `[nits]`, `[ask]`, `[good]`）および JSON メタデータブロック（`agentType: "codeReviewer" | "completionAuditor"`, `verdict: "LGTM" | "REQUEST_CHANGES"`）を出力します。
 3. **Reactive Wakeup 待機**:
-   - 親エージェントはツール呼び出しを行わずにターンを終了し、Fleet の完了通知を待ちます。
+   - 親エージェントはツール呼び出しを行わずにターンを終了し、両 Fleet の完了通知を待ちます。
+4. **各レビュー結果の PR コメント投稿 & loopState 記録**:
+   - 一時ファイル経由で PR スレッドに公式コメントとして投稿：
+     ```bash
+     gh pr comment <PR番号> --body-file <コードレビューファイル>
+     gh pr comment <PR番号> --body-file <完了性監査ファイル>
+     ```
+   - それぞれの結果をステートマシンに記録：
+     ```bash
+     node .agents/skills/review-self-healing/scripts/parseReviewResult.js <コードレビューファイル> --agent-type codeReviewer --update-state
+     node .agents/skills/review-self-healing/scripts/parseReviewResult.js <完了性監査ファイル> --agent-type completionAuditor --update-state
+     ```
 
 ---
 
-## 3. レビューパース & 自己修復 & 再レビュー受領（セルフLGTMの物理禁止）
+## 3. 合議制判定 & 自己修復 & 再レビュー受領（セルフLGTMの物理禁止）
 
-1. **レビュー結果のパース & loopState 更新**:
-   ```bash
-   node .agents/skills/review-self-healing/scripts/parseReviewResult.js <レビュー本文ファイル> --update-state
-   ```
-   - ブロッキング指摘（`[must]`, `[should]`）がある場合、状態は `STATUS.NEEDS_FIX` となります。
-   - 初回でブロッキング指摘が 0 件かつ `[LGTM]` の場合は、直ちに `STATUS.RESOLVED_LGTM` に収束します。
+1. **合議制（Consortium Consensus Gate）判定**:
+   - **両者 LGTM**: `codeReviewer` と `completionAuditor` の両方が `LGTM`（未解決ブロッキング指摘 0 件）の場合のみ、状態マシンは `STATUS.RESOLVED_LGTM` に収束します。
+   - **片方でも REQUEST_CHANGES**: いずれか片方でも未解決の `[must]` または `[should]` 指摘がある場合、状態は `STATUS.NEEDS_FIX` となり、全指摘が集約されます。
+   - **片方のみ完了時**: もう片方の完了を待つため、`STATUS.REVIEW_REQUESTED` に留まり、Stop フックにより停止はブロックされます。
 2. **手元自己修復コミット**:
-   - 指摘事項を修正し、テストを追加。
+   - 両レビュアーからの指摘事項（コード品質および完了性・Why/リスク）を修正し、テストを追加。
    - `npm.cmd run check` で 100% PASS を確認後、追加コミット＆プッシュ。
    - GitHub Actions CI がパスするまで待機（`gh pr checks`）。
 3. **公式修正報告の投稿 & 再レビュー待機遷移**:
@@ -69,11 +76,10 @@ description: Pull Request 作成、GitHub Actions CI 監視、Fleet レビュー
    node .agents/skills/review-self-healing/scripts/resolveReview.js --commit <コミットハッシュ> --summary "<修正概要>"
    ```
    - PR スレッドに公式修正報告が投稿され、状態は `STATUS.REVIEW_REQUESTED`（再レビュー待ち）に遷移します。
-   - **【最重要】親エージェントによる自己承認（セルフLGTM）は物理的に禁止されています。`resolveReview.js` を実行しただけでは `RESOLVED_LGTM` には到達できません。**
-4. **★【必須】Fleet サブエージェントの再起動（Re-review）**:
-   - `invoke_subagent` で `fleet_reviewer` を再起動し、修正内容の客観的再検証（Re-review）を依頼します。
-   - Fleet が再レビュー結果として `[LGTM]`（未解決指摘 0 件）を判定し、`parseReviewResult.js <再レビューファイル> --update-state` を実行して初めて、状態マシンが正真正銘の `STATUS.RESOLVED_LGTM` に収束します。
-   - `RESOLVED_LGTM` に達して初めて、ループエンジニアリング完了定義（DoD: Definition of Done）が達成され、Stop フックの停止ガードが解除されます。
+   - **【最重要】コード修正が入ったため過去の全レビュー判定は Stale（無効化）され、`reviews` スロットは両者ともリセットされます。親エージェントによる自己承認（セルフLGTM）および片方の承認のみでの通過は物理的に禁止されています。**
+4. **★【必須】Fleet サブエージェント 2 者の再起動（Re-review & Re-audit）**:
+   - コード変更が入った以上、指摘を受けた側だけでなく Fleet レビュアー 2 者（`fleet_reviewer` および `fleet_completion_auditor`）を両方再起動し、客観的再検証（Re-review）と批判的再監査（Re-audit）を受領します。
+   - 両者から `[LGTM]` を獲得し、ステートマシンが正真正銘の `STATUS.RESOLVED_LGTM` に収束して初めて、Stop フックの停止ガードが解除されます。
 
 ---
 
