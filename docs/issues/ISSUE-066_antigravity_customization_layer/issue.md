@@ -33,14 +33,15 @@
   - アプリケーション本体のビジネスロジック変更。
 
 ## 5. 受け入れ基準 (Acceptance Criteria / Definition of Done)
-- [ ] `scripts/harness/` が撤廃され、エージェント専用スクリプトが `.agents/` 配下に完全カプセル化されていること。
-- [ ] `.agents/skills/` 配下が 3 つの単一責務スキルに分割され、Progressive Disclosure に準拠していること。
-- [ ] `.agents/agents/fleet_reviewer.md` が配備され、公式サブエージェント仕様に準拠していること。
-- [ ] `loopState.js` において自己承認（セルフLGTM）が物理禁止され、Fleet の Re-review なしには `canStop` が通過しないこと。
-- [ ] `loopState.js` において CI 未通過時のレビュー依頼が物理ブロックされること。
-- [ ] `preToolHook.js` において、dirty ツリーでのブランチ作成および Why 不足のブランチ作成が物理ブロックされること。
-- [ ] ワンショット品質ゲート（`npm.cmd run check`）が 100% PASS すること。
-- [ ] 独立レビュアー（fleet_reviewer）による客観的再レビューで LGTM を受領すること。
+- [x] `scripts/harness/` が撤廃され、エージェント専用スクリプトが `.agents/` 配下に完全カプセル化されていること。
+- [x] `.agents/skills/` 配下が 3 つの単一責務スキルに分割され、Progressive Disclosure に準拠していること。
+- [x] `.agents/agents/fleet_reviewer.md` が配備され、公式サブエージェント仕様に準拠していること。
+- [x] `loopState.js` において自己承認（セルフLGTM）が物理禁止され、Fleet の Re-review なしには `canStop` が通過しないこと。
+- [x] `loopState.js` において CI 未通過時のレビュー依頼が物理ブロックされること。
+- [x] `preToolHook.js` において、dirty ツリーでのブランチ作成および Why 不足のブランチ作成が物理ブロックされること。
+- [x] 内外分離（Boundary Design）に基づき、エージェント向け内部制御が英語に統一され、Remediation Guidance が完備されていること。
+- [x] ワンショット品質ゲート（`npm.cmd run check`）が 100% PASS すること。
+- [x] 独立レビュアー（fleet_reviewer）による客観的再レビューで LGTM を受領すること。
 
 ## 6. 関連ドキュメント・仕様正本 (References & SSOT)
 - 関連 ADR: docs/adr/0018-antigravity-customization-layer-refactoring.md

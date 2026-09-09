@@ -22,7 +22,7 @@ description: JobEval における GitHub Issue のステータスラベル運用
 ---
 
 ## 2. Issue 着手プロトコル
-
+ 
 1. **着手判定**:
    - `status: backlog` の Issue は、ユーザーからの明示指示がない限り勝手に着手してはならない。
    - ユーザー指示または `status: ready` の Issue のみ自律着手可能。
@@ -31,11 +31,16 @@ description: JobEval における GitHub Issue のステータスラベル運用
    ```bash
    gh issue edit <id> --remove-label "status: backlog,status: ready" --add-label "status: in-progress"
    ```
-3. **トピックブランチ作成**:
+3. **★【物理制約】着手準備完了 (Definition of Ready) の確認**:
+   ブランチ作成前（`git checkout -b` 実行前）に、以下が満たされている必要があります（満たされていない場合は `preToolHook` により物理ブロックされます）：
+   - **ワーキングツリーの清浄度**: 未コミットの変更が一切ないこと（clean）。
+   - **前タスクの完了**: 前回のレビュー状態マシンが `IDLE` であること（未マージの PR が残存していないこと）。
+   - **Issue 仕様書 (`issue.md`) の作成**: `docs/issues/template_issue.md` をベースに `docs/issues/ISSUE-<番号>_<slug>/issue.md` を作成し、特に **「Why（解決すべき課題・背景）」** および **「排除するリスク」** の両セクションを具体的に定義すること。
+4. **トピックブランチ作成**:
    ```bash
    git checkout -b feature/issue-<番号>-<概要>
    ```
-4. **完了時クリーンアップ**:
+5. **完了時クリーンアップ**:
    PR マージ後、自動クローズされた Issue から進行ラベルを剥がす：
    ```bash
    gh issue edit <id> --remove-label "status: in-progress"

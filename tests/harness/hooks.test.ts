@@ -7,7 +7,7 @@ import { handleStop } from '../../.agents/hooks/stopHook.js';
 import { handlePreTool } from '../../.agents/hooks/preToolHook.js';
 import { handlePostTool } from '../../.agents/hooks/postToolHook.js';
 
-describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
+describe('Lifecycle Hooks (.agents/hooks/)', () => {
   let tempDir: string;
   let testStateFile: string;
   let testMachine: LoopStateMachine;
