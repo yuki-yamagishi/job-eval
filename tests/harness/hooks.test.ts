@@ -301,6 +301,32 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       expect(result.reason).toContain('Working tree is dirty');
     });
 
+    it('allows branch creation if untracked files are only under docs/issues/', () => {
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'dor-clean-'));
+      const issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
+      fs.mkdirSync(issueDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nWhy details\n\n## 3. 排除するリスク\nRisk details\n'
+      );
+
+      const mockExec = vi.fn().mockReturnValue('?? docs/issues/ISSUE-099_test/issue.md\n');
+      try {
+        const result = handlePreTool(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'git checkout -b feature/issue-99-test' },
+            },
+          },
+          { execFn: mockExec, stateMachine: testMachine, projectRoot: tempProject }
+        );
+        expect(result.decision).toBe('allow');
+      } finally {
+        fs.rmSync(tempProject, { recursive: true, force: true });
+      }
+    });
+
     it('denies branch creation if loopState is not IDLE', () => {
       testMachine.setPrCreated(46);
       const mockExec = vi.fn().mockReturnValue('');

@@ -8,11 +8,23 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { setReviewResult, STATUS } from '../../../state/loopState.js';
+import { recordReview, setReviewResult, STATUS } from '../../../state/loopState.js';
 
 export function parseReviewResult(reviewText, options = {}) {
   if (typeof reviewText !== 'string') {
     reviewText = '';
+  }
+
+  // Detect agentType from JSON block if not explicitly specified
+  let detectedAgentType = options.agentType || null;
+  const jsonMatch = reviewText.match(/```json\s*([\s\S]*?)\s*```/i);
+  if (jsonMatch && !detectedAgentType) {
+    try {
+      const parsedJson = JSON.parse(jsonMatch[1]);
+      if (parsedJson.agentType) {
+        detectedAgentType = parsedJson.agentType;
+      }
+    } catch {}
   }
 
   const lines = reviewText.split(/\r?\n/);
@@ -104,18 +116,31 @@ export function parseReviewResult(reviewText, options = {}) {
     isLgtm,
     hasExplicitLgtm,
     hasExplicitNeedsFix,
+    agentType: detectedAgentType,
     issues,
     praises,
     counts,
   };
 
   if (options.updateState) {
-    const updater = options.stateUpdater || setReviewResult;
-    const updatedState = updater({
-      lgtm: isLgtm,
-      issues,
-    });
-    result.updatedState = updatedState;
+    if (options.stateUpdater) {
+      const updatePayload = {
+        lgtm: isLgtm,
+        issues,
+        ...(detectedAgentType ? { agentType: detectedAgentType } : {}),
+      };
+      result.updatedState = options.stateUpdater(updatePayload);
+    } else if (detectedAgentType) {
+      result.updatedState = recordReview(detectedAgentType, {
+        verdict: isLgtm ? 'LGTM' : 'REQUEST_CHANGES',
+        issues,
+      });
+    } else {
+      result.updatedState = setReviewResult({
+        lgtm: isLgtm,
+        issues,
+      });
+    }
   }
 
   return result;
@@ -127,7 +152,20 @@ const isDirectExecution = process.argv[1] &&
 if (isDirectExecution) {
   const args = process.argv.slice(2);
   const updateStateFlag = args.includes('--update-state');
-  const targetArg = args.find((a) => a !== '--update-state');
+  
+  let agentType = null;
+  const agentTypeIdx = args.indexOf('--agent-type');
+  if (agentTypeIdx !== -1 && args[agentTypeIdx + 1]) {
+    agentType = args[agentTypeIdx + 1];
+  }
+
+  const nonFlagArgs = args.filter((a, idx) => {
+    if (a === '--update-state' || a === '--agent-type') return false;
+    if (idx > 0 && args[idx - 1] === '--agent-type') return false;
+    return true;
+  });
+
+  const targetArg = nonFlagArgs[0];
 
   let text = '';
   if (targetArg) {
@@ -143,15 +181,16 @@ if (isDirectExecution) {
   }
 
   if (!text || text.trim().length === 0) {
-    console.error('Usage: node parseReviewResult.js <reviewFileOrText> [--update-state]');
+    console.error('Usage: node parseReviewResult.js <reviewFileOrText> [--agent-type <type>] [--update-state]');
     process.exit(1);
   }
 
-  const parsed = parseReviewResult(text, { updateState: updateStateFlag });
+  const parsed = parseReviewResult(text, { updateState: updateStateFlag, agentType });
   console.log(JSON.stringify(parsed, null, 2));
 
   if (updateStateFlag) {
-    console.log(`\n[OK] LoopState updated: status = ${parsed.verdict}`);
+    const updatedStatus = parsed.updatedState?.status || parsed.verdict;
+    console.log(`\n[OK] LoopState updated: status = ${updatedStatus}`);
   }
 
   process.exit(0);

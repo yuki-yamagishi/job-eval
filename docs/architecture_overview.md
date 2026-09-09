@@ -1,7 +1,7 @@
 # JobEval アーキテクチャ概説 & システム仕様 (Architecture Overview & SSOT)
 
 JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** で構築された、AI求人適合度評価 & Markdownドキュメント管理デスクトップ/PWAアプリケーションです。
-本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0018）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
+本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0019）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
 
 ---
 
@@ -71,6 +71,7 @@ tests/                    # 自動テストハーネス (Vitest)
 | [ADR-0016](./adr/0016-loop-engineering-harness-refactoring.md) | ループエンジニアリング確立に向けた開発ハーネスの 6 段階リファクタリング＆責務分割 | **Accepted** | `loopState.js`, ライフサイクルフック、早期停止防止、DoDによる自律自己修復ループの確立。 |
 | [ADR-0017](./adr/0017-optimize-agent-scaffolding-and-gradual-verification.md) | AI駆動開発のための補助資源最適化（憲章とスキルの分離・段階的検証・ワークスペース衛生・仕様SSOT一元化） | **Accepted** | Token Tax 削減、コミット時ドキュメント制約緩和、一時ファイル排除、仕様正本の一元化。 |
 | [ADR-0018](./adr/0018-antigravity-customization-layer-refactoring.md) | Google Antigravity 公式仕様に準拠した Customization Layer への抜本的刷新 | **Accepted** | `scripts/harness/` 完全撤廃、3単一責務スキル分割、公式Subagent、自己承認物理禁止、Why-First・CI・Merge Gate、内外分離（Boundary Design）。 |
+| [ADR-0019](./adr/0019-multi-agent-review-consortium.md) | Fleet レビュー体制の 2 者合議制（コード品質担当 ＋ 批判的完了性監査担当）への拡張 | **Accepted** | 2者 Fleet の責任分離（コード品質・型・セキュリティ担当 `fleet_reviewer` ＋ 批判的完了性・Why・排除リスク監査担当 `fleet_completion_auditor`）と両者合議判定ゲート（Consortium Gate）。 |
 
 ---
 
@@ -82,10 +83,11 @@ tests/                    # 自動テストハーネス (Vitest)
    - `AGENTS.md`: 毎ターン読み込まれるコア憲章（DoD・絶対遵守事項・アーキテクチャ不可侵原則）。
    - `.agents/skills/`: 各フェーズに応じた 3 つの単一責務スキル（`issue-lifecycle`, `dev-lifecycle`, `review-self-healing`）をオンデマンドで段階的開示。
 2. **多重物理ガードレール (Mechanism)**:
-   - `preToolHook.js`: `gh pr merge` の直接実行禁止、およびブランチ作成時の DoR 検査（dirtyツリー禁止、前タスク完了確認、Why / 排除リスク記載確認）。
+   - `preToolHook.js`: `gh pr merge` の直接実行禁止、およびブランチ作成時の DoR 検査（dirtyツリー禁止、前タスク完了確認、Why / 排除リスク記載確認）、PR作成時の Pre-PR 最終監査（4軸ドキュメント、DoD未チェック残存ゼロ、SSOT同期）。
    - `loopState.js`: CI 未通過時のレビュー依頼ブロック（CI Gate）、および PR 未マージ時の勝手なリセット阻止（Merge Verification Gate）。
    - `stopHook.js`: レビュー指摘の解消と Fleet の Re-review（LGTM）を受領するまで早期停止をブロック。
-3. **客観的第三者レビュー (Antigravity Fleet)**:
-   - 公式仕様のサブエージェント（`.agents/agents/fleet_reviewer.md`）が独立思考コンテキストから Conventional Comments 形式のレビューを実施。
+3. **2者 Fleet 並行合議レビュー (Review Consortium)**:
+   - 公式仕様の独立サブエージェント 2 体（`fleet_reviewer` と `fleet_completion_auditor`）を並行起動。
+   - コード品質（How）と批判的完了性（Why / What）を完全に分離し、両者が共に `LGTM` を出した場合のみマージ依頼を許可する合議制ゲートを配備。
 4. **内外分離 (Boundary Design)**:
    - 人間向け（意思決定・承認）は完全日本語で記述し、エージェント向け（内部制御・修復指示）は英語に完全統一してトークン効率と指示追従性を最大化。

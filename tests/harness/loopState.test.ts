@@ -365,4 +365,89 @@ describe('LoopStateMachine', () => {
     machine.setReviewResult({ lgtm: true, issues: [] });
     expect(machine.getState().activeSubagents).toBe(false);
   });
+
+  describe('Review Consortium (2-Agent Consensus Gate)', () => {
+    it('initializes with null review slots for codeReviewer and completionAuditor', () => {
+      machine.setPrCreated(68);
+      const state = machine.getState();
+      expect(state.reviews).toBeDefined();
+      expect(state.reviews.codeReviewer).toBeNull();
+      expect(state.reviews.completionAuditor).toBeNull();
+    });
+
+    it('stays in REVIEW_REQUESTED when only one reviewer submits review', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ skipCiCheck: true });
+
+      const state = machine.recordReview('codeReviewer', {
+        verdict: 'LGTM',
+        issues: [],
+      });
+
+      expect(state.status).toBe(STATUS.REVIEW_REQUESTED);
+      expect(state.reviews.codeReviewer).not.toBeNull();
+      expect(state.reviews.codeReviewer.verdict).toBe('LGTM');
+      expect(state.reviews.completionAuditor).toBeNull();
+      expect(machine.canStop().allowed).toBe(false);
+      expect(machine.canStop().reason).toContain('fleet_completion_auditor');
+    });
+
+    it('transitions to NEEDS_FIX when one reviewer submits REQUEST_CHANGES even if other is LGTM', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ skipCiCheck: true });
+
+      machine.recordReview('codeReviewer', {
+        verdict: 'LGTM',
+        issues: [],
+      });
+
+      const state = machine.recordReview('completionAuditor', {
+        verdict: 'REQUEST_CHANGES',
+        issues: [
+          { id: 'ca-1', type: 'must', description: 'Why section is not addressed in implementation', resolved: false },
+        ],
+      });
+
+      expect(state.status).toBe(STATUS.NEEDS_FIX);
+      expect(state.issues.length).toBe(1);
+      expect(state.issues[0].id).toBe('ca-1');
+      expect(machine.canStop().allowed).toBe(false);
+      expect(machine.canStop().reason).toContain('NEEDS_FIX');
+    });
+
+    it('transitions to RESOLVED_LGTM only when both reviewers submit LGTM with zero blocking issues', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ skipCiCheck: true });
+
+      machine.recordReview('codeReviewer', {
+        verdict: 'LGTM',
+        issues: [],
+      });
+      expect(machine.getState().status).toBe(STATUS.REVIEW_REQUESTED);
+
+      const state = machine.recordReview('completionAuditor', {
+        verdict: 'LGTM',
+        issues: [
+          { id: 'ca-nits', type: 'nits', description: 'Small markdown polish' },
+        ],
+      });
+
+      expect(state.status).toBe(STATUS.RESOLVED_LGTM);
+      expect(state.reviews.codeReviewer.verdict).toBe('LGTM');
+      expect(state.reviews.completionAuditor.verdict).toBe('LGTM');
+      expect(machine.canStop().allowed).toBe(true);
+      expect(machine.canStop().reason).toContain('RESOLVED_LGTM');
+    });
+
+    it('resets reviews slots when setReviewRequested is called for re-review', () => {
+      machine.setPrCreated(68);
+      machine.setReviewRequested({ skipCiCheck: true });
+      machine.recordReview('codeReviewer', { verdict: 'LGTM', issues: [] });
+      expect(machine.getState().reviews.codeReviewer).not.toBeNull();
+
+      machine.setReviewRequested({ skipCiCheck: true });
+      expect(machine.getState().reviews.codeReviewer).toBeNull();
+      expect(machine.getState().reviews.completionAuditor).toBeNull();
+    });
+  });
 });

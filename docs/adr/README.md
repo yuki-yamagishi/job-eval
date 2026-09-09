@@ -36,5 +36,6 @@
 | [ADR-0016](file:///docs/adr/0016-loop-engineering-harness-refactoring.md) | ループエンジニアリング確立に向けた開発ハーネスの 6 段階リファクタリング＆責務分割 | **Accepted** | 2026-09-07 |
 | [ADR-0017](file:///docs/adr/0017-optimize-agent-scaffolding-and-gradual-verification.md) | AI駆動開発のための補助資源最適化（憲章とスキルの分離・段階的検証・ワークスペース衛生・仕様SSOT一元化） | **Accepted** | 2026-09-09 |
 | [ADR-0018](file:///docs/adr/0018-antigravity-customization-layer-refactoring.md) | Google Antigravity 公式仕様に準拠した Customization Layer への抜本的刷新 | **Accepted** | 2026-09-09 |
+| [ADR-0019](file:///docs/adr/0019-multi-agent-review-consortium.md) | Fleet レビュー体制の 2 者合議制（コード品質担当 ＋ 批判的完了性監査担当）への拡張 | **Accepted** | 2026-09-09 |
 
 

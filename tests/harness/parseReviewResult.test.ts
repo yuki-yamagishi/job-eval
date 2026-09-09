@@ -247,4 +247,45 @@ describe('parseReviewResult', () => {
     expect(result.issues[0].description).toBe('マージ前に環境変数の設定ファイルを更新してください。');
     expect(result.issues[1].description).toBe('強く推奨されるパターンに従ってリファクタリングを検討してください。');
   });
+
+  it('extracts agentType from JSON block when present', () => {
+    const markdown = `
+# Fleet Completion Audit
+
+## 総合判定: [LGTM]
+All criteria met!
+
+\`\`\`json
+{
+  "agentType": "completionAuditor",
+  "verdict": "LGTM",
+  "issues": []
+}
+\`\`\`
+`;
+    const result = parseReviewResult(markdown);
+    expect(result.agentType).toBe('completionAuditor');
+    expect(result.isLgtm).toBe(true);
+  });
+
+  it('passes agentType to stateUpdater when updateState is enabled', () => {
+    const mockUpdater = vi.fn().mockReturnValue({ status: 'REVIEW_REQUESTED' });
+    const markdown = `
+# Fleet Code Review
+[LGTM] Clean implementation!
+`;
+    const result = parseReviewResult(markdown, {
+      updateState: true,
+      agentType: 'codeReviewer',
+      stateUpdater: mockUpdater,
+    });
+
+    expect(result.agentType).toBe('codeReviewer');
+    expect(mockUpdater).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lgtm: true,
+        agentType: 'codeReviewer',
+      })
+    );
+  });
 });
