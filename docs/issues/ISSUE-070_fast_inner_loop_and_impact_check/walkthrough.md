@@ -69,10 +69,28 @@
 ---
 
 ## 5. 受け入れ基準 (Definition of Done) チェック
+
+### 5.1. PR作成前完了基準 (Pre-PR DoD)
 - [x] `package.json` にて Inner Loop 向けの真に高速なテスト反復が定義されていること。
 - [x] `preToolHook.js` の Block 3D により、Impact Check 未実施のブランチ作成が具体的な英語ガイダンスとともに物理拒絶されること。
 - [x] `preToolHook.js` の Block 3D を網羅検証する単体テストが `tests/harness/hooks.test.ts` に追加されていること。
 - [x] `docs/issues/` に 4軸ドキュメント（issue, pre_verification, plan, walkthrough）が揃い、Impact Check が記録されていること。
 - [x] ADR-0020 が制定され、仕様SSOT（`docs/architecture_overview.md`）および `AGENTS.md` に同期されていること。
 - [x] ワンショット品質ゲート（`npm.cmd run check`）が 100% PASS すること。
+
+### 5.2. マージ前完了ゲート (Pre-Merge Gate)
+- [x] GitHub Actions CI が PASS していること。
 - [ ] 2者合議レビュー（`fleet_reviewer` ＋ `fleet_completion_auditor`）から両者 `[LGTM]` を受領すること。
+- [ ] 人間（ユーザー）による最終確認とマージが完了していること。
+
+---
+
+## 6. レビュー自己修復記録 (Self-Healing Record)
+
+### 6.1. Fleet Completion Auditor 指摘解消
+- **指摘 1**: `preToolHook.js` Block 2 の正規表現を `test:(?:run|coverage|fast|related)` に拡張し、`test:fast`, `test:related` が誤検知されないように修正。`tests/harness/hooks.test.ts` に検証テストを追加。
+- **指摘 2**: `template_issue.md`, `issue.md`, `walkthrough.md` の DoD 構造を 5.1 Pre-PR DoD と 5.2 Pre-Merge Gate に分離。`preToolHook.js` Block 4A-2 の検証スコープを Pre-PR DoD に適正化し、PR 作成前の虚偽チェック強要を完全解消。
+- **指摘 3**: ルートポインタ 3 ファイル（`docs/pre_phase_verification.md`, `docs/implementation_plan.md`, `docs/walkthrough.md`）を `ISSUE-070` へ更新。
+- **指摘 4**: `AGENTS.md` の品質ゲート記述を Inner Loop（高速反復）と Outer Loop（プッシュ前・CIでの全量検査）に整合化。
+- **指摘 5**: `dev-lifecycle/SKILL.md` の `pre_verification.md` 説明を「4軸事前検証 ＋ 重複・パッチワーク点検（Impact & Duplication Check）」に更新。
+

@@ -35,10 +35,10 @@ export function handlePreTool(payload = {}, options = {}) {
   }
 
   // Block 2: Prohibit interactive watch test execution that causes hanging
-  if (/\bnpm(?:\.cmd)?\s+(?:run\s+)?test\b/i.test(trimmed) && !/--run\b/i.test(trimmed) && !/\btest:(?:run|coverage)\b/i.test(trimmed)) {
+  if (/\bnpm(?:\.cmd)?\s+(?:run\s+)?test\b/i.test(trimmed) && !/--run\b/i.test(trimmed) && !/\btest:(?:run|coverage|fast|related)\b/i.test(trimmed)) {
     return {
       decision: 'deny',
-      reason: "[PreToolHook Denied] Interactive test runner detected. Use 'npm run check:fast' or 'npm run test:run' for deterministic execution.",
+      reason: "[PreToolHook Denied] Interactive test runner detected. Use 'npm run test:fast', 'npm run test:related', or 'npm run test:run' for deterministic execution.",
     };
   }
 
@@ -186,13 +186,27 @@ export function handlePreTool(payload = {}, options = {}) {
           };
         }
 
-        // 4A-2: Acceptance Criteria (DoD) completion check
+        // 4A-2: Acceptance Criteria (Pre-PR DoD) completion check
         const issueMdContent = fs.readFileSync(path.resolve(targetPath, 'issue.md'), 'utf8');
-        const hasUncheckedCriteria = /- \[\s+\]/i.test(issueMdContent);
+
+        let prePrSection = issueMdContent;
+        // If 5.1 / Pre-PR DoD and 5.2 / Pre-Merge Gate sections exist, only audit Pre-PR DoD
+        const prePrMatch = issueMdContent.match(/###?\s*5\.1[^\n]*\n([\s\S]*?)(?=###?\s*5\.2|\n##\s|$)/i);
+        if (prePrMatch) {
+          prePrSection = prePrMatch[1];
+        } else {
+          // Fallback: If no 5.1/5.2 split, exclude post-PR items like review, merge, CI from blocking
+          const lines = issueMdContent.split(/\r?\n/).filter((line) =>
+            !/(?:合議レビュー|レビュー|LGTM|マージ|CI\b|GitHub Actions)/i.test(line)
+          );
+          prePrSection = lines.join('\n');
+        }
+
+        const hasUncheckedCriteria = /- \[\s+\]/i.test(prePrSection);
         if (hasUncheckedCriteria) {
           return {
             decision: 'deny',
-            reason: `[PreToolHook Denied] Pre-PR Audit Failed: Unchecked acceptance criteria (- [ ]) found in docs/issues/${targetIssueDir}/issue.md. (Remediation Guidance: Verify all criteria are completed and mark them as [x] before creating a PR.)`,
+            reason: `[PreToolHook Denied] Pre-PR Audit Failed: Unchecked Pre-PR acceptance criteria (- [ ]) found in docs/issues/${targetIssueDir}/issue.md. (Remediation Guidance: Verify all Pre-PR DoD criteria are completed and marked as [x] before creating a PR.)`,
           };
         }
       }

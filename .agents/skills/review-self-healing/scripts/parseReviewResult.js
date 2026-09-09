@@ -15,23 +15,32 @@ export function parseReviewResult(reviewText, options = {}) {
     reviewText = '';
   }
 
-  // Detect agentType from JSON block if not explicitly specified
+  // Detect agentType, verdict, and issues from JSON block if available
   let detectedAgentType = options.agentType || null;
-  if (!detectedAgentType) {
-    const jsonMatches = [...reviewText.matchAll(/```json\s*([\s\S]*?)\s*```/gi)];
-    for (let i = jsonMatches.length - 1; i >= 0; i--) {
-      try {
-        const parsedJson = JSON.parse(jsonMatches[i][1]);
-        if (parsedJson && parsedJson.agentType) {
+  let jsonVerdict = null;
+  let jsonIssues = null;
+
+  const jsonMatches = [...reviewText.matchAll(/```json\s*([\s\S]*?)\s*```/gi)];
+  for (let i = jsonMatches.length - 1; i >= 0; i--) {
+    try {
+      const parsedJson = JSON.parse(jsonMatches[i][1]);
+      if (parsedJson) {
+        if (!detectedAgentType && parsedJson.agentType) {
           detectedAgentType = parsedJson.agentType;
-          break;
         }
-      } catch {}
-    }
+        if (!jsonVerdict && parsedJson.verdict) {
+          jsonVerdict = String(parsedJson.verdict).trim().toUpperCase();
+        }
+        if (!jsonIssues && Array.isArray(parsedJson.issues)) {
+          jsonIssues = parsedJson.issues;
+        }
+        if (detectedAgentType && jsonVerdict) break;
+      }
+    } catch {}
   }
 
   const lines = reviewText.split(/\r?\n/);
-  const prefixRegex = /^(?:[-*#\d.]+\s*)?(?:\*\*)?`?\[(must|should|imo|nits|ask|good)\]`?(?:\*\*)?[:\s]*(.*)$/i;
+  const prefixRegex = /^(?:[-*#\d.]+\s*)*(?:\*\*)?`?\[(must|should|imo|nits|ask|good)\]`?(?:\*\*)?[:\s]*(.*)$/i;
 
   const issues = [];
   const praises = [];
@@ -108,10 +117,43 @@ export function parseReviewResult(reviewText, options = {}) {
     }
   }
 
-  const hasExplicitLgtm = /\[LGTM\]/i.test(reviewText) || /(?:^|\s)LGTM(?:\s|$)/i.test(reviewText);
-  const hasExplicitNeedsFix = /\[要修正\]/i.test(reviewText) || /(?:^|\s)要修正(?:\s|$)/i.test(reviewText);
+  // Fallback: If issues array was empty from lines, populate from JSON issues if present
+  if (issues.length === 0 && Array.isArray(jsonIssues) && jsonIssues.length > 0) {
+    for (const jIssue of jsonIssues) {
+      const rawType = (jIssue.severity || jIssue.type || 'must').toLowerCase();
+      const desc = jIssue.description || jIssue.title || 'Review issue';
+      issues.push({
+        id: `issue-${issues.length + 1}`,
+        type: rawType,
+        description: desc,
+        resolved: false,
+        resolvedCommit: null,
+      });
 
-  const isLgtm = (hasExplicitLgtm || (!hasExplicitNeedsFix && counts.blocking === 0)) && counts.blocking === 0 && !hasExplicitNeedsFix;
+      if (rawType === 'must' || rawType === 'should') {
+        counts[rawType] = (counts[rawType] || 0) + 1;
+        counts.blocking++;
+      } else {
+        counts[rawType] = (counts[rawType] || 0) + 1;
+        counts.nonBlocking++;
+      }
+      counts.totalIssues++;
+    }
+  }
+
+  let hasExplicitLgtm = false;
+  let hasExplicitNeedsFix = false;
+
+  if (jsonVerdict === 'LGTM') {
+    hasExplicitLgtm = true;
+  } else if (jsonVerdict === 'REQUEST_CHANGES' || jsonVerdict === 'NEEDS_FIX') {
+    hasExplicitNeedsFix = true;
+  } else {
+    hasExplicitLgtm = /\[LGTM\]/i.test(reviewText) || /(?:^|\s)LGTM(?:\s|$)/i.test(reviewText);
+    hasExplicitNeedsFix = /\[要修正\]/i.test(reviewText) || /(?:^|\s)要修正(?:\s|$)/i.test(reviewText) || /REQUEST_CHANGES/i.test(reviewText);
+  }
+
+  const isLgtm = !hasExplicitNeedsFix && counts.blocking === 0 && (hasExplicitLgtm || issues.length === 0);
   const verdict = isLgtm ? STATUS.RESOLVED_LGTM : STATUS.NEEDS_FIX;
 
   const result = {

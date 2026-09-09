@@ -32,13 +32,19 @@
   - アプリケーション本体（UI/Coreロジック）の機能追加
 
 ## 5. 受け入れ基準 (Acceptance Criteria / Definition of Done)
+
+### 5.1. PR作成前完了基準 (Pre-PR DoD)
 - [x] `package.json` にて Inner Loop 向けの真に高速なテスト反復が定義されていること。
 - [x] `preToolHook.js` の Block 3D により、Impact Check 未実施のブランチ作成が具体的な英語ガイダンスとともに物理拒絶されること。
 - [x] `preToolHook.js` の Block 3D を網羅検証する単体テストが `tests/harness/hooks.test.ts` に追加されていること。
 - [x] `docs/issues/` に 4軸ドキュメント（issue, pre_verification, plan, walkthrough）が揃い、Impact Check が記録されていること。
 - [x] ADR-0020 が制定され、仕様SSOT（`docs/architecture_overview.md`）および `AGENTS.md` に同期されていること。
 - [x] ワンショット品質ゲート（`npm.cmd run check`）が 100% PASS すること。
-- [x] 2者合議レビュー（`fleet_reviewer` ＋ `fleet_completion_auditor`）から両者 `[LGTM]` を受領すること。
+
+### 5.2. マージ前完了ゲート (Pre-Merge Gate)
+- [x] GitHub Actions CI が PASS していること。
+- [ ] 2者合議レビュー（`fleet_reviewer` ＋ `fleet_completion_auditor`）から両者 `[LGTM]` を受領すること。
+- [ ] 人間（ユーザー）による最終確認とマージが完了していること。
 
 ## 6. 関連ドキュメント・仕様正本 (References & SSOT)
 - 関連 ADR: ADR-0020
