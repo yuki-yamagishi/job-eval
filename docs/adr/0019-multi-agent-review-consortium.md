@@ -42,7 +42,8 @@ ADR-0018 により、プロジェクトの自律開発基盤は Google Antigravi
 - **合議判定ルール**:
   - **両者 LGTM**: `codeReviewer` と `completionAuditor` の両方が `LGTM`（未解決ブロッキング指摘 0 件）の場合のみ、状態マシンは `STATUS.RESOLVED_LGTM` に収束し、人間へのマージ依頼が可能となる。
   - **片方でも REQUEST_CHANGES**: いずれか片方でも未解決の `[must]` または `[should]` 指摘がある場合、状態は `STATUS.NEEDS_FIX` となり、全指摘事項が集約される。
-  - **片方のみ完了時**: もう片方の完了を待つため、`STATUS.REVIEW_REQUESTED` に留まり、Stop フックにより停止はブロックされる。
+  - **片方のみ完了時**: もう片方の完了を待つため、`STATUS.REVIEW_REQUESTED` に留まり、親エージェントの Reactive Wakeup 待機用停止が安全に許可される（デッドロック防止）。
+  - **修正コミット時の全スロット無効化 (Stale Invalidation)**: コード修正後に `resolveIssues` が実行された際、過去のレビュー判定はすべて Stale（無効）としてクリアされ、両スロットは `{ codeReviewer: null, completionAuditor: null }` にリセットされる。これにより、片方の修正後に他方の再監査を経ずに合議が成立する抜け穴を物理的に排除し、両者からの再承認（Re-review & Re-audit）を強制する。
 
 ### 決定 4: レビュー結果パーススクリプトの個別更新対応
 - `parseReviewResult.js` に `--agent-type <codeReviewer|completionAuditor>` 引数を追加し、各レビューアーの判定を対応するスロットに安全に記録する。また、Markdown 内の JSON ブロックに `agentType` が明記されている場合は自動識別する。

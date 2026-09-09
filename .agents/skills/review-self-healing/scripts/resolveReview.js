@@ -88,7 +88,7 @@ export function resolveReview(options = {}) {
 
   const isAllResolved = remainingBlockingIssues.length === 0;
   // ガバナンス厳格化: 全ての指摘が修正されても、親エージェントによる独断の LGTM 収束は禁止。
-  // REVIEW_REQUESTED に遷移させ、fleet_reviewer による客観的再レビューを必須とする。
+  // REVIEW_REQUESTED に遷移させ、Fleet 2者（codeReviewer & completionAuditor）による客観的再レビュー・再監査を必須とする。
   const nextStatus = isAllResolved ? STATUS.REVIEW_REQUESTED : STATUS.NEEDS_FIX;
 
   const commentLines = [

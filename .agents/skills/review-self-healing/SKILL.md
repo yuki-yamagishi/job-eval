@@ -76,9 +76,9 @@ description: Pull Request 作成、GitHub Actions CI 監視、Fleet レビュー
    node .agents/skills/review-self-healing/scripts/resolveReview.js --commit <コミットハッシュ> --summary "<修正概要>"
    ```
    - PR スレッドに公式修正報告が投稿され、状態は `STATUS.REVIEW_REQUESTED`（再レビュー待ち）に遷移します。
-   - **【最重要】親エージェントによる自己承認（セルフLGTM）は物理的に禁止されています。`resolveReview.js` を実行しただけでは `RESOLVED_LGTM` には到達できません。**
-4. **★【必須】Fleet サブエージェントの再起動（Re-review）**:
-   - 指摘を受けた Fleet（または両者）を再起動し、客観的再検証（Re-review）を依頼します。
+   - **【最重要】コード修正が入ったため過去の全レビュー判定は Stale（無効化）され、`reviews` スロットは両者ともリセットされます。親エージェントによる自己承認（セルフLGTM）および片方の承認のみでの通過は物理的に禁止されています。**
+4. **★【必須】Fleet サブエージェント 2 者の再起動（Re-review & Re-audit）**:
+   - コード変更が入った以上、指摘を受けた側だけでなく Fleet レビュアー 2 者（`fleet_reviewer` および `fleet_completion_auditor`）を両方再起動し、客観的再検証（Re-review）と批判的再監査（Re-audit）を受領します。
    - 両者から `[LGTM]` を獲得し、ステートマシンが正真正銘の `STATUS.RESOLVED_LGTM` に収束して初めて、Stop フックの停止ガードが解除されます。
 
 ---

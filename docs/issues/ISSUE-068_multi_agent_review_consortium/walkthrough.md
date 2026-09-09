@@ -59,34 +59,47 @@
   - `loopState.test.ts` に「片方 REQUEST_CHANGES 時の待機と Reactive Wakeup 許可」および「両者 REQUEST_CHANGES 時の集約」テストを追加。
   - `parseReviewResult.test.ts` に複数 JSON ブロック抽出テストを追加。
 
+### 2.7 コード修正時の全レビュー判定無効化 (Stale Invalidation Gate)
+- **`.agents/state/loopState.js`**:
+  - `resolveIssues` において、全ブロッキング指摘に対応コミットが紐付いて `STATUS.REVIEW_REQUESTED` に遷移する際、過去のレビュー判定をすべて無効化し、`reviews: { codeReviewer: null, completionAuditor: null }` にリセットする改修を実施。
+  - これにより、「片方の指摘を修正した際に、もう片方の再監査を経ずに合議が成立してしまう」という形骸化リスク（Blind Approval Vulnerability）を物理的に根絶。コード修正が入った際は、必ず 2 者両方からの再承認（Re-review & Re-audit）が出揃うまでマージを許可しない厳格な合議ゲートを確立。
+- **`.agents/skills/review-self-healing/`**:
+  - `resolveReview.js` および `SKILL.md` のガイダンスを更新し、自己修復後は「Fleet レビュアー 2 者（`fleet_reviewer` & `fleet_completion_auditor`）を両方再起動すること」を明記。
+- **`tests/harness/loopState.test.ts`**:
+  - `resolveIssues` 遷移時に両スロットが null にリセットされ、片方のみの LGTM では停止できず両者の再受領によってのみ `RESOLVED_LGTM` に収束することを網羅検証するテストケースを追加。
+
 ---
 
 ## 3. 検証結果
 
 ### 3.1 単体テスト & ハーネステスト
 - `tests/harness/hooks.test.ts`: Block 3A での `docs/issues/` untracked 許容テストを含む 33 テスト全件 PASS。
-- `tests/harness/loopState.test.ts`: Review Consortium 合議判定・デッドロック防止を含む 30 テスト全件 PASS。
+- `tests/harness/loopState.test.ts`: Review Consortium 合議判定・デッドロック防止・Stale Invalidation を含む 31 テスト全件 PASS。
 - `tests/harness/parseReviewResult.test.ts`: `agentType` 抽出および複数ブロック走査を含む 14 テスト全件 PASS。
 - `tests/harness/resolveReview.test.ts`: 13 テスト全件 PASS。
 - `tests/harness/postPrComment.test.ts`: 4 テスト全件 PASS。
 - `tests/harness/e2eLoop.test.ts`: 2 テスト全件 PASS。
-- ハーネステスト全体: **全 6 ファイル 96 テスト 100% PASS**。
+- ハーネステスト全体: **全 6 ファイル 97 テスト 100% PASS**。
 
 ### 3.2 プロジェクト全体ワンショット品質ゲート
-- `npm.cmd run check`（シークレットスキャン + ドキュメント完全性検査 + TypeScript型検査 + 全単体テスト & カバレッジ + 本番ビルド）: **200 テスト全件 PASS、100% 成功**。
+- `npm.cmd run check`（シークレットスキャン + ドキュメント完全性検査 + TypeScript型検査 + 全単体テスト & カバレッジ + 本番ビルド）: **201 テスト全件 PASS、100% 成功**。
 
 ---
 
 ## 4. 2者 Fleet 並行合議レビュー受領結果
 
-1. **批判的完了性監査 (`fleet_completion_auditor`)**:
-   - **判定**: **`[LGTM]` (合格・指摘 0 件)**
-   - Why（課題背景）の真の解決、排除するリスクの封じ込め、DoD チェックボックス全 8 項目の実態裏付け、やり残しなしを確認。
-2. **コード品質・工学レビュー (`fleet_reviewer`)**:
+1. **コード品質・工学レビュー (`fleet_reviewer`)**:
    - **1次レビュー**: `[REQUEST_CHANGES]` (並行デッドロック防止・正規表現強化など 6 点の指摘提示)
    - **自己修復コミット**: `5961cd7` にて全 6 件の指摘を解消。
-   - **再レビュー（Re-review）**: **`[LGTM]` (全指摘解消・合格)**
-3. **合議判定ゲート（Consortium Gate）の収束**:
-   - 両者 `LGTM` を受領し、ステートマシンが `RESOLVED_LGTM`（`canStop.allowed: true`）へ確定遷移。
-   - レビュー合議が完全に成立。マージ準備完了。
+   - **再レビュー**: `[LGTM]`
+   - **最終レビュー (コミット 02af5d9)**: **`[LGTM]` (Stale Invalidation による再検証・完全合格)**
+2. **批判的完了性監査 (`fleet_completion_auditor`)**:
+   - **1次監査**: `[LGTM]`
+   - **最終監査 (コミット 02af5d9)**: **`[LGTM]` (合格・マージ準備完了)**
+     - コミット `02af5d9` による Stale Invalidation が、片方修正時の他方の形骸化を物理的に根絶していることを確認。
+     - Why（課題背景）の真の解決、排除するリスクの封じ込め、DoD チェックボックス全 8 項目の実態裏付け、やり残しなしを確認。
+3. **合議判定ゲート（Consortium Gate）の最終収束**:
+   - 2 者両方からの最新コミットに対する `LGTM` を受領し、ステートマシンが `RESOLVED_LGTM`（`canStop.allowed: true`）へ確定遷移。
+   - 2 者 Fleet 並行合議が真の意味で完全に成立。本番マージ準備完了。
+
 
