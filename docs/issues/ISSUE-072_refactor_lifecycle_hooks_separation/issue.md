@@ -31,10 +31,10 @@
 ## 4. スコープの定義 (Scope & Boundaries)
 - **スコープ内 (In-Scope)**:
   - `hooks.json` の名前付きフック分割（`safety-guard`, `branch-dor-gate`, `pre-pr-audit-gate`, `review-loop-guard`）。
-  - `.agents/hooks/handlers/` へのハンドラーモジュール切り出し（`safetyGuard.js`, `branchDoRGate.js`, `prePrAuditGate.js`, `postPrCreate.js`）。
-  - `preToolHook.js` のファサード / 互換レイヤー化。
+  - `.agents/hooks/` 直下へのフラットなフックモジュール配置（`safetyGuard.js`, `branchDoRGate.js`, `prePrAuditGate.js`, `postPrCreate.js`, `stopHook.js`）。
+  - `preToolHook.js` および `postToolHook.js` ファサードの完全撤廃。
+  - `tests/harness/hooks.test.ts` および `tests/harness/e2eLoop.test.ts` の直接検証への健全な追従。
   - `stopHook.js` のパス解決の堅牢化。
-  - `tests/harness/hooks.test.ts` の更新（新ハンドラーおよび分割フックのテスト追加・既存テスト互換維持）。
 - **スコープ外 (Non-Goals)**:
   - 独立 GitHub リポジトリ（`antigravity-loop-plugin`）の作成と push（本 Issue 完了後の次フェーズ）。
   - `job-eval` アプリケーションコード（`src/`）の変更。
@@ -43,9 +43,9 @@
 
 ### 5.1. PR作成前完了基準 (Pre-PR DoD)
 - [x] `hooks.json` が AGY 公式仕様に基づき 4 つの名前付きフックに分割されていること。
-- [x] 各フックのハンドラーが `.agents/hooks/handlers/` に単一責任でモジュール化されていること。
-- [x] `preToolHook.js` が各ハンドラーをオーケストレーションし、既存インターフェースの後方互換性を完全に保っていること。
-- [x] `tests/harness/hooks.test.ts` が全件 PASS すること。
+- [x] 各フックが `.agents/hooks/` 直下にフラットかつ単一責任でモジュール化されていること。
+- [x] 不要な中間ファサード（`preToolHook.js`, `postToolHook.js`）が完全に撤廃されていること。
+- [x] `tests/harness/hooks.test.ts` が新モジュールを直接検証し全件 PASS すること。
 - [x] 重複・パッチワーク点検（Impact & Duplication Check）が `pre_verification.md` に記録されていること。
 - [x] 4軸ドキュメント（`issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md`）が完備されていること。
 - [x] フル品質ゲート（`npm.cmd run check`）が 100% PASS すること。

@@ -7,26 +7,27 @@ AGY 公式仕様（`https://antigravity.google/docs/hooks/`）に準拠し、`pr
 
 | 区分 | ファイルパス | 変更概要 |
 | :--- | :--- | :--- |
-| **新規** | `.agents/hooks/handlers/safetyGuard.js` | ツール安全ガード（`gh pr merge` 禁止、インタラクティブテスト抑止） |
-| **新規** | `.agents/hooks/handlers/branchDoRGate.js` | 着手品質ゲート（ブランチ作成前のワーキングツリー、LoopState、Why/Risk、重複点検） |
-| **新規** | `.agents/hooks/handlers/prePrAuditGate.js` | 提出品質ゲート（PR作成前の4軸書類、DoDチェック、SSOT/ADR同期） |
-| **新規** | `.agents/hooks/handlers/postPrCreate.js` | PR作成検知とステートマシン自動遷移 |
-| **変更** | `.agents/hooks/preToolHook.js` | ハンドラー群を束ねるファサード化（後方互換性維持） |
-| **変更** | `.agents/hooks.json` | 4 つの名前付きフック（`safety-guard`, `branch-dor-gate`, `pre-pr-audit-gate`, `review-loop-guard`）に分割 |
-| **変更** | `tests/harness/hooks.test.ts` | 分割ハンドラー単体のテスト追加および総合フックの互換性検証 |
-| **新規** | `docs/adr/0021-lifecycle-hooks-modular-separation.md` | フック責務分離とAGY公式準拠の設計決定記録 |
+| **新規** | `.agents/hooks/safetyGuard.js` | ツール安全ガードフック（フラット配置） |
+| **新規** | `.agents/hooks/branchDoRGate.js` | 着手品質ゲートフック（フラット配置） |
+| **新規** | `.agents/hooks/prePrAuditGate.js` | 提出品質ゲートフック（フラット配置） |
+| **新規** | `.agents/hooks/postPrCreate.js` | PR作成検知・状態遷移フック（フラット配置） |
+| **削除** | `.agents/hooks/preToolHook.js` | 中間ファサードの完全撤廃 |
+| **削除** | `.agents/hooks/postToolHook.js` | 中間ファサードの完全撤廃 |
+| **変更** | `.agents/hooks.json` | 4 つの名前付きフック（フラットパス指定）に分割 |
+| **変更** | `tests/harness/hooks.test.ts` | 新フックモジュールを直接検証するテストへ再編 |
+| **変更** | `tests/harness/e2eLoop.test.ts` | `postToolHook` 依存を `postPrCreate` に直接追随 |
+| **新規** | `docs/adr/0021-lifecycle-hooks-modular-separation.md` | フック責務分離とフラット構造採用の設計決定記録 |
 | **変更** | `docs/architecture_overview.md` | ADR-0021 の反映・同期 |
 
 ## 3. 実装手順
 
-### Step 1: ハンドラーモジュールの実装 (Inner Loop TDD)
-- `.agents/hooks/handlers/` を作成。
-- `safetyGuard.js`, `branchDoRGate.js`, `prePrAuditGate.js`, `postPrCreate.js` を実装。
-- 各ハンドラーは単体で CLI 実行（`node ...`）および関数インポートの両対応とする。
+### Step 1: フラットなフックモジュールの実装 (Inner Loop TDD)
+- `.agents/hooks/` 直下に `safetyGuard.js`, `branchDoRGate.js`, `prePrAuditGate.js`, `postPrCreate.js` を実装。
+- 各フックは単体で CLI 実行（`node ...`）および関数インポートの両対応とする。
 
-### Step 2: `preToolHook.js` のリファクタリング
-- `handlePreTool` を各ハンドラーのパイプラインとして再構築。
-- 既存テストとの 100% 互換性を維持。
+### Step 2: ファサードの完全撤廃とテスト追随
+- `preToolHook.js`, `postToolHook.js` を削除。
+- `tests/harness/hooks.test.ts` および `tests/harness/e2eLoop.test.ts` を各フック直接検証へ健全に追従。
 
 ### Step 3: `hooks.json` のスキーマ更新
 - 名前付きフックとして 4 つに分割。

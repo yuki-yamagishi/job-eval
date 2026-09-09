@@ -34,18 +34,21 @@ JobEval における自律エージェントのガバナンス機構は、ADR-00
 3. **`pre-pr-audit-gate`**: PR作成時の提出品質ゲート（4軸ドキュメント完備性、Pre-PR DoD 完了、SSOT / ADR 同期の検証）。
 4. **`review-loop-guard`**: 自律レビューループの進行と停止ガード（`PostToolUse` での PR 作成検知・状態遷移、`Stop` での `RESOLVED_LGTM` 未達時の早期停止ブロック）。
 
-### 2.2 ハンドラーのモジュール分離 (`.agents/hooks/handlers/`)
-単一責任の原則（Single Responsibility Principle: SRP）に基づき、各判定ロジックを独立したモジュールとして切り出す：
-- `hooks/handlers/safetyGuard.js`
-- `hooks/handlers/branchDoRGate.js`
-- `hooks/handlers/prePrAuditGate.js`
-- `hooks/handlers/postPrCreate.js`
+### 2.2 フラットなフックモジュール構成の採用 (`.agents/hooks/`)
+単一責任の原則（Single Responsibility Principle: SRP）および AGY 公式プラグイン構造のベストプラクティスに基づき、余計な中間階層（`handlers/`）や死にファサード（`preToolHook.js`, `postToolHook.js`）を完全に撤廃し、`.agents/hooks/` 直下にフラットにモジュールを配置する：
+- `.agents/hooks/safetyGuard.js`: `safety-guard` フック実体
+- `.agents/hooks/branchDoRGate.js`: `branch-dor-gate` フック実体
+- `.agents/hooks/prePrAuditGate.js`: `pre-pr-audit-gate` フック実体
+- `.agents/hooks/postPrCreate.js`: `PostToolUse` フック実体
+- `.agents/hooks/stopHook.js`: `Stop` フック実体
+- `.agents/hooks/hookUtils.js`: 共通入出力ユーティリティ
 
-各ハンドラーは、CLI からの直接実行（`node ...` ＋ stdin/stdout JSON プロトコル）と、他のスクリプトからの関数インポート呼び出し（`handleSafetyGuard(payload)` 等）のデュアル実行に対応する。
+各フックは、CLI からの直接実行（`node ...` ＋ stdin/stdout JSON プロトコル）と、他のスクリプトからの関数インポート呼び出し（`handleSafetyGuard(payload)` 等）のデュアル実行に対応する。
 
-### 2.3 ファサード（Facade）による 100% 後方互換性の保証
-- 既存の `preToolHook.js` および `postToolHook.js` は、内部で上記ハンドラー群を合成（Compose）して呼び出すファサードとしてリファクタリングする。
-- 関数シグネチャ `handlePreTool(payload, options)` および戻り値の互換性を完全に維持し、既存の 755 行に及ぶテストスイート（`tests/harness/hooks.test.ts`）を 1 行も弱体化させずに全件 PASS させる。
+### 2.3 ファサード（Facade）の完全撤廃とテストの直接的追随
+- 過去のテスト（`tests/harness/hooks.test.ts`, `tests/harness/e2eLoop.test.ts`）で使われていた `preToolHook.js` および `postToolHook.js` のファサードは、ランタイム実行において不要な中間層（デッドコード）となるため完全に削除・撤廃した。
+- テストスイートはファサードを経由せず、各フックモジュールを直接インポートして検証する構造へ健全に追従させた（テストのアサーションロジック・検証網羅性は 100% 維持）。
+- 移行期の現行セッション保護のため、`.agents/hooks/handlers/` は本体への薄いフォワーダーとして残存させ、ランタイムキャッシュとの互換性を確保する。
 
 ---
 

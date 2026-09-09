@@ -84,9 +84,9 @@ tests/                    # 自動テストハーネス (Vitest)
 1. **憲章とスキルの分離 (Progressive Disclosure)**:
    - `AGENTS.md`: 毎ターン読み込まれるコア憲章（DoD・絶対遵守事項・アーキテクチャ不可侵原則）。
    - `.agents/skills/`: 各フェーズに応じた 3 つの単一責務スキル（`issue-lifecycle`, `dev-lifecycle`, `review-self-healing`）をオンデマンドで段階的開示。
-2. **多重物理ガードレール (Mechanism & Modular Separation - ADR-0021)**:
+2. **多重物理ガードレール (Mechanism & Flat Modular Hooks - ADR-0021)**:
    - `hooks.json`: AGY公式仕様に完全準拠し、4つの名前付きフック（`safety-guard`, `branch-dor-gate`, `pre-pr-audit-gate`, `review-loop-guard`）に分割。
-   - `handlers/`: `safetyGuard`（`gh pr merge`禁止・テスト抑止）、`branchDoRGate`（DoR・Why・排除リスク・重複点検）、`prePrAuditGate`（4軸書類・DoD完備・SSOT同期）、`postPrCreate`（PR作成検知）にモジュール化。
+   - フラットフックモジュール (`.agents/hooks/`): ファサードを完全撤廃し、`safetyGuard.js`（`gh pr merge`禁止・テスト抑止）、`branchDoRGate.js`（DoR・Why・排除リスク・重複点検）、`prePrAuditGate.js`（4軸書類・DoD完備・SSOT同期）、`postPrCreate.js`（PR作成検知）、`stopHook.js`（合議前早期停止ブロック）をフラットに配置。
    - `loopState.js`: CI 未通過時のレビュー依頼ブロック（CI Gate）、および PR 未マージ時の勝手なリセット阻止（Merge Verification Gate）。
    - `stopHook.js`: レビュー指摘の解消と Fleet の Re-review（LGTM）を受領するまで早期停止をブロック。
 3. **2者 Fleet 並行合議レビュー (Review Consortium)**:

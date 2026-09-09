@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./hooks/handlers/safetyGuard.js",
+            "command": "node ./hooks/safetyGuard.js",
             "timeout": 15
           }
         ]
@@ -22,7 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./hooks/handlers/branchDoRGate.js",
+            "command": "node ./hooks/branchDoRGate.js",
             "timeout": 15
           }
         ]
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./hooks/handlers/prePrAuditGate.js",
+            "command": "node ./hooks/prePrAuditGate.js",
             "timeout": 15
           }
         ]
@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./hooks/handlers/postPrCreate.js",
+            "command": "node ./hooks/postPrCreate.js",
             "timeout": 15
           }
         ]

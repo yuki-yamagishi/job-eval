@@ -5,7 +5,7 @@ import os from 'os';
 import { LoopStateMachine, STATUS } from '../../.agents/state/loopState.js';
 import { parseReviewResult } from '../../.agents/skills/review-self-healing/scripts/parseReviewResult.js';
 import { resolveReview } from '../../.agents/skills/review-self-healing/scripts/resolveReview.js';
-import { handlePostTool } from '../../.agents/hooks/postToolHook.js';
+import { handlePostPrCreate } from '../../.agents/hooks/postPrCreate.js';
 import { handleStop } from '../../.agents/hooks/stopHook.js';
 
 describe('Self-Healing Review Loop E2E Integration Test', () => {
@@ -62,7 +62,7 @@ describe('Self-Healing Review Loop E2E Integration Test', () => {
       result: 'https://github.com/yuki-yamagishi/job-eval/pull/49\n',
     };
 
-    handlePostTool(prCreationPayload, stateMachine);
+    handlePostPrCreate(prCreationPayload, stateMachine);
     const prCreatedState = stateMachine.getState();
     expect(prCreatedState.status).toBe(STATUS.PR_CREATED);
     expect(prCreatedState.prNumber).toBe(49);
