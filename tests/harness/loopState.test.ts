@@ -6,7 +6,7 @@ import {
   LoopStateMachine, 
   STATUS, 
   createInitialState 
-} from '../../scripts/harness/loopState.js';
+} from '../../.agents/state/loopState.js';
 
 describe('LoopStateMachine', () => {
   let tempDir: string;

@@ -1,15 +1,8 @@
 /**
- * Hook Utilities (scripts/harness/hooks/hookUtils.js)
+ * Hook Utilities (.agents/hooks/hookUtils.js)
  * Helper functions for stdin/stdout JSON protocol in Antigravity lifecycle hooks.
  */
 
-/**
- * Reads and parses JSON payload from stdin.
- * Resolves to an empty object if stdin is empty, invalid, or times out.
- * 
- * @param {number} timeoutMs Timeout in milliseconds (default: 2000)
- * @returns {Promise<Record<string, any>>}
- */
 export async function readStdinJson(timeoutMs = 2000) {
   return new Promise((resolve) => {
     let raw = '';
@@ -52,11 +45,6 @@ export async function readStdinJson(timeoutMs = 2000) {
   });
 }
 
-/**
- * Writes JSON response to stdout.
- * 
- * @param {Record<string, any>} data
- */
 export function writeStdoutJson(data) {
   process.stdout.write(JSON.stringify(data, null, 2) + '\n');
 }

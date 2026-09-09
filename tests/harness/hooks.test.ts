@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { LoopStateMachine, STATUS } from '../../scripts/harness/loopState.js';
-import { handleStop } from '../../scripts/harness/hooks/stopHook.js';
-import { handlePreTool } from '../../scripts/harness/hooks/preToolHook.js';
-import { handlePostTool } from '../../scripts/harness/hooks/postToolHook.js';
+import { LoopStateMachine, STATUS } from '../../.agents/state/loopState.js';
+import { handleStop } from '../../.agents/hooks/stopHook.js';
+import { handlePreTool } from '../../.agents/hooks/preToolHook.js';
+import { handlePostTool } from '../../.agents/hooks/postToolHook.js';
 
 describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
   let tempDir: string;

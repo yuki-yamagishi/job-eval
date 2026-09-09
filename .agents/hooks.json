@@ -4,7 +4,7 @@
     "Stop": [
       {
         "type": "command",
-        "command": "if exist ../scripts/harness/hooks/stopHook.js (node ../scripts/harness/hooks/stopHook.js) else (node ./scripts/harness/hooks/stopHook.js)",
+        "command": "node ./hooks/stopHook.js",
         "timeout": 15
       }
     ],
@@ -14,7 +14,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if exist ../scripts/harness/hooks/preToolHook.js (node ../scripts/harness/hooks/preToolHook.js) else (node ./scripts/harness/hooks/preToolHook.js)",
+            "command": "node ./hooks/preToolHook.js",
             "timeout": 15
           }
         ]
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if exist ../scripts/harness/hooks/postToolHook.js (node ../scripts/harness/hooks/postToolHook.js) else (node ./scripts/harness/hooks/postToolHook.js)",
+            "command": "node ./hooks/postToolHook.js",
             "timeout": 15
           }
         ]

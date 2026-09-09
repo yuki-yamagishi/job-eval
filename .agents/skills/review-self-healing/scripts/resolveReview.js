@@ -1,7 +1,6 @@
 /**
- * Self-Healing Review Resolution & PR Comment Reporter (scripts/harness/resolveReview.js)
+ * Self-Healing Review Resolution & PR Comment Reporter (.agents/skills/review-self-healing/scripts/resolveReview.js)
  * 
- * ADR-0016 Step 5 (Issue #48)
  * Automates reporting resolutions of Fleet review issues to the GitHub PR thread,
  * linking commit hashes and explanations, and converging loopState to RESOLVED_LGTM.
  */
@@ -9,24 +8,9 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { defaultStateMachine, STATUS } from './loopState.js';
+import { defaultStateMachine, STATUS } from '../../../state/loopState.js';
 import { postPrComment } from './postPrComment.js';
 
-/**
- * Resolves review issues, posts a structured resolution comment to the PR thread,
- * and updates loopState accordingly.
- * 
- * @param {object} options
- * @param {string} options.commitHash - Commit hash or reference that resolved the issues (required)
- * @param {string} options.summary - Summary of the resolution / changes made (required)
- * @param {string} [options.details=''] - Optional detailed explanation or notes
- * @param {string[]|string|null} [options.issueIds=null] - Specific issue IDs to resolve. If null, targets unresolved blocking issues.
- * @param {number|string|null} [options.prNumber=null] - PR number. If null, retrieved from loopState.
- * @param {boolean} [options.dryRun=false] - If true, skips PR comment posting and state file persistence.
- * @param {object} [options.stateMachine=null] - Custom state machine instance for testing (DI)
- * @param {Function} [options.postCommentFn=null] - Custom PR comment poster function for testing (DI)
- * @returns {object} Resolution result object
- */
 export function resolveReview(options = {}) {
   const {
     commitHash,
@@ -39,7 +23,6 @@ export function resolveReview(options = {}) {
     postCommentFn = postPrComment,
   } = options;
 
-  // 1. Validation
   if (typeof commitHash !== 'string' || commitHash.trim().length === 0) {
     throw new Error('Commit hash is required and cannot be empty.');
   }
@@ -53,7 +36,6 @@ export function resolveReview(options = {}) {
   const trimmedDetails = typeof details === 'string' ? details.trim() : '';
 
   const currentState = stateMachine.getState();
-
   const rawPrNumber = prNumber !== null && prNumber !== undefined ? prNumber : currentState?.prNumber;
   const numPr = Number(rawPrNumber);
   if (isNaN(numPr) || numPr <= 0 || !Number.isInteger(numPr)) {
@@ -62,16 +44,12 @@ export function resolveReview(options = {}) {
     );
   }
 
-  // 2. Determine target issue IDs
   let targetIds = null;
   if (issueIds) {
     if (Array.isArray(issueIds)) {
       targetIds = issueIds.map((id) => String(id).trim()).filter(Boolean);
     } else if (typeof issueIds === 'string') {
-      targetIds = issueIds
-        .split(',')
-        .map((id) => id.trim())
-        .filter(Boolean);
+      targetIds = issueIds.split(',').map((id) => id.trim()).filter(Boolean);
     }
   }
 
@@ -81,21 +59,18 @@ export function resolveReview(options = {}) {
   if (targetIds && targetIds.length > 0) {
     targetIssues = existingIssues.filter((issue) => targetIds.includes(issue.id));
   } else {
-    // If no target IDs specified, target all unresolved blocking issues ('must', 'should')
     const unresolvedBlocking = existingIssues.filter(
       (issue) => ['must', 'should'].includes(issue.type) && !issue.resolved
     );
     if (unresolvedBlocking.length > 0) {
       targetIssues = unresolvedBlocking;
     } else {
-      // If no unresolved blocking issues, target any unresolved non-blocking issues
       const unresolvedAny = existingIssues.filter((issue) => !issue.resolved);
       targetIssues = unresolvedAny.length > 0 ? unresolvedAny : existingIssues;
     }
     targetIds = targetIssues.map((issue) => issue.id);
   }
 
-  // 3. Compute next issue states and overall status
   const updatedIssues = existingIssues.map((issue) => {
     if (targetIds.includes(issue.id)) {
       return {
@@ -114,7 +89,6 @@ export function resolveReview(options = {}) {
   const isAllResolved = remainingBlockingIssues.length === 0;
   const nextStatus = isAllResolved ? STATUS.RESOLVED_LGTM : STATUS.NEEDS_FIX;
 
-  // 4. Generate structured resolution Markdown
   const commentLines = [
     '## 🛠️ 指摘自己修復・解決報告 (Self-Healing Resolution Report)',
     '',
@@ -157,7 +131,6 @@ export function resolveReview(options = {}) {
 
   const commentBody = commentLines.join('\n');
 
-  // 5. Post comment and update state
   let postResult = null;
   let updatedState = null;
 
@@ -187,14 +160,11 @@ export function resolveReview(options = {}) {
   };
 }
 
-// CLI Runner
-const isDirectExecution =
-  process.argv[1] &&
+const isDirectExecution = process.argv[1] &&
   fileURLToPath(import.meta.url).toLowerCase() === path.resolve(process.argv[1]).toLowerCase();
 
 if (isDirectExecution) {
   const args = process.argv.slice(2);
-
   const KNOWN_FLAGS = new Set([
     '--commit', '-c',
     '--summary', '-s',
@@ -222,7 +192,7 @@ if (isDirectExecution) {
 
   if (!commitHash || !summary) {
     console.error(
-      'Usage: node scripts/harness/resolveReview.js --commit <hash> --summary <text> [--details <text>] [--issue-ids <id1,id2>] [--pr <prNumber>] [--dry-run]'
+      'Usage: node resolveReview.js --commit <hash> --summary <text> [--details <text>] [--issue-ids <id1,id2>] [--pr <prNumber>] [--dry-run]'
     );
     process.exit(1);
   }

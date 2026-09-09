@@ -4,7 +4,7 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
 本憲章は、AI エージェントが開発時に厳格に遵守すべき **「コア原則・不可侵規約・完了定義 (DoD)」** を定めます。
 
 > 📖 **詳細実践ガイド**:
-> 具体的な 7 フェーズ実行手順書（Runbook）、ライフサイクルラベル規定、コマンドリファレンス、サブエージェント安全規約は、スキル **`.agents/skills/job-eval-harness/SKILL.md`** に集約されています。開発作業時は同スキルを参照してください。
+> 開発フェーズに応じた詳細な実践手順書は、Customization Layer のスキル群（`.agents/skills/issue-lifecycle/`, `.agents/skills/dev-lifecycle/`, `.agents/skills/review-self-healing/`）に Progressive Disclosure（段階的開示）として分離・集約されています。作業フェーズに合わせて各スキルを参照してください。
 
 ---
 
@@ -44,5 +44,5 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
 5. **ループエンジニアリング完了定義 (DoD) & 早期停止ガード**:
    - ループ状態マシン（`loopState`）により、PR 作成後の早期停止・会話終了は物理的にブロックされる。
    - レビュー指摘の修正後、解決報告ツール `resolveReview` を実行して状態を `RESOLVED_LGTM` に収束させること。
-6. **人間（ユーザー）承認によるマージ**:
-   - 全指摘解消後、ユーザーに報告し、**明示的な指示または承認を得てからのみマージを実行すること**。
+6. **人間（ユーザー）によるマージ**:
+   - 全指摘解消後、ユーザーに報告してマージを依頼し、承認・マージ完了をもって作業を完了とすること（エージェントによる `gh pr merge` の直接実行はフックにより禁止）。

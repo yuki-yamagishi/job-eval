@@ -35,5 +35,6 @@
 | [ADR-0015](file:///docs/adr/0015-corporate-benefit-research-and-model-separation.md) | Gemini Google Search Grounding による企業・福利厚生Web調査と用途別モデル分離・Thinking制御 | **Accepted** | 2026-09-06 |
 | [ADR-0016](file:///docs/adr/0016-loop-engineering-harness-refactoring.md) | ループエンジニアリング確立に向けた開発ハーネスの 6 段階リファクタリング＆責務分割 | **Accepted** | 2026-09-07 |
 | [ADR-0017](file:///docs/adr/0017-optimize-agent-scaffolding-and-gradual-verification.md) | AI駆動開発のための補助資源最適化（憲章とスキルの分離・段階的検証・ワークスペース衛生・仕様SSOT一元化） | **Accepted** | 2026-09-09 |
+| [ADR-0018](file:///docs/adr/0018-antigravity-customization-layer-refactoring.md) | Google Antigravity 公式仕様に準拠した Customization Layer への抜本的刷新 | **Accepted** | 2026-09-09 |
 
 

@@ -1,7 +1,6 @@
 /**
- * Safe PR Comment Poster (scripts/harness/postPrComment.js)
+ * Safe PR Comment Poster (.agents/skills/review-self-healing/scripts/postPrComment.js)
  * 
- * ADR-0016 Step 4 (Issue #47)
  * Writes the comment markdown body to a temporary file and posts it via
  * `gh pr comment <prNumber> --body-file <tempFile>` to avoid Windows PowerShell
  * quote escaping, line-break destruction, and character corruption.
@@ -13,16 +12,6 @@ import os from 'os';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
-/**
- * Safely posts a comment to a GitHub PR using a temporary file and --body-file.
- * 
- * @param {number|string} prNumber - GitHub PR number
- * @param {string} commentBody - Markdown content of the comment
- * @param {object} [options] - Options for execution
- * @param {Function} [options.execFn] - Custom execFileSync for testing
- * @param {string} [options.tmpDir] - Custom temp directory for testing
- * @returns {{ success: boolean, output: string, prNumber: number }}
- */
 export function postPrComment(prNumber, commentBody, options = {}) {
   const num = Number(prNumber);
   if (isNaN(num) || num <= 0 || !Number.isInteger(num)) {
@@ -40,10 +29,8 @@ export function postPrComment(prNumber, commentBody, options = {}) {
   const exec = options.execFn || execFileSync;
 
   try {
-    // Write markdown body safely with UTF-8 encoding
     fs.writeFileSync(tempFilePath, commentBody, 'utf8');
 
-    // Execute gh pr comment with --body-file
     const stdout = exec('gh', ['pr', 'comment', String(num), '--body-file', tempFilePath], {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -56,18 +43,14 @@ export function postPrComment(prNumber, commentBody, options = {}) {
       prNumber: num,
     };
   } finally {
-    // Always clean up the temporary file
     try {
       if (fs.existsSync(tempFilePath)) {
         fs.unlinkSync(tempFilePath);
       }
-    } catch {
-      // Ignored cleanup error
-    }
+    } catch {}
   }
 }
 
-// CLI Runner
 const isDirectExecution = process.argv[1] && 
   (fileURLToPath(import.meta.url).toLowerCase() === path.resolve(process.argv[1]).toLowerCase());
 
@@ -75,7 +58,7 @@ if (isDirectExecution) {
   const [,, prNumberArg, bodyOrFileArg] = process.argv;
 
   if (!prNumberArg) {
-    console.error('Usage: node scripts/harness/postPrComment.js <prNumber> [body|filePath]');
+    console.error('Usage: node postPrComment.js <prNumber> [body|filePath]');
     process.exit(1);
   }
 
@@ -87,12 +70,9 @@ if (isDirectExecution) {
       body = bodyOrFileArg;
     }
   } else {
-    // Read from standard input if no body argument is passed
     try {
       body = fs.readFileSync(0, 'utf8');
-    } catch {
-      // No stdin provided
-    }
+    } catch {}
   }
 
   if (!body || body.trim().length === 0) {
