@@ -12,3 +12,15 @@
 - `npm.cmd run check:fast`: 全単体テスト PASS。
 - `npm.cmd run doc-check`: ADR・Agent・Issue ドキュメント整合性検査 PASSED。
 - `npm.cmd run check`: ワンショットフル品質ゲート PASSED。
+- リモート GitHub Actions CI (PR #67): 全ジョブ PASS。
+
+## 3. Fleet レビュー & 自己修復ループ
+- **受領レビュー**: `fleet_reviewer` による客観的第三者コードレビューを受領（PR #67 に公式コメント記録）。
+- **指摘事項**:
+  - `[should]`: `tests/harness/hooks.test.ts` に `payload.fullyIdle === false`（Antigravity 公式仕様によるデッドロック防止判定）のテスト追加。
+  - `[nits]`: `AGENTS.md` の仕様正本記述を「ADR-0001〜0018」へ更新。
+- **自己修復実施**:
+  - `tests/harness/hooks.test.ts` に `PR_CREATED` および `REVIEW_REQUESTED` における `payload.fullyIdle === false` 判定の単体テストケース 2 件を追加（全 23 テスト PASS）。
+  - `AGENTS.md` の ADR レンジを「ADR-0001〜0018」に更新。
+- **解決報告**: `resolveReview.js` により PR #67 へ解決報告を投稿し、`RESOLVED_LGTM` に収束。
+

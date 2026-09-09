@@ -86,6 +86,23 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       expect(result.reason).toContain('PR_CREATED');
     });
 
+    it('allows stop when status is PR_CREATED and payload.fullyIdle is false (official Antigravity payload)', () => {
+      testMachine.setPrCreated(46);
+      const result = handleStop({ fullyIdle: false }, testMachine);
+      expect(result.decision).toBe('allow');
+      expect(result.reason).toContain('Active subagent running');
+      expect(result.reason).toContain('PR_CREATED');
+    });
+
+    it('allows stop when status is REVIEW_REQUESTED and payload.fullyIdle is false (official Antigravity payload)', () => {
+      testMachine.setPrCreated(46);
+      testMachine.setReviewRequested({ activeSubagents: false });
+      const result = handleStop({ fullyIdle: false }, testMachine);
+      expect(result.decision).toBe('allow');
+      expect(result.reason).toContain('Active subagent running');
+      expect(result.reason).toContain('REVIEW_REQUESTED');
+    });
+
     it('allows stop when status is REVIEW_REQUESTED and state has activeSubagents: true', () => {
       testMachine.setPrCreated(46);
       testMachine.setReviewRequested({ activeSubagents: true });
