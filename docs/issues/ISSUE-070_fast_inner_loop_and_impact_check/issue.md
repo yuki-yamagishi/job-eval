@@ -43,7 +43,7 @@
 
 ### 5.2. マージ前完了ゲート (Pre-Merge Gate)
 - [x] GitHub Actions CI が PASS していること。
-- [ ] 2者合議レビュー（`fleet_reviewer` ＋ `fleet_completion_auditor`）から両者 `[LGTM]` を受領すること。
+- [x] 2者合議レビュー（`fleet_reviewer` ＋ `fleet_completion_auditor`）から両者 `[LGTM]` を受領すること。
 - [ ] 人間（ユーザー）による最終確認とマージが完了していること。
 
 ## 6. 関連ドキュメント・仕様正本 (References & SSOT)
