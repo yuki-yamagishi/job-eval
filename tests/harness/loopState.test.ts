@@ -123,7 +123,7 @@ describe('LoopStateMachine', () => {
     expect(check.status).toBe(STATUS.RESOLVED_LGTM);
   });
 
-  it('resolves specific issues and transitions to RESOLVED_LGTM once all blocking issues are resolved', () => {
+  it('resolves specific issues and transitions to REVIEW_REQUESTED (re-review required) once all blocking issues are resolved', () => {
     machine.setPrCreated(45);
     machine.setReviewResult({
       lgtm: false,
@@ -143,14 +143,23 @@ describe('LoopStateMachine', () => {
     expect(step1.issues.find((i: { id: string }) => i.id === 'issue-1')?.resolvedCommit).toBe('commit-abc1');
     expect(machine.canStop().allowed).toBe(false);
 
-    // Resolve issue-2
+    // Resolve issue-2 -> Transitions to REVIEW_REQUESTED (self-LGTM is strictly prohibited!)
     const step2 = machine.resolveIssues('commit-abc2', ['issue-2']);
-    expect(step2.status).toBe(STATUS.RESOLVED_LGTM);
+    expect(step2.status).toBe(STATUS.REVIEW_REQUESTED);
     expect(step2.issues.find((i: { id: string }) => i.id === 'issue-2')?.resolved).toBe(true);
+    // Agent cannot stop yet because fleet re-review has not been performed!
+    expect(machine.canStop().allowed).toBe(false);
+
+    // Fleet reviewer runs re-review and grants LGTM
+    const reReviewState = machine.setReviewResult({
+      lgtm: true,
+      issues: [],
+    });
+    expect(reReviewState.status).toBe(STATUS.RESOLVED_LGTM);
     expect(machine.canStop().allowed).toBe(true);
   });
 
-  it('resolves all unresolved blocking issues when resolveIssues is called with null targetIds', () => {
+  it('resolves all unresolved blocking issues to REVIEW_REQUESTED when resolveIssues is called with null targetIds', () => {
     machine.setPrCreated(45);
     machine.setReviewResult({
       lgtm: false,
@@ -161,8 +170,14 @@ describe('LoopStateMachine', () => {
     });
 
     const state = machine.resolveIssues('commit-batch');
-    expect(state.status).toBe(STATUS.RESOLVED_LGTM);
+    // Enforces Re-review: status is REVIEW_REQUESTED, NOT RESOLVED_LGTM
+    expect(state.status).toBe(STATUS.REVIEW_REQUESTED);
     expect(state.issues.every((i: { resolved: boolean }) => i.resolved)).toBe(true);
+    expect(machine.canStop().allowed).toBe(false);
+
+    // Transitions to RESOLVED_LGTM only after Fleet grants LGTM
+    const finalState = machine.setReviewResult({ lgtm: true, issues: [] });
+    expect(finalState.status).toBe(STATUS.RESOLVED_LGTM);
     expect(machine.canStop().allowed).toBe(true);
   });
 

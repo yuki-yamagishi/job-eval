@@ -87,7 +87,9 @@ export function resolveReview(options = {}) {
   );
 
   const isAllResolved = remainingBlockingIssues.length === 0;
-  const nextStatus = isAllResolved ? STATUS.RESOLVED_LGTM : STATUS.NEEDS_FIX;
+  // ガバナンス厳格化: 全ての指摘が修正されても、親エージェントによる独断の LGTM 収束は禁止。
+  // REVIEW_REQUESTED に遷移させ、fleet_reviewer による客観的再レビューを必須とする。
+  const nextStatus = isAllResolved ? STATUS.REVIEW_REQUESTED : STATUS.NEEDS_FIX;
 
   const commentLines = [
     '## 🛠️ 指摘自己修復・解決報告 (Self-Healing Resolution Report)',
@@ -120,9 +122,10 @@ export function resolveReview(options = {}) {
 
   commentLines.push('', '### 📊 総合ステータス判定');
   if (isAllResolved) {
-    commentLines.push('- **判定**: `[LGTM (All Resolved)]`');
-    commentLines.push('- **未解消ブロッキング指摘**: 0件');
-    commentLines.push(`- **ステータス遷移**: \`${currentState.status || STATUS.NEEDS_FIX}\` ➔ \`${STATUS.RESOLVED_LGTM}\``);
+    commentLines.push('- **ステータス**: `[修正完了 / 再レビュー待機中 (Pending Re-review)]`');
+    commentLines.push('- **未解消ブロッキング指摘**: 0件（すべての指摘に対応コミットを紐付け完了）');
+    commentLines.push(`- **ステータス遷移**: \`${currentState.status || STATUS.NEEDS_FIX}\` ➔ \`${STATUS.REVIEW_REQUESTED}\``);
+    commentLines.push('- **次の必須アクション**: 第三者レビュアー（`fleet_reviewer`）を再起動し、客観的再レビュー（Re-review）を受領してください。');
   } else {
     commentLines.push(`- **判定**: \`[要修正 (Remaining Blocking: ${remainingBlockingIssues.length}件)]\``);
     commentLines.push(`- **未解消ブロッキング指摘**: ${remainingBlockingIssues.length}件`);
@@ -213,6 +216,9 @@ if (isDirectExecution) {
     console.log(`  Resolved Issue IDs: ${result.resolvedIssueIds.join(', ') || 'none'}`);
     console.log(`  Remaining Blocking: ${result.unresolvedBlockingCount}`);
     console.log(`  Posted to PR: ${result.posted}`);
+    if (result.isAllResolved) {
+      console.log(`  👉 次の必須アクション: fleet_reviewer を再起動して Re-review を受領してください（親エージェントの自己LGTMは物理禁止されています）。`);
+    }
 
     if (dryRun) {
       console.log('\n--- Generated Markdown (Dry-run) ---\n');

@@ -24,3 +24,13 @@
   - `AGENTS.md` の ADR レンジを「ADR-0001〜0018」に更新。
 - **解決報告**: `resolveReview.js` により PR #67 へ解決報告を投稿し、`RESOLVED_LGTM` に収束。
 
+## 4. ガードレール恒久強化（自己承認の物理禁止 & Re-review 必須化）
+- **課題分析**: 従来の `resolveReview.js` は全指摘対応時に直接 `STATUS.RESOLVED_LGTM` に遷移していたため、親エージェントが自ら修正完了を宣言して第三者検証なしにターン終了できるセルフ承認の抜け穴が存在していた。
+- **恒久改善の適用**:
+  - `loopState.js`: `resolveIssues` は全指摘解消時でも `STATUS.REVIEW_REQUESTED`（再レビュー待ち）にのみ遷移させ、親エージェントによる自律的な LGTM 収束を物理禁止。
+  - `resolveReview.js`: PR コメントおよび CLI 判定を「修正完了 / 再レビュー待機中 (Pending Re-review)」に更新し、Fleet 再起動を義務化。
+  - `review-self-healing` (Runbook): 指摘修正後の `fleet_reviewer` 再起動（Re-review）受領を必須ステップとして定義。
+  - テスト追従: `loopState.test.ts`, `resolveReview.test.ts`, `e2eLoop.test.ts` を更新し、Fleet の再レビュー判定なしには `canStop` が通過しないことを完全検証。
+  - ADR-0018: 設計決定事項およびポジティブ影響に自己承認根絶と Re-review 必須化を追記。
+
+

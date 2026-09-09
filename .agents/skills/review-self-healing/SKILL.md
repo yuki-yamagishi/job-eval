@@ -46,21 +46,27 @@ description: Pull Request 作成、GitHub Actions CI 監視、Fleet レビュー
 
 ---
 
-## 3. レビューパース & 自己修復 & 解決報告
+## 3. レビューパース & 自己修復 & 再レビュー受領（セルフLGTMの物理禁止）
 
 1. **レビュー結果のパース & loopState 更新**:
    ```bash
    node .agents/skills/review-self-healing/scripts/parseReviewResult.js <レビュー本文ファイル> --update-state
    ```
    - ブロッキング指摘（`[must]`, `[should]`）がある場合、状態は `STATUS.NEEDS_FIX` となります。
+   - 初回でブロッキング指摘が 0 件かつ `[LGTM]` の場合は、直ちに `STATUS.RESOLVED_LGTM` に収束します。
 2. **手元自己修復コミット**:
    - 指摘事項を修正し、テストを追加。
    - `npm.cmd run check` で 100% PASS を確認後、追加コミット＆プッシュ。
-3. **公式解決報告の投稿（収束）**:
+   - GitHub Actions CI がパスするまで待機（`gh pr checks`）。
+3. **公式修正報告の投稿 & 再レビュー待機遷移**:
    ```bash
    node .agents/skills/review-self-healing/scripts/resolveReview.js --commit <コミットハッシュ> --summary "<修正概要>"
    ```
-   - PR スレッドに公式解決コメントが投稿され、全ブロッキング指摘解消時に状態が `STATUS.RESOLVED_LGTM` に収束します。
+   - PR スレッドに公式修正報告が投稿され、状態は `STATUS.REVIEW_REQUESTED`（再レビュー待ち）に遷移します。
+   - **【最重要】親エージェントによる自己承認（セルフLGTM）は物理的に禁止されています。`resolveReview.js` を実行しただけでは `RESOLVED_LGTM` には到達できません。**
+4. **★【必須】Fleet サブエージェントの再起動（Re-review）**:
+   - `invoke_subagent` で `fleet_reviewer` を再起動し、修正内容の客観的再検証（Re-review）を依頼します。
+   - Fleet が再レビュー結果として `[LGTM]`（未解決指摘 0 件）を判定し、`parseReviewResult.js <再レビューファイル> --update-state` を実行して初めて、状態マシンが正真正銘の `STATUS.RESOLVED_LGTM` に収束します。
    - `RESOLVED_LGTM` に達して初めて、ループエンジニアリング完了定義（DoD: Definition of Done）が達成され、Stop フックの停止ガードが解除されます。
 
 ---
