@@ -165,11 +165,11 @@ export function handlePreTool(payload = {}, options = {}) {
 
         // 4A-2: Acceptance Criteria (DoD) completion check
         const issueMdContent = fs.readFileSync(path.resolve(targetPath, 'issue.md'), 'utf8');
-        const hasUncheckedCriteria = /- \[\s\]/i.test(issueMdContent);
+        const hasUncheckedCriteria = /- \[\s+\]/i.test(issueMdContent);
         if (hasUncheckedCriteria) {
           return {
             decision: 'deny',
-            reason: `[PreToolHook Denied] Pre-PR Audit Failed: Unchecked acceptance criteria (- [ ]) found in docs/issues/${targetIssueDir}/issue.md. (Remediation Guidance: Verify all criteria are completed and mark them as [-x] before creating a PR.)`,
+            reason: `[PreToolHook Denied] Pre-PR Audit Failed: Unchecked acceptance criteria (- [ ]) found in docs/issues/${targetIssueDir}/issue.md. (Remediation Guidance: Verify all criteria are completed and mark them as [x] before creating a PR.)`,
           };
         }
       }

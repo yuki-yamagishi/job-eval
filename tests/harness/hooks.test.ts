@@ -450,6 +450,26 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
 
         expect(result.decision).toBe('deny');
         expect(result.reason).toContain('Pre-PR Audit Failed: Unchecked acceptance criteria (- [ ])');
+        expect(result.reason).toContain('mark them as [x]');
+
+        // Also test with multiple spaces inside brackets
+        fs.writeFileSync(
+          path.join(issueDir, 'issue.md'),
+          '# Issue 99\n\n## 5. 受け入れ基準\n- [x] Item 1 done\n- [   ] Item 2 pending with spaces\n'
+        );
+
+        const resultWithSpaces = handlePreTool(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'gh pr create --title "feat: test"' },
+            },
+          },
+          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+        );
+
+        expect(resultWithSpaces.decision).toBe('deny');
+        expect(resultWithSpaces.reason).toContain('Pre-PR Audit Failed: Unchecked acceptance criteria (- [ ])');
       });
 
       it('denies gh pr create if latest ADR is not synchronized in architecture_overview.md (SSOT)', () => {
