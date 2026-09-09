@@ -39,7 +39,7 @@ AGY（Antigravity）公式仕様（`https://antigravity.google/docs/hooks/`）�
 | **変更** | `.agents/hooks/preToolHook.js` | 各ハンドラーを束ねるファサードへリファクタリング |
 | **変更** | `.agents/hooks/postToolHook.js` | `postPrCreate` へ委譲するファサードへリファクタリング |
 | **変更** | `.agents/hooks.json` | 4 つの名前付きフックにスキーマ分割 |
-| **変更** | `tests/harness/hooks.test.ts` | 新ハンドラーの単体テスト追加（計 44 テスト） |
+| **変更** | `tests/harness/hooks.test.ts` | 新ハンドラーの単体テストおよび全ハンドラーのCLI直接実行テスト追加（計 48 テスト） |
 | **新規** | `docs/adr/0021-lifecycle-hooks-modular-separation.md` | ADR-0021 設計決定記録 |
 | **変更** | `docs/adr/README.md` | ADR 一覧テーブル更新 |
 | **変更** | `docs/architecture_overview.md` | 仕様正本（SSOT）更新 |
@@ -51,9 +51,9 @@ AGY（Antigravity）公式仕様（`https://antigravity.google/docs/hooks/`）�
 
 ### 3.1. 単体テスト (Inner Loop)
 - **コマンド**: `npm.cmd run test:run tests/harness/hooks.test.ts`
-- **結果**: **44 passed (44)** (100% PASS)
+- **結果**: **48 passed (48)** (100% PASS - 全 4 ハンドラーの CLI 直接実行 stdin/stdout テスト含む)
 - **コマンド**: `npm.cmd run test:run tests/harness/`
-- **結果**: **108 passed (108)** (100% PASS)
+- **結果**: **112 passed (112)** (100% PASS)
 
 ### 3.2. フル品質ゲート (Outer Loop)
 - **コマンド**: `npm.cmd run check`
@@ -61,8 +61,8 @@ AGY（Antigravity）公式仕様（`https://antigravity.google/docs/hooks/`）�
   - シークレット漏洩検査 (`securityCheck.js`): 0 secrets found (Clean)
   - ドキュメント完全性検査 (`docCheck.js`): 全 21 件 ADR、スキル同期、全 38 件 Issue フォルダ整合性確認完了
   - TypeScript Strict 型検査 (`tsc --noEmit`): エラー 0 件
-  - 全テスト & カバレッジ (`vitest run --coverage`): **26 テストファイル、全 212 テスト PASS**
-  - プロダクションビルド (`vite build`): 4.71s で正常完了
+  - 全テスト & カバレッジ (`vitest run --coverage`): **26 テストファイル、全 216 テスト PASS**
+  - プロダクションビルド (`vite build`): 4.76s で正常完了
 
 ---
 

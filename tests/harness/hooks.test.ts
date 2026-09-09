@@ -834,6 +834,22 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
         expect(result.decision).toBe('deny');
         expect(result.reason).toContain('An active review loop is still running');
       });
+
+      it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
+        const handlerPath = path.resolve(__dirname, '../../.agents/hooks/handlers/branchDoRGate.js');
+        const inputPayload = JSON.stringify({
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'git status' },
+          },
+        });
+        const stdout = execSync(`node "${handlerPath}"`, {
+          input: inputPayload,
+          encoding: 'utf8',
+        });
+        const parsed = JSON.parse(stdout.trim());
+        expect(parsed.decision).toBe('allow');
+      });
     });
 
     describe('prePrAuditGate', () => {
@@ -845,6 +861,22 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
           },
         });
         expect(result.decision).toBe('allow');
+      });
+
+      it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
+        const handlerPath = path.resolve(__dirname, '../../.agents/hooks/handlers/prePrAuditGate.js');
+        const inputPayload = JSON.stringify({
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'git push origin main' },
+          },
+        });
+        const stdout = execSync(`node "${handlerPath}"`, {
+          input: inputPayload,
+          encoding: 'utf8',
+        });
+        const parsed = JSON.parse(stdout.trim());
+        expect(parsed.decision).toBe('allow');
       });
     });
 
@@ -863,6 +895,22 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
         expect(result).toEqual({});
         expect(testMachine.getState().status).toBe(STATUS.PR_CREATED);
         expect(testMachine.getState().prNumber).toBe(77);
+      });
+
+      it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
+        const handlerPath = path.resolve(__dirname, '../../.agents/hooks/handlers/postPrCreate.js');
+        const inputPayload = JSON.stringify({
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'git status' },
+          },
+        });
+        const stdout = execSync(`node "${handlerPath}"`, {
+          input: inputPayload,
+          encoding: 'utf8',
+        });
+        const parsed = JSON.parse(stdout.trim());
+        expect(parsed).toEqual({});
       });
     });
   });
