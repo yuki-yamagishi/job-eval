@@ -291,13 +291,18 @@ export class LoopStateMachine {
     // ガバナンス厳格化: 全ての指摘に対応コミットを紐付けた場合でも、
     // 親エージェントが独断で RESOLVED_LGTM に遷移することは物理的に禁止。
     // 必ず STATUS.REVIEW_REQUESTED（再レビュー待ち）に遷移し、
-    // 第三者レビュアー（fleet_reviewer）による Re-review での LGTM 判定を必須とする。
-    const nextStatus = unresolvedBlocking.length === 0 ? STATUS.REVIEW_REQUESTED : STATUS.NEEDS_FIX;
+    // コード変更が入ったため過去のレビュー判定は Stale（無効化）とし、
+    // Fleet レビュー 2 者（codeReviewer, completionAuditor）双方による再レビュー・再監査を必須とする。
+    const isAllResolved = unresolvedBlocking.length === 0;
+    const nextStatus = isAllResolved ? STATUS.REVIEW_REQUESTED : STATUS.NEEDS_FIX;
 
     const updated = {
       ...current,
       status: nextStatus,
       issues: updatedIssues,
+      reviews: isAllResolved
+        ? { codeReviewer: null, completionAuditor: null }
+        : current.reviews,
       activeSubagents: false,
     };
     return this.saveState(updated);
