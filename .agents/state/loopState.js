@@ -8,6 +8,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 export const STATUS = Object.freeze({
@@ -90,6 +91,36 @@ export class LoopStateMachine {
 
   setReviewRequested(options = {}) {
     const current = this.getState();
+
+    // 1. CI Status Verification Gate (Mechanism against ignoring failing/pending CI)
+    const skipCiCheck = Boolean(options.skipCiCheck);
+    if (!skipCiCheck && current.prNumber) {
+      const checkCiFn = options.checkCiFn || ((prNum) => {
+        try {
+          return execSync(`gh pr checks ${prNum}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+        } catch (err) {
+          const out = (err.stdout || '') + (err.stderr || '');
+          if (out) return out;
+          throw new Error(`Failed to check CI status for PR #${prNum}: ${err.message}`);
+        }
+      });
+
+      const ciOutput = checkCiFn(current.prNumber);
+      if (typeof ciOutput === 'string') {
+        const lower = ciOutput.toLowerCase();
+        if (lower.includes('pending') || lower.includes('in_progress') || lower.includes('queued')) {
+          throw new Error(
+            `[CI Gate Denied] GitHub Actions CI for PR #${current.prNumber} is still pending or running. Please wait for CI to complete before requesting review.`
+          );
+        }
+        if (lower.includes('fail') || lower.includes('failure') || lower.includes('error')) {
+          throw new Error(
+            `[CI Gate Denied] GitHub Actions CI for PR #${current.prNumber} has failing checks. Please investigate and fix failures before requesting review.`
+          );
+        }
+      }
+    }
+
     const updated = {
       ...current,
       status: STATUS.REVIEW_REQUESTED,
@@ -174,7 +205,28 @@ export class LoopStateMachine {
     return this.saveState(updated);
   }
 
-  reset() {
+  reset(options = {}) {
+    const current = this.getState();
+    const isForce = Boolean(options.force) || Boolean(options.isForce);
+
+    // 2. Merge Verification Gate on Reset (Mechanism against resetting before human merge)
+    if (!isForce && current.status !== STATUS.IDLE && current.prNumber) {
+      const checkPrStateFn = options.checkPrStateFn || ((prNum) => {
+        try {
+          return execSync(`gh pr view ${prNum} --json state --jq .state`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+        } catch {
+          return 'UNKNOWN';
+        }
+      });
+
+      const prState = checkPrStateFn(current.prNumber);
+      if (prState !== 'MERGED' && prState !== 'UNKNOWN') {
+        throw new Error(
+          `[Reset Gate Denied] Cannot reset loopState: PR #${current.prNumber} is in state "${prState}". Loop state can only be safely reset after the PR has been merged to main by the user. (Emergency override: run 'node .agents/state/loopState.js reset --force')`
+        );
+      }
+    }
+
     try {
       if (fs.existsSync(this.filePath)) {
         fs.unlinkSync(this.filePath);
@@ -243,7 +295,7 @@ export function setReviewRequested(options = {}) { return defaultStateMachine.se
 export function setActiveSubagents(active = true) { return defaultStateMachine.setActiveSubagents(active); }
 export function setReviewResult(result) { return defaultStateMachine.setReviewResult(result); }
 export function resolveIssues(resolvedCommit, resolvedIssueIds = null) { return defaultStateMachine.resolveIssues(resolvedCommit, resolvedIssueIds); }
-export function reset() { return defaultStateMachine.reset(); }
+export function reset(options = {}) { return defaultStateMachine.reset(options); }
 export function canStop(options = {}) { return defaultStateMachine.canStop(options); }
 
 // CLI Command Runner
@@ -282,8 +334,14 @@ if (isDirectExecution) {
     }
     case 'review-requested': {
       const hasActive = args.includes('--active-subagents') || args.includes('true');
-      const state = setReviewRequested({ activeSubagents: hasActive });
-      console.log(`[OK] State transitioned to REVIEW_REQUESTED (activeSubagents: ${state.activeSubagents})`);
+      const skipCi = args.includes('--skip-ci');
+      try {
+        const state = setReviewRequested({ activeSubagents: hasActive, skipCiCheck: skipCi });
+        console.log(`[OK] State transitioned to REVIEW_REQUESTED (activeSubagents: ${state.activeSubagents})`);
+      } catch (err) {
+        console.error(`[BLOCKED] ${err.message}`);
+        process.exit(1);
+      }
       break;
     }
     case 'active-subagents': {
@@ -293,8 +351,14 @@ if (isDirectExecution) {
       break;
     }
     case 'reset': {
-      reset();
-      console.log(`[OK] State reset to IDLE`);
+      const isForce = args.includes('--force');
+      try {
+        reset({ force: isForce });
+        console.log(`[OK] State reset to IDLE`);
+      } catch (err) {
+        console.error(`[BLOCKED] ${err.message}`);
+        process.exit(1);
+      }
       break;
     }
     default: {

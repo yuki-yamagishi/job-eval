@@ -33,4 +33,27 @@
   - テスト追従: `loopState.test.ts`, `resolveReview.test.ts`, `e2eLoop.test.ts` を更新し、Fleet の再レビュー判定なしには `canStop` が通過しないことを完全検証。
   - ADR-0018: 設計決定事項およびポジティブ影響に自己承認根絶と Re-review 必須化を追記。
 
+## 5. Why-First 原則とガバナンス（DoR検査・CI Gate・Merge確認）の物理的仕組み化
+- **背景と課題**:
+  - エージェントが作業を進める際、文章の規約だけでは「Why（課題・背景・目的）」や「排除するリスク」を見落とし、チェックリスト思考・タスク思考に陥るリスクがあった。
+  - さらに、CI 未通過状態でのレビュー要求、dirty ツリーや前タスク未完了状態でのブランチ作成、人間マージ前の勝手なリセットといったプロトコルの抜け穴が残存していた。
+- **物理的仕組み化の内容**:
+  1. **標準 Issue テンプレート統一 (`docs/issues/template_issue.md`)**:
+     - Why（課題・背景・なぜやるのか）、Problem（具体的な課題）、Risk（排除するリスク・副作用）、Scope（スコープ）、Criteria（完了の定義）、SSOT の 6 軸構成を定義。
+     - `ISSUE-066` の `issue.md` も本テンプレートに準拠して刷新。
+  2. **ブランチ作成時の 3 重物理検査 (`preToolHook.js`)**:
+     - `git checkout -b` または `git switch -c` を検知した際、以下を検査して違反時はブロック：
+       - `3A`: 作業ツリーが dirty（未コミット変更あり）の場合は拒絶。
+       - `3B`: 前回の PR が未完了（`loopState !== 'IDLE'`）の場合は拒絶。
+       - `3C`: `docs/issues/` に該当 Issue の `issue.md` が存在しない、または「Why（課題・背景）」および「排除するリスク」が不足している場合は、具体的な修正案内を表示して物理拒絶。
+  3. **CI Status Gate (`loopState.js`)**:
+     - `setReviewRequested` 実行時、PR の GitHub Actions CI（`gh pr checks`）が `pending` または `failure` の場合はエラーを投げてレビュー依頼状態への遷移を物理拒絶。
+  4. **Merge Verification Gate (`loopState.js`)**:
+     - `reset()` 実行時、PR が GitHub 上で `MERGED` になっていない場合はリセットを物理拒絶（`--force` フラグ時のみ緊急オーバーライド許可）。
+- **テストによる検証**:
+  - `tests/harness/hooks.test.ts`: Block 3 の各検査ケース（dirty拒絶、非IDLE拒絶、Issue不在拒絶、Why/Risk欠落拒絶、合格時通過）の 5 テストを追加（計 28 テスト PASS）。
+  - `tests/harness/loopState.test.ts`: CI Gate（pending/fail 拒絶、全通過時許可、skipCiCheck時バイパス）および Reset Gate（OPEN 拒絶、MERGED 許可、force 許可）の 8 テストを追加（計 20 テスト PASS）。
+  - ハーネステスト全 78 件およびプロジェクト全 182 テストが 100% PASS。
+
+
 

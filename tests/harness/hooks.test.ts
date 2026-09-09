@@ -285,6 +285,102 @@ describe('Lifecycle Hooks (scripts/harness/hooks/)', () => {
       });
       expect(result4.decision).toBe('allow');
     });
+
+    it('denies branch creation if working tree is dirty', () => {
+      const mockExec = vi.fn().mockReturnValue(' M src/index.ts\n?? newfile.ts');
+      const result = handlePreTool(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'git checkout -b feature/issue-99-test' },
+          },
+        },
+        { execFn: mockExec, stateMachine: testMachine }
+      );
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toContain('Working tree is dirty');
+    });
+
+    it('denies branch creation if loopState is not IDLE', () => {
+      testMachine.setPrCreated(46);
+      const mockExec = vi.fn().mockReturnValue('');
+      const result = handlePreTool(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'git checkout -b feature/issue-99-test' },
+          },
+        },
+        { execFn: mockExec, stateMachine: testMachine }
+      );
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toContain('An active review loop is still running');
+    });
+
+    it('denies branch creation if issue.md does not exist for the issue', () => {
+      const mockExec = vi.fn().mockReturnValue('');
+      const result = handlePreTool(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'git checkout -b feature/issue-999-nonexistent' },
+          },
+        },
+        { execFn: mockExec, stateMachine: testMachine }
+      );
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toContain('No issue document found for Issue #999');
+    });
+
+    it('denies branch creation if issue.md lacks Why or Risk sections', () => {
+      const mockExec = vi.fn().mockReturnValue('');
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'why-check-'));
+      const issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
+      fs.mkdirSync(issueDir, { recursive: true });
+      fs.writeFileSync(path.join(issueDir, 'issue.md'), '# Issue 99\n\n## 1. Description\nSome description without why or risk');
+
+      try {
+        const result = handlePreTool(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'git checkout -b feature/issue-99-test' },
+            },
+          },
+          { execFn: mockExec, stateMachine: testMachine, projectRoot: tempProject }
+        );
+        expect(result.decision).toBe('deny');
+        expect(result.reason).toContain('必須セクションが不足しています');
+      } finally {
+        fs.rmSync(tempProject, { recursive: true, force: true });
+      }
+    });
+
+    it('allows branch creation when tree is clean, state is IDLE, and issue.md has Why and Risk sections', () => {
+      const mockExec = vi.fn().mockReturnValue('');
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'why-pass-'));
+      const issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
+      fs.mkdirSync(issueDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk'
+      );
+
+      try {
+        const result = handlePreTool(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'git checkout -b feature/issue-99-test' },
+            },
+          },
+          { execFn: mockExec, stateMachine: testMachine, projectRoot: tempProject }
+        );
+        expect(result.decision).toBe('allow');
+      } finally {
+        fs.rmSync(tempProject, { recursive: true, force: true });
+      }
+    });
   });
 
   describe('postToolHook', () => {

@@ -1,45 +1,48 @@
-# Issue #66: Antigravity Customization Layer への刷新（God Skill解体・フック配置純化・公式Subagent仕様・CI待機統合）
+# Issue #66: Antigravity Customization Layer への刷新（God Skill解体・フック配置純化・公式Subagent仕様・CI待機統合・Whyの仕組み化）
 
-## 1. 開発の背景と課題 (Problem Statement)
-現在の AI 開発ハーネス（Agent / Skills / Hooks / Rules / Subagents）について、Google Antigravity 公式仕様（https://antigravity.google/docs/ および agy-customizations）との突き合わせ検証を実施した結果、以下の構造的課題が特定された：
+## 1. 解決すべき課題・背景 (Problem Statement / Why)
+- **現在の問題点**:
+  - 現在の AI 開発ハーネス（Agent / Skills / Hooks / Rules / Subagents）について、Google Antigravity 公式仕様（https://antigravity.google/docs/ および agy-customizations）との突き合わせ検証を実施した結果、スクリプト配置の混在、13KBの巨大モノリススキル（God Skill）、非公式サブエージェント構造、CWD依存の複雑なHooksなどの構造的欠陥が存在する。
+- **放置した場合のリスク**:
+  - トークン消費圧迫による推論精度低下、サブエージェントの自動認識失敗、フック実行パスの破壊、エージェントによる自己承認（セルフLGTM）、CI 失敗見落とし、待機デッドロック等が発生し、自律開発ループが破綻する。
+- **なぜ今解く必要があるのか**:
+  - プロダクト開発が本格化する前に、エージェントが安全・自律的・決定論的に改善サイクルを回すための基盤（Customization Layer）を確立するため。
 
-1. **スクリプト配置の混在**:
-   - `scripts/harness/` がプロジェクトルート直下に配置されており、プロダクトコードやビルドスクリプトと混在している。
-2. **スキルの巨大モノリス化 (God Skill)**:
-   - `.agents/skills/job-eval-harness/SKILL.md`（185行・約13KB）が、Issue運用・実装手順・コマンド集・安全規約・レビューパース等を一手に抱え込んでおり、Antigravity の核心思想である「Progressive Disclosure（段階的開示）」に反してトークンを過剰消費している。
-3. **Subagent 仕様の乖離**:
-   - `.agents/subagents/fleet-reviewer/` が非公式の独自構造（`subagent.json` + `SYSTEM_PROMPT.md`）になっており、IDE/CLI 上の `Available subagents` に自動認識されていない。
-4. **Hooks 実行パスの複雑性**:
-   - `.agents/hooks.json` のコマンドが `if exist ../scripts/... else ...` という CWD 依存のワンライナーになっており脆弱。
-5. **リモート CI 失敗の見落としリスク**:
-   - 手順書（Runbook）にリモート CI（GitHub Actions）の待機・監視工程が存在せず、過去に 2 回 CI 失敗を見落としたまま進行した。
-6. **PR マージ方針との整合**:
-   - 「PR マージは人間が実施する」という確定方針に合わせ、エージェント手順を人間へのマージ依頼・待機へ整流化する。
+## 2. 期待される成果と価値 (Desired Outcome / Value)
+- Google Antigravity 公式アーキテクチャに準拠し、本プロジェクトのガバナンス機構を「Customization Layer（カスタマイズ層）」として純化・リファクタリングする。
+- エージェントの注意力や文章（作文）に依存せず、コード・状態マシン・フック（Mechanism）によって安全性を100%物理担保する。
 
----
+## 3. 排除するリスク (Risks to Eliminate)
+- **自己承認（セルフLGTM）リスク**: 親エージェントが独断で完了とみなすことの物理遮断。
+- **CI 失敗見落としリスク**: リモート CI（GitHub Actions）が PASS していない状態でのレビュー・マージ進行の物理遮断。
+- **着手前コンテキスト汚染リスク**: 作業ツリーが dirty または前ループ未完了のままでのブランチ作成の物理遮断。
+- **待機デッドロックリスク**: サブエージェント稼働中の親エージェント停止拒否によるフリーズの根絶。
+- **不正マージリスク**: エージェントによる `gh pr merge` の直接実行の物理遮断。
 
-## 2. 目的と改修方針 (Objectives & Architecture)
-Google Antigravity の公式アーキテクチャに準拠し、本プロジェクトのガバナンス機構を **「Customization Layer（カスタマイズ層）」** として純化・リファクタリングする。
+## 4. スコープの定義 (Scope & Boundaries)
+- **スコープ内 (In-Scope)**:
+  - ルート直下 `scripts/harness/` の完全撤廃と `.agents/` への完全集約。
+  - スキルの単一責務 3 分割（`issue-lifecycle`, `dev-lifecycle`, `review-self-healing`）。
+  - 公式サブエージェント仕様（`.agents/agents/fleet_reviewer.md`）への移行。
+  - フック配置の純化とデッドロック防止（`payload.fullyIdle` 対応）。
+  - レビュー状態マシンの厳格化（自己LGTM物理禁止 & Fleet Re-review 必須化）。
+  - CI 合格検証の仕組み化（CI 未通過時のレビュー依頼ブロック）。
+  - 着手前（DoR）の Git 健全性 & Why First 検査の仕組み化。
+  - ADR-0018 の作成および Issue 4軸ドキュメントの同期。
+- **スコープ外 (Non-Goals)**:
+  - アプリケーション本体のビジネスロジック変更。
 
-1. **ルート直下 `scripts/harness/` の完全撤廃**:
-   - エージェント専用ツールを `.agents/` 配下に完全カプセル化。
-2. **スキルの単一責務 3 分割 (Progressive Disclosure)**:
-   - `skills/issue-lifecycle/`: Issue 管理・ラベル運用（DoR）
-   - `skills/dev-lifecycle/`: 実装・TDD反復・品質ゲート
-   - `skills/review-self-healing/`: PR作成・**リモートCI待機**・Fleetレビュー・自己修復・**人間マージ依頼**
-3. **公式 Subagent 仕様への完全アラインメント**:
-   - `.agents/agents/fleet_reviewer.md`（YAML frontmatter 形式）へ移行し、ネイティブ自動ロードを実現。
-4. **Hooks のパス純化とデッドロック根絶**:
-   - `hooks.json` を `node ./hooks/<name>.js` の直下参照に刷新。
-   - `stopHook.js` において公式の `payload.fullyIdle === false` を検知して安全に待機（Stop）を許可。
-5. **ドキュメント整合性チェッカー（`scripts/docCheck.js`）の更新**:
-   - 新しいディレクトリ構造・スキル構成を検証対象に含める。
-
----
-
-## 3. 受け入れ基準 (Acceptance Criteria)
-- [ ] `scripts/harness/` が撤廃され、ルート直下 `scripts/` にハーネス専用ファイルが残存しないこと。
-- [ ] `.agents/skills/` 配下が 3 つの単一責務スキルに分割され、各スキルが Progressive Disclosure に準拠していること。
+## 5. 受け入れ基準 (Acceptance Criteria / Definition of Done)
+- [ ] `scripts/harness/` が撤廃され、エージェント専用スクリプトが `.agents/` 配下に完全カプセル化されていること。
+- [ ] `.agents/skills/` 配下が 3 つの単一責務スキルに分割され、Progressive Disclosure に準拠していること。
 - [ ] `.agents/agents/fleet_reviewer.md` が配備され、公式サブエージェント仕様に準拠していること。
-- [ ] `.agents/hooks.json` のコマンドがシンプル化され、単体テスト・動作確認を通過すること。
-- [ ] `npm.cmd run check` が 100% PASS すること。
+- [ ] `loopState.js` において自己承認（セルフLGTM）が物理禁止され、Fleet の Re-review なしには `canStop` が通過しないこと。
+- [ ] `loopState.js` において CI 未通過時のレビュー依頼が物理ブロックされること。
+- [ ] `preToolHook.js` において、dirty ツリーでのブランチ作成および Why 不足のブランチ作成が物理ブロックされること。
+- [ ] ワンショット品質ゲート（`npm.cmd run check`）が 100% PASS すること。
+- [ ] 独立レビュアー（fleet_reviewer）による客観的再レビューで LGTM を受領すること。
+
+## 6. 関連ドキュメント・仕様正本 (References & SSOT)
+- 関連 ADR: docs/adr/0018-antigravity-customization-layer-refactoring.md
+- 仕様正本: AGENTS.md, docs/architecture_overview.md
+
