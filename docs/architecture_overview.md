@@ -1,7 +1,7 @@
 # JobEval アーキテクチャ概説 & システム仕様 (Architecture Overview & SSOT)
 
 JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** で構築された、AI求人適合度評価 & Markdownドキュメント管理デスクトップ/PWAアプリケーションです。
-本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0017）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
+本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0018）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
 
 ---
 
@@ -70,20 +70,22 @@ tests/                    # 自動テストハーネス (Vitest)
 | [ADR-0015](./adr/0015-corporate-benefit-research-and-model-separation.md) | Gemini Google Search Grounding による企業・福利厚生Web調査と用途別モデル分離・Thinking制御 | **Accepted** | 企業調査と求人適合度評価におけるモデル最適化（Thinking Budget 制御含む）。 |
 | [ADR-0016](./adr/0016-loop-engineering-harness-refactoring.md) | ループエンジニアリング確立に向けた開発ハーネスの 6 段階リファクタリング＆責務分割 | **Accepted** | `loopState.js`, ライフサイクルフック、早期停止防止、DoDによる自律自己修復ループの確立。 |
 | [ADR-0017](./adr/0017-optimize-agent-scaffolding-and-gradual-verification.md) | AI駆動開発のための補助資源最適化（憲章とスキルの分離・段階的検証・ワークスペース衛生・仕様SSOT一元化） | **Accepted** | Token Tax 削減、コミット時ドキュメント制約緩和、一時ファイル排除、仕様正本の一元化。 |
+| [ADR-0018](./adr/0018-antigravity-customization-layer-refactoring.md) | Google Antigravity 公式仕様に準拠した Customization Layer への抜本的刷新 | **Accepted** | `scripts/harness/` 完全撤廃、3単一責務スキル分割、公式Subagent、自己承認物理禁止、Why-First・CI・Merge Gate、内外分離（Boundary Design）。 |
 
 ---
 
-## 4. AI 駆動開発ハーネスとガバナンス
+## 4. AI 駆動開発 Customization Layer と多層ガバナンス
 
-本リポジトリは、AI エージェントが自律的かつ安全に高品質な開発を行うための **開発ハーネス (Agent Harness)** を備えています。
+本リポジトリは、Google Antigravity 公式仕様に準拠した **Customization Layer（カスタマイズ層）** を備えています。
 
-1. **憲章とスキルの分離**:
+1. **憲章とスキルの分離 (Progressive Disclosure)**:
    - `AGENTS.md`: 毎ターン読み込まれるコア憲章（DoD・絶対遵守事項・アーキテクチャ不可侵原則）。
-   - `.agents/skills/job-eval-harness/SKILL.md`: 詳細な 7 フェーズ Runbook、コマンド集、安全規約をオンデマンドで参照。
-2. **段階的ドキュメント整合性検査 (`issueDocChecker.js`)**:
-   - コミット時 (`--pre-commit`): `issue.md` と `plan.md` を必須とし、`walkthrough.md` 未作成でも中間コミット可能。
-   - プッシュ・PR前 (`npm run check`): 全 4 ファイルの完全性を厳格検査。
+   - `.agents/skills/`: 各フェーズに応じた 3 つの単一責務スキル（`issue-lifecycle`, `dev-lifecycle`, `review-self-healing`）をオンデマンドで段階的開示。
+2. **多重物理ガードレール (Mechanism)**:
+   - `preToolHook.js`: `gh pr merge` の直接実行禁止、およびブランチ作成時の DoR 検査（dirtyツリー禁止、前タスク完了確認、Why / 排除リスク記載確認）。
+   - `loopState.js`: CI 未通過時のレビュー依頼ブロック（CI Gate）、および PR 未マージ時の勝手なリセット阻止（Merge Verification Gate）。
+   - `stopHook.js`: レビュー指摘の解消と Fleet の Re-review（LGTM）を受領するまで早期停止をブロック。
 3. **客観的第三者レビュー (Antigravity Fleet)**:
-   - PR 発行後、独立思考コンテキストを持つサブエージェント（Fleet）が Conventional Comments 形式のレビューを実施。
-4. **ループ自己修復 & 完了定義 (DoD)**:
-   - レビュー指摘の解消と `resolveReview.js` による解決報告を経て `RESOLVED_LGTM` に到達するまで停止をブロック。人間承認を経てマージ。
+   - 公式仕様のサブエージェント（`.agents/agents/fleet_reviewer.md`）が独立思考コンテキストから Conventional Comments 形式のレビューを実施。
+4. **内外分離 (Boundary Design)**:
+   - 人間向け（意思決定・承認）は完全日本語で記述し、エージェント向け（内部制御・修復指示）は英語に完全統一してトークン効率と指示追従性を最大化。

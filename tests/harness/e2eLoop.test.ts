@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { LoopStateMachine, STATUS } from '../../scripts/harness/loopState.js';
-import { parseReviewResult } from '../../scripts/harness/parseReviewResult.js';
-import { resolveReview } from '../../scripts/harness/resolveReview.js';
-import { handlePostTool } from '../../scripts/harness/hooks/postToolHook.js';
-import { handleStop } from '../../scripts/harness/hooks/stopHook.js';
+import { LoopStateMachine, STATUS } from '../../.agents/state/loopState.js';
+import { parseReviewResult } from '../../.agents/skills/review-self-healing/scripts/parseReviewResult.js';
+import { resolveReview } from '../../.agents/skills/review-self-healing/scripts/resolveReview.js';
+import { handlePostTool } from '../../.agents/hooks/postToolHook.js';
+import { handleStop } from '../../.agents/hooks/stopHook.js';
 
 describe('Self-Healing Review Loop E2E Integration Test', () => {
   let tempDir: string;
@@ -149,7 +149,7 @@ describe('Self-Healing Review Loop E2E Integration Test', () => {
     expect(partialStopCheck.reason).toContain('1 unresolved blocking issue(s)');
 
     // =========================================================================
-    // Stage 6: Full Self-Healing Resolution -> RESOLVED_LGTM -> Stop Allowed!
+    // Stage 6: Full Self-Healing Fix Reported -> Transitions to REVIEW_REQUESTED (Stop Blocked!)
     // =========================================================================
     const fullResolutionResult = resolveReview({
       commitHash: 'e5f6g7h',
@@ -161,7 +161,8 @@ describe('Self-Healing Review Loop E2E Integration Test', () => {
     });
 
     expect(fullResolutionResult.success).toBe(true);
-    expect(fullResolutionResult.status).toBe(STATUS.RESOLVED_LGTM);
+    // ガバナンス厳格化: 自己LGTMは物理禁止！ステータスは REVIEW_REQUESTED に留まる
+    expect(fullResolutionResult.status).toBe(STATUS.REVIEW_REQUESTED);
     expect(fullResolutionResult.isAllResolved).toBe(true);
     expect(fullResolutionResult.unresolvedBlockingCount).toBe(0);
 
@@ -171,9 +172,35 @@ describe('Self-Healing Review Loop E2E Integration Test', () => {
     expect(latestComment.body).toContain('## 🛠️ 指摘自己修復・解決報告');
     expect(latestComment.body).toContain('**対応コミット**: `e5f6g7h`');
     expect(latestComment.body).toContain('- [x] **`issue-2`** `[should]`');
-    expect(latestComment.body).toContain('**判定**: `[LGTM (All Resolved)]`');
+    expect(latestComment.body).toContain('**ステータス**: `[修正完了 / 再レビュー待機中 (Pending Re-review)]`');
 
-    // Stop guard is now cleared!
+    // Agent attempts to stop without Fleet Re-review -> Strictly Blocked!
+    const unreviewedStopCheck = handleStop({}, stateMachine);
+    expect(unreviewedStopCheck.decision).toBe('continue');
+    expect(unreviewedStopCheck.reason).toContain('REVIEW_REQUESTED');
+
+    // =========================================================================
+    // Stage 6.5: Fleet Re-review Spawned -> Approved LGTM -> RESOLVED_LGTM -> Stop Allowed!
+    // =========================================================================
+    // Parent spawns fleet_reviewer for Re-review (Stop allowed during waiting)
+    stateMachine.setActiveSubagents(true);
+    const reReviewWaitingCheck = handleStop({ hasActiveSubagents: true }, stateMachine);
+    expect(reReviewWaitingCheck.decision).toBe('allow');
+
+    // Fleet Re-review finishes with official LGTM
+    const fleetReReviewMarkdown = `
+# Fleet 客観的第三者コード再レビュー結果 (Re-review Report)
+### 総合判定: [LGTM]
+指摘事項はすべて解消されました。LGTMです。
+`;
+    parseReviewResult(fleetReReviewMarkdown, {
+      updateState: true,
+      stateUpdater: stateMachine.setReviewResult.bind(stateMachine),
+    });
+
+    expect(stateMachine.getState().status).toBe(STATUS.RESOLVED_LGTM);
+
+    // Stop guard is now genuinely cleared by third-party reviewer!
     const resolvedStopCheck = handleStop({}, stateMachine);
     expect(resolvedStopCheck.decision).toBe('allow');
     expect(resolvedStopCheck.reason).toContain('RESOLVED_LGTM');

@@ -1,6 +1,6 @@
 /**
  * Agent & Skill Synchronicity Checker
- * Verifies AGENTS.md and .agents/skills/job-eval-harness/SKILL.md consistency
+ * Verifies AGENTS.md, Customization Layer skills, and fleet_reviewer.md consistency
  */
 
 import fs from 'fs';
@@ -8,25 +8,46 @@ import path from 'path';
 
 export function checkAgentSkillIntegrity(projectRoot) {
   let hasError = false;
-  console.log('  🤖 [Agent & Skill Checker] Verifying AGENTS.md and SKILL.md alignment...');
+  console.log('  🤖 [Agent & Skill Checker] Verifying AGENTS.md, Customization Layer skills, and fleet_reviewer.md alignment...');
 
   const agentsPath = path.resolve(projectRoot, 'AGENTS.md');
-  const skillPath = path.resolve(projectRoot, '.agents/skills/job-eval-harness/SKILL.md');
+  const issueSkillPath = path.resolve(projectRoot, '.agents/skills/issue-lifecycle/SKILL.md');
+  const devSkillPath = path.resolve(projectRoot, '.agents/skills/dev-lifecycle/SKILL.md');
+  const reviewSkillPath = path.resolve(projectRoot, '.agents/skills/review-self-healing/SKILL.md');
+  const fleetAgentPath = path.resolve(projectRoot, '.agents/agents/fleet_reviewer.md');
 
   if (!fs.existsSync(agentsPath)) {
     console.error('\n❌ [エージェント規約欠落] AGENTS.md がプロジェクト直下に存在しません。');
     return false;
   }
 
-  if (!fs.existsSync(skillPath)) {
-    console.error('\n❌ [スキル定義欠落] .agents/skills/job-eval-harness/SKILL.md が存在しません。');
-    return false;
+  const skillsToCheck = [
+    { path: issueSkillPath, name: 'issue-lifecycle' },
+    { path: devSkillPath, name: 'dev-lifecycle' },
+    { path: reviewSkillPath, name: 'review-self-healing' },
+  ];
+
+  for (const s of skillsToCheck) {
+    if (!fs.existsSync(s.path)) {
+      console.error(`\n❌ [スキル定義欠落] ${s.name} (${s.path}) が存在しません。`);
+      hasError = true;
+    }
+  }
+
+  if (!fs.existsSync(fleetAgentPath)) {
+    console.error('\n❌ [サブエージェント定義欠落] .agents/agents/fleet_reviewer.md が存在しません。');
+    hasError = true;
+  } else {
+    console.log('    ✓ Fleet レビュアー公式サブエージェント (.agents/agents/fleet_reviewer.md): 構成確認済');
   }
 
   const agentsContent = fs.readFileSync(agentsPath, 'utf-8');
-  const skillContent = fs.readFileSync(skillPath, 'utf-8');
+  const allSkillsContent = skillsToCheck
+    .filter((s) => fs.existsSync(s.path))
+    .map((s) => fs.readFileSync(s.path, 'utf-8'))
+    .join('\n');
 
-  // Key governance principles that MUST be reflected in both documents
+  // Key governance principles that MUST be reflected across documents
   const REQUIRED_CORE_POLICIES = [
     { key: 'Conventional Commits', name: 'Conventional Commits 規約' },
     { key: 'npm run check', name: 'ワンショット品質ゲート (npm run check)' },
@@ -42,30 +63,14 @@ export function checkAgentSkillIntegrity(projectRoot) {
       console.error(`\n❌ [AGENTS.md 規約欠落] AGENTS.md に「${policy.name}」に関する記述がありません。`);
       hasError = true;
     }
-    if (!skillContent.includes(policy.key)) {
-      console.error(`\n❌ [SKILL.md 規約欠落] SKILL.md に「${policy.name}」に関する記述がありません。`);
+    if (!allSkillsContent.includes(policy.key)) {
+      console.error(`\n❌ [Skills 規約欠落] 分割スキル群に「${policy.name}」に関する記述がありません。`);
       hasError = true;
-    }
-  }
-
-  // Verify that subagent directory exists and contains necessary configuration
-  const fleetSubagentDir = path.resolve(projectRoot, '.agents/subagents/fleet-reviewer');
-  if (!fs.existsSync(fleetSubagentDir)) {
-    console.error('\n❌ [サブエージェント設定不備] .agents/subagents/fleet-reviewer/ ディレクトリが存在しません。');
-    hasError = true;
-  } else {
-    const subagentJson = path.join(fleetSubagentDir, 'subagent.json');
-    const systemPromptMd = path.join(fleetSubagentDir, 'SYSTEM_PROMPT.md');
-    if (!fs.existsSync(subagentJson) || !fs.existsSync(systemPromptMd)) {
-      console.error('\n❌ [サブエージェント設定不備] .agents/subagents/fleet-reviewer/ に subagent.json または SYSTEM_PROMPT.md が存在しません。');
-      hasError = true;
-    } else {
-      console.log('    ✓ Fleet レビュアーサブエージェント設定 (.agents/subagents/fleet-reviewer/): 構成確認済');
     }
   }
 
   if (!hasError) {
-    console.log('    ✓ AGENTS.md & SKILL.md: ガバナンス・ワークフロー同期確認済');
+    console.log('    ✓ AGENTS.md & Customization Layer スキル群: ガバナンス・ワークフロー同期確認済');
   }
 
   return !hasError;

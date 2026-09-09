@@ -9,9 +9,10 @@ lerna-debug.log*
 
 # Diagnostic & Temporary working files
 .system_generated
-.agents/state/
+.agents/state/*.json
 diff*.txt
-*review*.md
+pr_review_*.md
+*pr_review*.md
 .*pr_body*.md
 *.pr_body*.md
 *pr_body*.md

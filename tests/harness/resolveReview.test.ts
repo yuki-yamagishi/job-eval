@@ -1,7 +1,7 @@
 import path from 'path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { resolveReview } from '../../scripts/harness/resolveReview.js';
-import { STATUS, LoopStateMachine } from '../../scripts/harness/loopState.js';
+import { resolveReview } from '../../.agents/skills/review-self-healing/scripts/resolveReview.js';
+import { STATUS, LoopStateMachine } from '../../.agents/state/loopState.js';
 
 describe('resolveReview', () => {
   let mockStateMachine: LoopStateMachine;
@@ -52,7 +52,7 @@ describe('resolveReview', () => {
       setActiveSubagents: vi.fn(),
       setReviewResult: vi.fn(),
       resolveIssues: vi.fn().mockImplementation((commit, targetIds) => ({
-        status: STATUS.RESOLVED_LGTM,
+        status: STATUS.REVIEW_REQUESTED,
         prNumber: 48,
         issues: [],
       })),
@@ -135,8 +135,8 @@ describe('resolveReview', () => {
     });
   });
 
-  describe('All Issues Resolved (Convergence to RESOLVED_LGTM)', () => {
-    it('resolves all unresolved blocking issues by default, posts comment, and converges to RESOLVED_LGTM', () => {
+  describe('All Issues Resolved (Transition to REVIEW_REQUESTED & Enforce Re-review)', () => {
+    it('resolves all unresolved blocking issues by default, posts comment, and transitions to REVIEW_REQUESTED', () => {
       const result = resolveReview({
         commitHash: 'abc1234',
         summary: '脆弱性修正およびエラー境界ラッパーの追加',
@@ -146,7 +146,7 @@ describe('resolveReview', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.status).toBe(STATUS.RESOLVED_LGTM);
+      expect(result.status).toBe(STATUS.REVIEW_REQUESTED);
       expect(result.isAllResolved).toBe(true);
       expect(result.prNumber).toBe(48);
       expect(result.unresolvedBlockingCount).toBe(0);
@@ -165,8 +165,9 @@ describe('resolveReview', () => {
       expect(commentBody).toContain('単体テスト 10 件を追加し、網羅率 100% を達成しました。');
       expect(commentBody).toContain('- [x] **`issue-1`** `[must]`: Fix SQL injection vulnerability');
       expect(commentBody).toContain('- [x] **`issue-2`** `[should]`: Add error boundary wrapper');
-      expect(commentBody).toContain('**判定**: `[LGTM (All Resolved)]`');
+      expect(commentBody).toContain('**ステータス**: `[修正完了 / 再レビュー待機中 (Pending Re-review)]`');
       expect(commentBody).toContain('**未解消ブロッキング指摘**: 0件');
+      expect(commentBody).toContain('第三者レビュアー（`fleet_reviewer`）を再起動し、客観的再レビュー（Re-review）を受領してください。');
 
       // stateMachine.resolveIssues was called with target IDs
       expect(mockStateMachine.resolveIssues).toHaveBeenCalledTimes(1);
@@ -211,7 +212,7 @@ describe('resolveReview', () => {
 
       expect(result.resolvedIssueIds).toEqual(['issue-1', 'issue-2']);
       expect(result.isAllResolved).toBe(true);
-      expect(result.status).toBe(STATUS.RESOLVED_LGTM);
+      expect(result.status).toBe(STATUS.REVIEW_REQUESTED);
     });
   });
 
@@ -291,7 +292,7 @@ describe('resolveReview', () => {
 
       expect(result.success).toBe(true);
       expect(result.isAllResolved).toBe(true);
-      expect(result.status).toBe(STATUS.RESOLVED_LGTM);
+      expect(result.status).toBe(STATUS.REVIEW_REQUESTED);
       expect(result.commentBody).toContain('全体的な品質ゲート・コードレビュー指摘事項の自己修復完了');
     });
   });
@@ -299,7 +300,7 @@ describe('resolveReview', () => {
   describe('CLI Execution', () => {
     it('runs CLI in dry-run mode and prints markdown output', async () => {
       const { execFileSync } = await import('child_process');
-      const scriptPath = path.resolve(__dirname, '../../scripts/harness/resolveReview.js');
+      const scriptPath = path.resolve(__dirname, '../../.agents/skills/review-self-healing/scripts/resolveReview.js');
 
       const stdout = execFileSync(
         process.execPath,
@@ -331,7 +332,7 @@ describe('resolveReview', () => {
 
     it('handles summary values starting with a hyphen in CLI', async () => {
       const { execFileSync } = await import('child_process');
-      const scriptPath = path.resolve(__dirname, '../../scripts/harness/resolveReview.js');
+      const scriptPath = path.resolve(__dirname, '../../.agents/skills/review-self-healing/scripts/resolveReview.js');
 
       const stdout = execFileSync(
         process.execPath,
@@ -357,7 +358,7 @@ describe('resolveReview', () => {
 
     it('exits with code 1 when required arguments are missing', async () => {
       const { execFileSync } = await import('child_process');
-      const scriptPath = path.resolve(__dirname, '../../scripts/harness/resolveReview.js');
+      const scriptPath = path.resolve(__dirname, '../../.agents/skills/review-self-healing/scripts/resolveReview.js');
 
       expect(() => {
         execFileSync(process.execPath, [scriptPath], {

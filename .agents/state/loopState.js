@@ -1,13 +1,14 @@
 /**
- * Loop State Machine (scripts/harness/loopState.js)
+ * Loop State Machine (.agents/state/loopState.js)
  * 
- * ADR-0016 Step 2 (Issue #45)
+ * ADR-0016 / ADR-0018
  * Manages the deterministic lifecycle state of the self-healing review loop.
  * State is persisted to .agents/state/loop_state.json.
  */
 
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 export const STATUS = Object.freeze({
@@ -18,10 +19,9 @@ export const STATUS = Object.freeze({
   RESOLVED_LGTM: 'RESOLVED_LGTM',
 });
 
-const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../');
-
+const DIR_NAME = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_STATE_FILE = process.env.LOOP_STATE_FILE || 
-  path.resolve(ROOT_DIR, '.agents/state/loop_state.json');
+  path.resolve(DIR_NAME, 'loop_state.json');
 
 /**
  * Creates a blank initial state object.
@@ -45,10 +45,6 @@ export class LoopStateMachine {
     this.filePath = stateFilePath;
   }
 
-  /**
-   * Reads and returns the current state.
-   * If the file does not exist or is corrupt, returns the initial IDLE state.
-   */
   getState() {
     try {
       if (!fs.existsSync(this.filePath)) {
@@ -65,9 +61,6 @@ export class LoopStateMachine {
     }
   }
 
-  /**
-   * Persists state to file atomically.
-   */
   saveState(state) {
     const dir = path.dirname(this.filePath);
     if (!fs.existsSync(dir)) {
@@ -81,9 +74,6 @@ export class LoopStateMachine {
     return updatedState;
   }
 
-  /**
-   * Transition: PR is created -> status: PR_CREATED
-   */
   setPrCreated(prNumber) {
     const num = Number(prNumber);
     if (isNaN(num) || num <= 0) {
@@ -99,14 +89,38 @@ export class LoopStateMachine {
     return this.saveState(newState);
   }
 
-  /**
-   * Transition: Fleet review requested -> status: REVIEW_REQUESTED
-   * 
-   * @param {Object} [options]
-   * @param {boolean} [options.activeSubagents=false] Whether subagents were spawned
-   */
   setReviewRequested(options = {}) {
     const current = this.getState();
+
+    // 1. CI Status Verification Gate (Mechanism against ignoring failing/pending CI)
+    const skipCiCheck = Boolean(options.skipCiCheck);
+    if (!skipCiCheck && current.prNumber) {
+      const checkCiFn = options.checkCiFn || ((prNum) => {
+        try {
+          return execSync(`gh pr checks ${prNum}`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+        } catch (err) {
+          const out = (err.stdout || '') + (err.stderr || '');
+          if (out) return out;
+          throw new Error(`Failed to check CI status for PR #${prNum}: ${err.message}`);
+        }
+      });
+
+      const ciOutput = checkCiFn(current.prNumber);
+      if (typeof ciOutput === 'string') {
+        const lower = ciOutput.toLowerCase();
+        if (lower.includes('pending') || lower.includes('in_progress') || lower.includes('queued')) {
+          throw new Error(
+            `[CI Gate Denied] GitHub Actions CI for PR #${current.prNumber} is still pending or running. Please wait for CI to complete before requesting review.`
+          );
+        }
+        if (lower.includes('fail') || lower.includes('failure') || lower.includes('error')) {
+          throw new Error(
+            `[CI Gate Denied] GitHub Actions CI for PR #${current.prNumber} has failing checks. Please investigate and fix failures before requesting review.`
+          );
+        }
+      }
+    }
+
     const updated = {
       ...current,
       status: STATUS.REVIEW_REQUESTED,
@@ -116,11 +130,6 @@ export class LoopStateMachine {
     return this.saveState(updated);
   }
 
-  /**
-   * Sets whether active subagents are currently running.
-   * 
-   * @param {boolean} [active=true]
-   */
   setActiveSubagents(active = true) {
     const current = this.getState();
     const updated = {
@@ -130,12 +139,6 @@ export class LoopStateMachine {
     return this.saveState(updated);
   }
 
-  /**
-   * Transition: Fleet review completed -> status: NEEDS_FIX or RESOLVED_LGTM
-   * 
-   * Blocking issue types: 'must', 'should'
-   * Non-blocking issue types: 'imo', 'nits', 'good', 'ask'
-   */
   setReviewResult({ lgtm, issues = [] }) {
     const current = this.getState();
     const formattedIssues = issues.map((issue, idx) => ({
@@ -146,7 +149,6 @@ export class LoopStateMachine {
       resolvedCommit: issue.resolvedCommit || null,
     }));
 
-    // Find unresolved blocking issues
     const unresolvedBlocking = formattedIssues.filter(
       (issue) => ['must', 'should'].includes(issue.type) && !issue.resolved
     );
@@ -163,12 +165,6 @@ export class LoopStateMachine {
     return this.saveState(updated);
   }
 
-  /**
-   * Transition: Resolve review issues -> updates resolved state and transitions if all resolved
-   * 
-   * @param {string} resolvedCommit Commit hash or reference that resolved the issues
-   * @param {string[]|string|null} resolvedIssueIds Specific issue IDs to resolve. If null, resolves all unresolved blocking issues.
-   */
   resolveIssues(resolvedCommit, resolvedIssueIds = null) {
     const current = this.getState();
     const targetIds = resolvedIssueIds
@@ -194,20 +190,43 @@ export class LoopStateMachine {
       (issue) => ['must', 'should'].includes(issue.type) && !issue.resolved
     );
 
-    const nextStatus = unresolvedBlocking.length === 0 ? STATUS.RESOLVED_LGTM : STATUS.NEEDS_FIX;
+    // ガバナンス厳格化: 全ての指摘に対応コミットを紐付けた場合でも、
+    // 親エージェントが独断で RESOLVED_LGTM に遷移することは物理的に禁止。
+    // 必ず STATUS.REVIEW_REQUESTED（再レビュー待ち）に遷移し、
+    // 第三者レビュアー（fleet_reviewer）による Re-review での LGTM 判定を必須とする。
+    const nextStatus = unresolvedBlocking.length === 0 ? STATUS.REVIEW_REQUESTED : STATUS.NEEDS_FIX;
 
     const updated = {
       ...current,
       status: nextStatus,
       issues: updatedIssues,
+      activeSubagents: false,
     };
     return this.saveState(updated);
   }
 
-  /**
-   * Resets state machine to IDLE and removes state file if it exists.
-   */
-  reset() {
+  reset(options = {}) {
+    const current = this.getState();
+    const isForce = Boolean(options.force) || Boolean(options.isForce);
+
+    // 2. Merge Verification Gate on Reset (Mechanism against resetting before human merge)
+    if (!isForce && current.status !== STATUS.IDLE && current.prNumber) {
+      const checkPrStateFn = options.checkPrStateFn || ((prNum) => {
+        try {
+          return execSync(`gh pr view ${prNum} --json state --jq .state`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+        } catch {
+          return 'UNKNOWN';
+        }
+      });
+
+      const prState = checkPrStateFn(current.prNumber);
+      if (prState !== 'MERGED' && prState !== 'UNKNOWN') {
+        throw new Error(
+          `[Reset Gate Denied] Cannot reset loopState: PR #${current.prNumber} is in state "${prState}". Loop state can only be safely reset after the PR has been merged to main by the user. (Emergency override: run 'node .agents/state/loopState.js reset --force')`
+        );
+      }
+    }
+
     try {
       if (fs.existsSync(this.filePath)) {
         fs.unlinkSync(this.filePath);
@@ -218,14 +237,6 @@ export class LoopStateMachine {
     return createInitialState();
   }
 
-  /**
-   * Evaluates if agent execution / session is allowed to stop.
-   * 
-   * @param {Object} [options]
-   * @param {boolean} [options.hasActiveSubagents] Whether active subagents (e.g. Fleet reviewer) are running
-   * @param {boolean} [options.isSubagent] Whether execution is running inside a subagent context
-   * @returns {{ allowed: boolean, status: string, prNumber: number|null, reason: string }}
-   */
   canStop(options = {}) {
     const current = this.getState();
     const isSubagent = Boolean(options.isSubagent);
@@ -263,7 +274,24 @@ export class LoopStateMachine {
       const unresolvedCount = current.issues.filter(
         (i) => ['must', 'should'].includes(i.type) && !i.resolved
       ).length;
-      reason = `Stop rejected: Loop is currently in status "${current.status}" with ${unresolvedCount} unresolved blocking issue(s). You must complete the self-healing cycle and reach RESOLVED_LGTM before stopping. (Emergency recovery / user abort: run 'node scripts/harness/loopState.js reset' to safely reset state to IDLE.)`;
+
+      let guidance = '';
+      switch (current.status) {
+        case STATUS.PR_CREATED:
+          guidance = `Wait for GitHub Actions CI to pass on PR #${current.prNumber}, then run 'node .agents/state/loopState.js review-requested' and launch 'fleet_reviewer' subagent.`;
+          break;
+        case STATUS.REVIEW_REQUESTED:
+          guidance = `Third-party review is in progress or pending. Launch or await 'fleet_reviewer' subagent. Once completed, parse results with 'node .agents/skills/review-self-healing/scripts/parseReviewResult.js <review_file> --update-state'.`;
+          break;
+        case STATUS.NEEDS_FIX:
+          guidance = `Fix the ${unresolvedCount} unresolved blocking issue(s), commit changes, push to remote, and run 'node .agents/skills/review-self-healing/scripts/resolveReview.js' to report fixes and request re-review.`;
+          break;
+        default:
+          guidance = `Complete the self-healing review cycle and reach RESOLVED_LGTM.`;
+          break;
+      }
+
+      reason = `Stop rejected: Loop is currently in status "${current.status}" with ${unresolvedCount} unresolved blocking issue(s). (Remediation Guidance: ${guidance}) (Emergency abort: run 'node .agents/state/loopState.js reset --force')`;
     }
 
     return {
@@ -275,44 +303,17 @@ export class LoopStateMachine {
   }
 }
 
-// Default singleton instance and convenience exports
 export const defaultStateMachine = new LoopStateMachine();
 
-export function getState() {
-  return defaultStateMachine.getState();
-}
-
-export function saveState(state) {
-  return defaultStateMachine.saveState(state);
-}
-
-export function setPrCreated(prNumber) {
-  return defaultStateMachine.setPrCreated(prNumber);
-}
-
-export function setReviewRequested(options = {}) {
-  return defaultStateMachine.setReviewRequested(options);
-}
-
-export function setActiveSubagents(active = true) {
-  return defaultStateMachine.setActiveSubagents(active);
-}
-
-export function setReviewResult(result) {
-  return defaultStateMachine.setReviewResult(result);
-}
-
-export function resolveIssues(resolvedCommit, resolvedIssueIds = null) {
-  return defaultStateMachine.resolveIssues(resolvedCommit, resolvedIssueIds);
-}
-
-export function reset() {
-  return defaultStateMachine.reset();
-}
-
-export function canStop(options = {}) {
-  return defaultStateMachine.canStop(options);
-}
+export function getState() { return defaultStateMachine.getState(); }
+export function saveState(state) { return defaultStateMachine.saveState(state); }
+export function setPrCreated(prNumber) { return defaultStateMachine.setPrCreated(prNumber); }
+export function setReviewRequested(options = {}) { return defaultStateMachine.setReviewRequested(options); }
+export function setActiveSubagents(active = true) { return defaultStateMachine.setActiveSubagents(active); }
+export function setReviewResult(result) { return defaultStateMachine.setReviewResult(result); }
+export function resolveIssues(resolvedCommit, resolvedIssueIds = null) { return defaultStateMachine.resolveIssues(resolvedCommit, resolvedIssueIds); }
+export function reset(options = {}) { return defaultStateMachine.reset(options); }
+export function canStop(options = {}) { return defaultStateMachine.canStop(options); }
 
 // CLI Command Runner
 const isDirectExecution = process.argv[1] && 
@@ -320,11 +321,9 @@ const isDirectExecution = process.argv[1] &&
 
 if (isDirectExecution) {
   const [,, command, ...args] = process.argv;
-
   switch (command) {
     case 'status': {
-      const state = getState();
-      console.log(JSON.stringify(state, null, 2));
+      console.log(JSON.stringify(getState(), null, 2));
       break;
     }
     case 'can-stop': {
@@ -352,8 +351,14 @@ if (isDirectExecution) {
     }
     case 'review-requested': {
       const hasActive = args.includes('--active-subagents') || args.includes('true');
-      const state = setReviewRequested({ activeSubagents: hasActive });
-      console.log(`[OK] State transitioned to REVIEW_REQUESTED (activeSubagents: ${state.activeSubagents})`);
+      const skipCi = args.includes('--skip-ci');
+      try {
+        const state = setReviewRequested({ activeSubagents: hasActive, skipCiCheck: skipCi });
+        console.log(`[OK] State transitioned to REVIEW_REQUESTED (activeSubagents: ${state.activeSubagents})`);
+      } catch (err) {
+        console.error(`[BLOCKED] ${err.message}`);
+        process.exit(1);
+      }
       break;
     }
     case 'active-subagents': {
@@ -363,8 +368,14 @@ if (isDirectExecution) {
       break;
     }
     case 'reset': {
-      reset();
-      console.log(`[OK] State reset to IDLE`);
+      const isForce = args.includes('--force');
+      try {
+        reset({ force: isForce });
+        console.log(`[OK] State reset to IDLE`);
+      } catch (err) {
+        console.error(`[BLOCKED] ${err.message}`);
+        process.exit(1);
+      }
       break;
     }
     default: {

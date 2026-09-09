@@ -6,7 +6,7 @@ import {
   LoopStateMachine, 
   STATUS, 
   createInitialState 
-} from '../../scripts/harness/loopState.js';
+} from '../../.agents/state/loopState.js';
 
 describe('LoopStateMachine', () => {
   let tempDir: string;
@@ -74,7 +74,7 @@ describe('LoopStateMachine', () => {
 
   it('transitions to REVIEW_REQUESTED when setReviewRequested is called', () => {
     machine.setPrCreated(45);
-    const state = machine.setReviewRequested();
+    const state = machine.setReviewRequested({ skipCiCheck: true });
     expect(state.status).toBe(STATUS.REVIEW_REQUESTED);
     expect(state.reviewRequestedAt).toBeTruthy();
 
@@ -83,9 +83,52 @@ describe('LoopStateMachine', () => {
     expect(check.status).toBe(STATUS.REVIEW_REQUESTED);
   });
 
+  describe('CI Gate Verification', () => {
+    it('rejects setReviewRequested when CI checks are pending or in progress', () => {
+      machine.setPrCreated(45);
+      expect(() => {
+        machine.setReviewRequested({
+          checkCiFn: () => 'build (push) pending\ntest (push) in_progress',
+        });
+      }).toThrow('[CI Gate Denied] GitHub Actions CI for PR #45 is still pending or running');
+
+      // Status should remain PR_CREATED
+      expect(machine.getState().status).toBe(STATUS.PR_CREATED);
+    });
+
+    it('rejects setReviewRequested when CI checks have failed', () => {
+      machine.setPrCreated(45);
+      expect(() => {
+        machine.setReviewRequested({
+          checkCiFn: () => 'build (push) success\ntest (pull_request) failure',
+        });
+      }).toThrow('[CI Gate Denied] GitHub Actions CI for PR #45 has failing checks');
+
+      // Status should remain PR_CREATED
+      expect(machine.getState().status).toBe(STATUS.PR_CREATED);
+    });
+
+    it('allows setReviewRequested when all CI checks pass', () => {
+      machine.setPrCreated(45);
+      const state = machine.setReviewRequested({
+        checkCiFn: () => 'build (push) success\ntest (pull_request) success\nlint (push) pass',
+      });
+      expect(state.status).toBe(STATUS.REVIEW_REQUESTED);
+    });
+
+    it('bypasses CI check when skipCiCheck is explicitly true', () => {
+      machine.setPrCreated(45);
+      const state = machine.setReviewRequested({
+        skipCiCheck: true,
+        checkCiFn: () => 'build (push) failure', // Even if failing, skipCiCheck bypasses
+      });
+      expect(state.status).toBe(STATUS.REVIEW_REQUESTED);
+    });
+  });
+
   it('transitions to NEEDS_FIX if review has blocking issues ([must], [should])', () => {
     machine.setPrCreated(45);
-    machine.setReviewRequested();
+    machine.setReviewRequested({ skipCiCheck: true });
 
     const state = machine.setReviewResult({
       lgtm: false,
@@ -102,11 +145,47 @@ describe('LoopStateMachine', () => {
     expect(check.allowed).toBe(false);
     expect(check.status).toBe(STATUS.NEEDS_FIX);
     expect(check.reason).toContain('1 unresolved blocking issue(s)');
+    expect(check.reason).toContain('resolveReview.js');
+  });
+
+  describe('Remediation Guidance Verification', () => {
+    it('provides clear next-action guidance in PR_CREATED state', () => {
+      machine.setPrCreated(45);
+      const check = machine.canStop();
+      expect(check.allowed).toBe(false);
+      expect(check.reason).toContain('Remediation Guidance');
+      expect(check.reason).toContain('Wait for GitHub Actions CI to pass on PR #45');
+      expect(check.reason).toContain('review-requested');
+      expect(check.reason).toContain('fleet_reviewer');
+    });
+
+    it('provides clear next-action guidance in REVIEW_REQUESTED state', () => {
+      machine.setPrCreated(45);
+      machine.setReviewRequested({ skipCiCheck: true });
+      const check = machine.canStop();
+      expect(check.allowed).toBe(false);
+      expect(check.reason).toContain('Remediation Guidance');
+      expect(check.reason).toContain('fleet_reviewer');
+      expect(check.reason).toContain('parseReviewResult.js');
+    });
+
+    it('provides clear next-action guidance in NEEDS_FIX state', () => {
+      machine.setPrCreated(45);
+      machine.setReviewRequested({ skipCiCheck: true });
+      machine.setReviewResult({
+        lgtm: false,
+        issues: [{ id: 'issue-1', type: 'must', description: 'Fix bug', resolved: false }],
+      });
+      const check = machine.canStop();
+      expect(check.allowed).toBe(false);
+      expect(check.reason).toContain('Remediation Guidance');
+      expect(check.reason).toContain('resolveReview.js');
+    });
   });
 
   it('transitions to RESOLVED_LGTM if review has LGTM and only non-blocking issues ([imo], [nits], [good])', () => {
     machine.setPrCreated(45);
-    machine.setReviewRequested();
+    machine.setReviewRequested({ skipCiCheck: true });
 
     const state = machine.setReviewResult({
       lgtm: true,
@@ -123,7 +202,7 @@ describe('LoopStateMachine', () => {
     expect(check.status).toBe(STATUS.RESOLVED_LGTM);
   });
 
-  it('resolves specific issues and transitions to RESOLVED_LGTM once all blocking issues are resolved', () => {
+  it('resolves specific issues and transitions to REVIEW_REQUESTED (re-review required) once all blocking issues are resolved', () => {
     machine.setPrCreated(45);
     machine.setReviewResult({
       lgtm: false,
@@ -143,14 +222,23 @@ describe('LoopStateMachine', () => {
     expect(step1.issues.find((i: { id: string }) => i.id === 'issue-1')?.resolvedCommit).toBe('commit-abc1');
     expect(machine.canStop().allowed).toBe(false);
 
-    // Resolve issue-2
+    // Resolve issue-2 -> Transitions to REVIEW_REQUESTED (self-LGTM is strictly prohibited!)
     const step2 = machine.resolveIssues('commit-abc2', ['issue-2']);
-    expect(step2.status).toBe(STATUS.RESOLVED_LGTM);
+    expect(step2.status).toBe(STATUS.REVIEW_REQUESTED);
     expect(step2.issues.find((i: { id: string }) => i.id === 'issue-2')?.resolved).toBe(true);
+    // Agent cannot stop yet because fleet re-review has not been performed!
+    expect(machine.canStop().allowed).toBe(false);
+
+    // Fleet reviewer runs re-review and grants LGTM
+    const reReviewState = machine.setReviewResult({
+      lgtm: true,
+      issues: [],
+    });
+    expect(reReviewState.status).toBe(STATUS.RESOLVED_LGTM);
     expect(machine.canStop().allowed).toBe(true);
   });
 
-  it('resolves all unresolved blocking issues when resolveIssues is called with null targetIds', () => {
+  it('resolves all unresolved blocking issues to REVIEW_REQUESTED when resolveIssues is called with null targetIds', () => {
     machine.setPrCreated(45);
     machine.setReviewResult({
       lgtm: false,
@@ -161,21 +249,73 @@ describe('LoopStateMachine', () => {
     });
 
     const state = machine.resolveIssues('commit-batch');
-    expect(state.status).toBe(STATUS.RESOLVED_LGTM);
+    // Enforces Re-review: status is REVIEW_REQUESTED, NOT RESOLVED_LGTM
+    expect(state.status).toBe(STATUS.REVIEW_REQUESTED);
     expect(state.issues.every((i: { resolved: boolean }) => i.resolved)).toBe(true);
+    expect(machine.canStop().allowed).toBe(false);
+
+    // Transitions to RESOLVED_LGTM only after Fleet grants LGTM
+    const finalState = machine.setReviewResult({ lgtm: true, issues: [] });
+    expect(finalState.status).toBe(STATUS.RESOLVED_LGTM);
     expect(machine.canStop().allowed).toBe(true);
   });
 
-  it('resets state machine to IDLE and removes state file', () => {
-    machine.setPrCreated(45);
-    expect(fs.existsSync(testStateFile)).toBe(true);
+  describe('Reset Gate Verification', () => {
+    it('rejects reset when PR is still OPEN on GitHub', () => {
+      machine.setPrCreated(45);
+      expect(fs.existsSync(testStateFile)).toBe(true);
 
-    const resetState = machine.reset();
-    expect(resetState.status).toBe(STATUS.IDLE);
-    expect(fs.existsSync(testStateFile)).toBe(false);
+      expect(() => {
+        machine.reset({
+          checkPrStateFn: () => 'OPEN',
+        });
+      }).toThrow('[Reset Gate Denied] Cannot reset loopState: PR #45 is in state "OPEN"');
 
-    const check = machine.canStop();
-    expect(check.allowed).toBe(true);
+      // State file and status must be preserved
+      expect(fs.existsSync(testStateFile)).toBe(true);
+      expect(machine.getState().status).toBe(STATUS.PR_CREATED);
+    });
+
+    it('allows reset when PR has been MERGED on GitHub', () => {
+      machine.setPrCreated(45);
+      expect(fs.existsSync(testStateFile)).toBe(true);
+
+      const resetState = machine.reset({
+        checkPrStateFn: () => 'MERGED',
+      });
+      expect(resetState.status).toBe(STATUS.IDLE);
+      expect(fs.existsSync(testStateFile)).toBe(false);
+
+      const check = machine.canStop();
+      expect(check.allowed).toBe(true);
+    });
+
+    it('allows reset when force option is true even if PR is still OPEN', () => {
+      machine.setPrCreated(45);
+      expect(fs.existsSync(testStateFile)).toBe(true);
+
+      const resetState = machine.reset({
+        force: true,
+        checkPrStateFn: () => 'OPEN',
+      });
+      expect(resetState.status).toBe(STATUS.IDLE);
+      expect(fs.existsSync(testStateFile)).toBe(false);
+
+      const check = machine.canStop();
+      expect(check.allowed).toBe(true);
+    });
+
+    it('allows reset when already in IDLE state without executing checks', () => {
+      let called = false;
+      const resetState = machine.reset({
+        checkPrStateFn: () => {
+          called = true;
+          return 'OPEN';
+        },
+      });
+      expect(resetState.status).toBe(STATUS.IDLE);
+      expect(called).toBe(false);
+    });
   });
 
   it('allows stop when hasActiveSubagents is true in PR_CREATED or REVIEW_REQUESTED', () => {
@@ -184,7 +324,7 @@ describe('LoopStateMachine', () => {
     expect(machine.canStop({ hasActiveSubagents: true }).allowed).toBe(true);
     expect(machine.canStop({ hasActiveSubagents: true }).reason).toContain('Active subagent running');
 
-    machine.setReviewRequested();
+    machine.setReviewRequested({ skipCiCheck: true });
     expect(machine.canStop({ hasActiveSubagents: true }).allowed).toBe(true);
     expect(machine.canStop({ hasActiveSubagents: false }).allowed).toBe(false);
   });
@@ -207,12 +347,12 @@ describe('LoopStateMachine', () => {
     expect(machine.getState().activeSubagents).toBe(false);
 
     // Default setReviewRequested sets activeSubagents to false unless specified
-    machine.setReviewRequested();
+    machine.setReviewRequested({ skipCiCheck: true });
     expect(machine.getState().activeSubagents).toBe(false);
     expect(machine.canStop({ hasActiveSubagents: machine.getState().activeSubagents }).allowed).toBe(false);
 
     // Explicit true
-    machine.setReviewRequested({ activeSubagents: true });
+    machine.setReviewRequested({ activeSubagents: true, skipCiCheck: true });
     expect(machine.getState().activeSubagents).toBe(true);
     expect(machine.canStop({ hasActiveSubagents: machine.getState().activeSubagents }).allowed).toBe(true);
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { postPrComment } from '../../scripts/harness/postPrComment.js';
+import { postPrComment } from '../../.agents/skills/review-self-healing/scripts/postPrComment.js';
 
 describe('postPrComment', () => {
   let tempDir: string;
