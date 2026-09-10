@@ -4,7 +4,7 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
 本憲章は、AI エージェントが開発時に厳格に遵守すべき **「コア原則・不可侵規約・完了定義 (DoD)」** を定めます。
 
 > 📖 **詳細実践ガイド**:
-> 開発フェーズに応じた詳細な実践手順書は、Customization Layer のスキル群（`.agents/skills/issue-lifecycle/`, `.agents/skills/dev-lifecycle/`, `.agents/skills/review-self-healing/`）に Progressive Disclosure（段階的開示）として分離・集約されています。作業フェーズに合わせて各スキルを参照してください。
+> 開発フェーズに応じた詳細な実践手順書は、Customization Layer のプラグインスキル群（`.agents/plugins/antigravity-review-loop/skills/issue-lifecycle/`, `.agents/plugins/antigravity-review-loop/skills/dev-lifecycle/`, `.agents/plugins/antigravity-review-loop/skills/review-self-healing/`）に Progressive Disclosure（段階的開示）として分離・集約されています。作業フェーズに合わせて各スキルを参照してください。
 
 ---
 

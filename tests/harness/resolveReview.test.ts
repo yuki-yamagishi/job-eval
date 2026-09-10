@@ -1,7 +1,7 @@
 import path from 'path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { resolveReview } from '../../.agents/skills/review-self-healing/scripts/resolveReview.js';
-import { STATUS, LoopStateMachine } from '../../.agents/state/loopState.js';
+import { resolveReview } from '../../.agents/plugins/antigravity-review-loop/skills/review-self-healing/scripts/resolveReview.js';
+import { STATUS, LoopStateMachine } from '../../.agents/plugins/antigravity-review-loop/state/loopState.js';
 
 describe('resolveReview', () => {
   let mockStateMachine: LoopStateMachine;
@@ -298,7 +298,7 @@ describe('resolveReview', () => {
   describe('CLI Execution', () => {
     it('runs CLI in dry-run mode and prints markdown output', async () => {
       const { execFileSync } = await import('child_process');
-      const scriptPath = path.resolve(__dirname, '../../.agents/skills/review-self-healing/scripts/resolveReview.js');
+      const scriptPath = path.resolve(__dirname, '../../.agents/plugins/antigravity-review-loop/skills/review-self-healing/scripts/resolveReview.js');
 
       const stdout = execFileSync(
         process.execPath,
@@ -330,7 +330,7 @@ describe('resolveReview', () => {
 
     it('handles summary values starting with a hyphen in CLI', async () => {
       const { execFileSync } = await import('child_process');
-      const scriptPath = path.resolve(__dirname, '../../.agents/skills/review-self-healing/scripts/resolveReview.js');
+      const scriptPath = path.resolve(__dirname, '../../.agents/plugins/antigravity-review-loop/skills/review-self-healing/scripts/resolveReview.js');
 
       const stdout = execFileSync(
         process.execPath,
@@ -356,7 +356,7 @@ describe('resolveReview', () => {
 
     it('exits with code 1 when required arguments are missing', async () => {
       const { execFileSync } = await import('child_process');
-      const scriptPath = path.resolve(__dirname, '../../.agents/skills/review-self-healing/scripts/resolveReview.js');
+      const scriptPath = path.resolve(__dirname, '../../.agents/plugins/antigravity-review-loop/skills/review-self-healing/scripts/resolveReview.js');
 
       expect(() => {
         execFileSync(process.execPath, [scriptPath], {

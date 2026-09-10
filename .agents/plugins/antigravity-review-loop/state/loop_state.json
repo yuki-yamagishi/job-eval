@@ -1,0 +1,12 @@
+{
+  "status": "IDLE",
+  "prNumber": null,
+  "reviewRequestedAt": null,
+  "reviews": {
+    "codeReviewer": null,
+    "completionAuditor": null
+  },
+  "issues": [],
+  "activeSubagents": false,
+  "updatedAt": "2026-09-10T01:13:00.232Z"
+}

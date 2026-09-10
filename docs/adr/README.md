@@ -39,6 +39,7 @@
 | [ADR-0019](file:///docs/adr/0019-multi-agent-review-consortium.md) | Fleet レビュー体制の 2 者合議制（コード品質担当 ＋ 批判的完了性監査担当）への拡張 | **Accepted** | 2026-09-09 |
 | [ADR-0020](file:///docs/adr/0020-fast-inner-loop-and-pre-impact-check.md) | 高速 Inner Loop（単体反復）の確立と着手前 Impact & Duplication Check 物理検査の採用 | **Accepted** | 2026-09-09 |
 | [ADR-0021](file:///docs/adr/0021-lifecycle-hooks-modular-separation.md) | AGY公式仕様に準拠したライフサイクルフックの責務分離とモジュール化アーキテクチャの採用 | **Accepted** | 2026-09-10 |
+| [ADR-0022](file:///docs/adr/0022-antigravity-plugin-packaging.md) | Antigravity公式仕様に準拠した自律レビューループ機構のプラグイン化パッケージング | **Accepted** | 2026-09-10 |
 
 
 

@@ -3,12 +3,12 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { execSync } from 'child_process';
-import { LoopStateMachine, STATUS } from '../../.agents/state/loopState.js';
-import { handleStop } from '../../.agents/hooks/stopHook.js';
-import { handleSafetyGuard } from '../../.agents/hooks/safetyGuard.js';
-import { handleBranchDoRGate } from '../../.agents/hooks/branchDoRGate.js';
-import { handlePrePrAuditGate } from '../../.agents/hooks/prePrAuditGate.js';
-import { handlePostPrCreate } from '../../.agents/hooks/postPrCreate.js';
+import { LoopStateMachine, STATUS } from '../../.agents/plugins/antigravity-review-loop/state/loopState.js';
+import { handleStop } from '../../.agents/plugins/antigravity-review-loop/hooks/stopHook.js';
+import { handleSafetyGuard } from '../../.agents/plugins/antigravity-review-loop/hooks/safetyGuard.js';
+import { handleBranchDoRGate } from '../../.agents/plugins/antigravity-review-loop/hooks/branchDoRGate.js';
+import { handlePrePrAuditGate } from '../../.agents/plugins/antigravity-review-loop/hooks/prePrAuditGate.js';
+import { handlePostPrCreate } from '../../.agents/plugins/antigravity-review-loop/hooks/postPrCreate.js';
 
 describe('Lifecycle Hooks (.agents/hooks/)', () => {
   let tempDir: string;
@@ -337,7 +337,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
 
     it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
-      const handlerPath = path.resolve(__dirname, '../../.agents/hooks/safetyGuard.js');
+      const handlerPath = path.resolve(__dirname, '../../.agents/plugins/antigravity-review-loop/hooks/safetyGuard.js');
       const inputPayload = JSON.stringify({
         toolCall: {
           name: 'run_command',
@@ -557,7 +557,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
 
     it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
-      const handlerPath = path.resolve(__dirname, '../../.agents/hooks/branchDoRGate.js');
+      const handlerPath = path.resolve(__dirname, '../../.agents/plugins/antigravity-review-loop/hooks/branchDoRGate.js');
       const inputPayload = JSON.stringify({
         toolCall: {
           name: 'run_command',
@@ -742,7 +742,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
 
     it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
-      const handlerPath = path.resolve(__dirname, '../../.agents/hooks/prePrAuditGate.js');
+      const handlerPath = path.resolve(__dirname, '../../.agents/plugins/antigravity-review-loop/hooks/prePrAuditGate.js');
       const inputPayload = JSON.stringify({
         toolCall: {
           name: 'run_command',
@@ -837,7 +837,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
 
     it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
-      const handlerPath = path.resolve(__dirname, '../../.agents/hooks/postPrCreate.js');
+      const handlerPath = path.resolve(__dirname, '../../.agents/plugins/antigravity-review-loop/hooks/postPrCreate.js');
       const inputPayload = JSON.stringify({
         toolCall: {
           name: 'run_command',

@@ -11,14 +11,22 @@ export function checkAgentSkillIntegrity(projectRoot) {
   console.log('  🤖 [Agent & Skill Checker] Verifying AGENTS.md, Customization Layer skills, and fleet_reviewer.md alignment...');
 
   const agentsPath = path.resolve(projectRoot, 'AGENTS.md');
-  const issueSkillPath = path.resolve(projectRoot, '.agents/skills/issue-lifecycle/SKILL.md');
-  const devSkillPath = path.resolve(projectRoot, '.agents/skills/dev-lifecycle/SKILL.md');
-  const reviewSkillPath = path.resolve(projectRoot, '.agents/skills/review-self-healing/SKILL.md');
+  const pluginJsonPath = path.resolve(projectRoot, '.agents/plugins/antigravity-review-loop/plugin.json');
+  const issueSkillPath = path.resolve(projectRoot, '.agents/plugins/antigravity-review-loop/skills/issue-lifecycle/SKILL.md');
+  const devSkillPath = path.resolve(projectRoot, '.agents/plugins/antigravity-review-loop/skills/dev-lifecycle/SKILL.md');
+  const reviewSkillPath = path.resolve(projectRoot, '.agents/plugins/antigravity-review-loop/skills/review-self-healing/SKILL.md');
   const fleetAgentPath = path.resolve(projectRoot, '.agents/agents/fleet_reviewer.md');
 
   if (!fs.existsSync(agentsPath)) {
     console.error('\n❌ [エージェント規約欠落] AGENTS.md がプロジェクト直下に存在しません。');
     return false;
+  }
+
+  if (!fs.existsSync(pluginJsonPath)) {
+    console.error('\n❌ [プラグインマニフェスト欠落] .agents/plugins/antigravity-review-loop/plugin.json が存在しません。');
+    hasError = true;
+  } else {
+    console.log('    ✓ 公式プラグインマニフェスト (antigravity-review-loop/plugin.json): 構成確認済');
   }
 
   const skillsToCheck = [
