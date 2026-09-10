@@ -1,11 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { execSync } from 'child_process';
 import { LoopStateMachine, STATUS } from '../../.agents/state/loopState.js';
 import { handleStop } from '../../.agents/hooks/stopHook.js';
-import { handlePreTool } from '../../.agents/hooks/preToolHook.js';
-import { handlePostTool } from '../../.agents/hooks/postToolHook.js';
+import { handleSafetyGuard } from '../../.agents/hooks/safetyGuard.js';
+import { handleBranchDoRGate } from '../../.agents/hooks/branchDoRGate.js';
+import { handlePrePrAuditGate } from '../../.agents/hooks/prePrAuditGate.js';
+import { handlePostPrCreate } from '../../.agents/hooks/postPrCreate.js';
 
 describe('Lifecycle Hooks (.agents/hooks/)', () => {
   let tempDir: string;
@@ -28,7 +31,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     }
   });
 
-  describe('stopHook', () => {
+  describe('stopHook (.agents/hooks/stopHook.js)', () => {
     it('allows stop when status is IDLE', () => {
       const result = handleStop({}, testMachine);
       expect(result.decision).toBe('allow');
@@ -94,22 +97,26 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       expect(result.reason).toContain('PR_CREATED');
     });
 
-    it('allows stop when status is REVIEW_REQUESTED and payload.fullyIdle is false (official Antigravity payload)', () => {
+    it('allows stop when status is PR_CREATED and state has activeSubagents: true', () => {
       testMachine.setPrCreated(46);
-      testMachine.setReviewRequested({ activeSubagents: false });
-      const result = handleStop({ fullyIdle: false }, testMachine);
-      expect(result.decision).toBe('allow');
-      expect(result.reason).toContain('Active subagent running');
-      expect(result.reason).toContain('REVIEW_REQUESTED');
-    });
-
-    it('allows stop when status is REVIEW_REQUESTED and state has activeSubagents: true', () => {
-      testMachine.setPrCreated(46);
-      testMachine.setReviewRequested({ activeSubagents: true });
+      testMachine.setActiveSubagents(true);
       const result = handleStop({}, testMachine);
       expect(result.decision).toBe('allow');
       expect(result.reason).toContain('Active subagent running');
-      expect(result.reason).toContain('REVIEW_REQUESTED');
+      expect(result.reason).toContain('PR_CREATED');
+    });
+
+    it('allows stop when payload has activeSubagents array or count in PR_CREATED', () => {
+      testMachine.setPrCreated(46);
+
+      const result1 = handleStop({ activeSubagents: 2 }, testMachine);
+      expect(result1.decision).toBe('allow');
+
+      const result2 = handleStop({ subagents: ['subagent-1'] }, testMachine);
+      expect(result2.decision).toBe('allow');
+
+      const result3 = handleStop({ active_subagents: 1 }, testMachine);
+      expect(result3.decision).toBe('allow');
     });
 
     it('allows stop when payload has activeSubagents array or count in REVIEW_REQUESTED', () => {
@@ -173,9 +180,9 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
   });
 
-  describe('preToolHook', () => {
+  describe('safetyGuard (.agents/hooks/safetyGuard.js)', () => {
     it('allows non-command tools', () => {
-      const result = handlePreTool({
+      const result = handleSafetyGuard({
         toolCall: {
           name: 'view_file',
           args: { AbsolutePath: 'test.txt' },
@@ -185,7 +192,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
 
     it('allows safe shell commands', () => {
-      const result1 = handlePreTool({
+      const result1 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'git status' },
@@ -193,7 +200,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       });
       expect(result1.decision).toBe('allow');
 
-      const result2 = handlePreTool({
+      const result2 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm run check:fast' },
@@ -203,7 +210,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
 
     it('denies unauthorized gh pr merge command', () => {
-      const result = handlePreTool({
+      const result = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'gh pr merge 46 --squash' },
@@ -214,8 +221,19 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       expect(result.reason).toContain('prohibited');
     });
 
+    it('denies direct gh pr merge with various arguments', () => {
+      const result = handleSafetyGuard({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'gh pr merge 123 --merge' },
+        },
+      });
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toContain('gh pr merge');
+    });
+
     it('denies hanging interactive npm test command', () => {
-      const result1 = handlePreTool({
+      const result1 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm test' },
@@ -224,7 +242,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       expect(result1.decision).toBe('deny');
       expect(result1.reason).toContain('Interactive test runner detected');
 
-      const result2 = handlePreTool({
+      const result2 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm run test' },
@@ -233,7 +251,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       expect(result2.decision).toBe('deny');
       expect(result2.reason).toContain('Interactive test runner detected');
 
-      const result3 = handlePreTool({
+      const result3 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm.cmd test' },
@@ -242,7 +260,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       expect(result3.decision).toBe('deny');
       expect(result3.reason).toContain('Interactive test runner detected');
 
-      const result4 = handlePreTool({
+      const result4 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm.cmd run test' },
@@ -253,7 +271,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
 
     it('allows non-hanging test commands (npm run test:run, npm test --run, npm run test:coverage, test:fast, test:related)', () => {
-      const result1 = handlePreTool({
+      const result1 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm run test:run' },
@@ -261,7 +279,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       });
       expect(result1.decision).toBe('allow');
 
-      const result2 = handlePreTool({
+      const result2 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm test --run' },
@@ -269,7 +287,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       });
       expect(result2.decision).toBe('allow');
 
-      const result3 = handlePreTool({
+      const result3 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm run test:coverage' },
@@ -277,7 +295,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       });
       expect(result3.decision).toBe('allow');
 
-      const result4 = handlePreTool({
+      const result4 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm.cmd run test:coverage' },
@@ -285,7 +303,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       });
       expect(result4.decision).toBe('allow');
 
-      const result5 = handlePreTool({
+      const result5 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm run test:fast' },
@@ -293,7 +311,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       });
       expect(result5.decision).toBe('allow');
 
-      const result6 = handlePreTool({
+      const result6 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm.cmd run test:fast' },
@@ -301,7 +319,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       });
       expect(result6.decision).toBe('allow');
 
-      const result7 = handlePreTool({
+      const result7 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm run test:related' },
@@ -309,7 +327,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       });
       expect(result7.decision).toBe('allow');
 
-      const result8 = handlePreTool({
+      const result8 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
           args: { CommandLine: 'npm.cmd run test:related' },
@@ -318,9 +336,38 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       expect(result8.decision).toBe('allow');
     });
 
+    it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
+      const handlerPath = path.resolve(__dirname, '../../.agents/hooks/safetyGuard.js');
+      const inputPayload = JSON.stringify({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'gh pr merge 50 --auto' },
+        },
+      });
+      const stdout = execSync(`node "${handlerPath}"`, {
+        input: inputPayload,
+        encoding: 'utf8',
+      });
+      const parsed = JSON.parse(stdout.trim());
+      expect(parsed.decision).toBe('deny');
+      expect(parsed.reason).toContain('gh pr merge');
+    });
+  });
+
+  describe('branchDoRGate (.agents/hooks/branchDoRGate.js)', () => {
+    it('allows non-branch commands immediately', () => {
+      const result = handleBranchDoRGate({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'git status' },
+        },
+      });
+      expect(result.decision).toBe('allow');
+    });
+
     it('denies branch creation if working tree is dirty', () => {
       const mockExec = vi.fn().mockReturnValue(' M src/index.ts\n?? newfile.ts');
-      const result = handlePreTool(
+      const result = handleBranchDoRGate(
         {
           toolCall: {
             name: 'run_command',
@@ -348,7 +395,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
 
       const mockExec = vi.fn().mockReturnValue('?? docs/issues/ISSUE-099_test/issue.md\n?? docs/issues/ISSUE-099_test/pre_verification.md\n');
       try {
-        const result = handlePreTool(
+        const result = handleBranchDoRGate(
           {
             toolCall: {
               name: 'run_command',
@@ -366,7 +413,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     it('denies branch creation if loopState is not IDLE', () => {
       testMachine.setPrCreated(46);
       const mockExec = vi.fn().mockReturnValue('');
-      const result = handlePreTool(
+      const result = handleBranchDoRGate(
         {
           toolCall: {
             name: 'run_command',
@@ -381,7 +428,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
 
     it('denies branch creation if issue.md does not exist for the issue', () => {
       const mockExec = vi.fn().mockReturnValue('');
-      const result = handlePreTool(
+      const result = handleBranchDoRGate(
         {
           toolCall: {
             name: 'run_command',
@@ -402,7 +449,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       fs.writeFileSync(path.join(issueDir, 'issue.md'), '# Issue 99\n\n## 1. Description\nSome description without why or risk');
 
       try {
-        const result = handlePreTool(
+        const result = handleBranchDoRGate(
           {
             toolCall: {
               name: 'run_command',
@@ -430,7 +477,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       );
 
       try {
-        const result = handlePreTool(
+        const result = handleBranchDoRGate(
           {
             toolCall: {
               name: 'run_command',
@@ -462,7 +509,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       );
 
       try {
-        const result = handlePreTool(
+        const result = handleBranchDoRGate(
           {
             toolCall: {
               name: 'run_command',
@@ -494,7 +541,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       );
 
       try {
-        const result = handlePreTool(
+        const result = handleBranchDoRGate(
           {
             toolCall: {
               name: 'run_command',
@@ -509,172 +556,211 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       }
     });
 
-    describe('Block 4: Pre-PR Final Audit Gate (gh pr create)', () => {
-      let tempProject: string;
-      let issueDir: string;
-      let adrDir: string;
-
-      beforeEach(() => {
-        tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'pre-pr-audit-'));
-        issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
-        adrDir = path.join(tempProject, 'docs/adr');
-        fs.mkdirSync(issueDir, { recursive: true });
-        fs.mkdirSync(adrDir, { recursive: true });
-
-        // Setup complete 4-axis docs
-        fs.writeFileSync(path.join(issueDir, 'issue.md'), '# Issue 99\n\n## 5. 受け入れ基準\n- [x] All done\n');
-        fs.writeFileSync(path.join(issueDir, 'pre_verification.md'), '# Pre Verification\nSome verification details here\n');
-        fs.writeFileSync(path.join(issueDir, 'plan.md'), '# Implementation Plan\nDetailed plan content here\n');
-        fs.writeFileSync(path.join(issueDir, 'walkthrough.md'), '# Walkthrough Report\nDetailed walkthrough results\n');
-
-        // Setup ADR and synchronized SSOT
-        fs.writeFileSync(path.join(adrDir, '0018-test-architecture.md'), '# ADR-0018\nContent\n');
-        fs.writeFileSync(
-          path.join(tempProject, 'docs/architecture_overview.md'),
-          '# SSOT\nCovers ADR-0001 to ADR-0018\n'
-        );
+    it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
+      const handlerPath = path.resolve(__dirname, '../../.agents/hooks/branchDoRGate.js');
+      const inputPayload = JSON.stringify({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'git status' },
+        },
       });
-
-      afterEach(() => {
-        fs.rmSync(tempProject, { recursive: true, force: true });
+      const stdout = execSync(`node "${handlerPath}"`, {
+        input: inputPayload,
+        encoding: 'utf8',
       });
-
-      it('denies gh pr create if any 4-axis document is missing or empty', () => {
-        // Remove walkthrough.md
-        fs.unlinkSync(path.join(issueDir, 'walkthrough.md'));
-
-        const result = handlePreTool(
-          {
-            toolCall: {
-              name: 'run_command',
-              args: { CommandLine: 'gh pr create --title "feat: test"' },
-            },
-          },
-          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
-        );
-
-        expect(result.decision).toBe('deny');
-        expect(result.reason).toContain('Pre-PR Audit Failed: Missing or incomplete 4-axis document');
-        expect(result.reason).toContain('walkthrough.md');
-      });
-
-      it('denies gh pr create if acceptance criteria contains unchecked items (- [ ])', () => {
-        fs.writeFileSync(
-          path.join(issueDir, 'issue.md'),
-          '# Issue 99\n\n## 5. 受け入れ基準\n- [x] Item 1 done\n- [ ] Item 2 pending\n'
-        );
-
-        const result = handlePreTool(
-          {
-            toolCall: {
-              name: 'run_command',
-              args: { CommandLine: 'gh pr create --title "feat: test"' },
-            },
-          },
-          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
-        );
-
-        expect(result.decision).toBe('deny');
-        expect(result.reason).toContain('Pre-PR Audit Failed: Unchecked Pre-PR acceptance criteria (- [ ])');
-        expect(result.reason).toContain('marked as [x]');
-
-        // Also test with multiple spaces inside brackets
-        fs.writeFileSync(
-          path.join(issueDir, 'issue.md'),
-          '# Issue 99\n\n## 5. 受け入れ基準\n- [x] Item 1 done\n- [   ] Item 2 pending with spaces\n'
-        );
-
-        const resultWithSpaces = handlePreTool(
-          {
-            toolCall: {
-              name: 'run_command',
-              args: { CommandLine: 'gh pr create --title "feat: test"' },
-            },
-          },
-          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
-        );
-
-        expect(resultWithSpaces.decision).toBe('deny');
-        expect(resultWithSpaces.reason).toContain('Pre-PR Audit Failed: Unchecked Pre-PR acceptance criteria (- [ ])');
-      });
-
-      it('allows gh pr create when 5.1 Pre-PR DoD is completed even if 5.2 Pre-Merge Gate has unchecked items', () => {
-        fs.writeFileSync(
-          path.join(issueDir, 'issue.md'),
-          '# Issue 99\n\n## 5. 受け入れ基準\n\n### 5.1. PR作成前完了基準 (Pre-PR DoD)\n- [x] Implementation done\n- [x] Fast tests passed\n\n### 5.2. マージ前完了ゲート (Pre-Merge Gate)\n- [ ] CI passed\n- [ ] Fleet review LGTM\n- [ ] Human merged\n'
-        );
-
-        const result = handlePreTool(
-          {
-            toolCall: {
-              name: 'run_command',
-              args: { CommandLine: 'gh pr create --title "feat: test"' },
-            },
-          },
-          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
-        );
-
-        expect(result.decision).toBe('allow');
-      });
-
-      it('denies gh pr create if 5.1 Pre-PR DoD has unchecked items even if 5.2 is present', () => {
-        fs.writeFileSync(
-          path.join(issueDir, 'issue.md'),
-          '# Issue 99\n\n## 5. 受け入れ基準\n\n### 5.1. PR作成前完了基準 (Pre-PR DoD)\n- [x] Implementation done\n- [ ] Fast tests not run\n\n### 5.2. マージ前完了ゲート (Pre-Merge Gate)\n- [ ] CI passed\n'
-        );
-
-        const result = handlePreTool(
-          {
-            toolCall: {
-              name: 'run_command',
-              args: { CommandLine: 'gh pr create --title "feat: test"' },
-            },
-          },
-          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
-        );
-
-        expect(result.decision).toBe('deny');
-        expect(result.reason).toContain('Pre-PR Audit Failed: Unchecked Pre-PR acceptance criteria (- [ ])');
-      });
-
-      it('denies gh pr create if latest ADR is not synchronized in architecture_overview.md (SSOT)', () => {
-        // Add ADR-0019 without updating SSOT
-        fs.writeFileSync(path.join(adrDir, '0019-new-feature.md'), '# ADR-0019\n');
-
-        const result = handlePreTool(
-          {
-            toolCall: {
-              name: 'run_command',
-              args: { CommandLine: 'gh pr create --title "feat: test"' },
-            },
-          },
-          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
-        );
-
-        expect(result.decision).toBe('deny');
-        expect(result.reason).toContain('Pre-PR Audit Failed: The latest ADR (0019-new-feature.md) is not synchronized');
-        expect(result.reason).toContain('architecture_overview.md');
-      });
-
-      it('allows gh pr create when all pre-PR audit checks pass', () => {
-        const result = handlePreTool(
-          {
-            toolCall: {
-              name: 'run_command',
-              args: { CommandLine: 'gh pr create --title "feat: test"' },
-            },
-          },
-          { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
-        );
-
-        expect(result.decision).toBe('allow');
-      });
+      const parsed = JSON.parse(stdout.trim());
+      expect(parsed.decision).toBe('allow');
     });
   });
 
-  describe('postToolHook', () => {
+  describe('prePrAuditGate (.agents/hooks/prePrAuditGate.js)', () => {
+    let tempProject: string;
+    let issueDir: string;
+    let adrDir: string;
+
+    beforeEach(() => {
+      tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'pre-pr-audit-'));
+      issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
+      adrDir = path.join(tempProject, 'docs/adr');
+      fs.mkdirSync(issueDir, { recursive: true });
+      fs.mkdirSync(adrDir, { recursive: true });
+
+      // Setup complete 4-axis docs
+      fs.writeFileSync(path.join(issueDir, 'issue.md'), '# Issue 99\n\n## 5. 受け入れ基準\n- [x] All done\n');
+      fs.writeFileSync(path.join(issueDir, 'pre_verification.md'), '# Pre Verification\nSome verification details here\n');
+      fs.writeFileSync(path.join(issueDir, 'plan.md'), '# Implementation Plan\nDetailed plan content here\n');
+      fs.writeFileSync(path.join(issueDir, 'walkthrough.md'), '# Walkthrough Report\nDetailed walkthrough results\n');
+
+      // Setup ADR and synchronized SSOT
+      fs.writeFileSync(path.join(adrDir, '0018-test-architecture.md'), '# ADR-0018\nContent\n');
+      fs.writeFileSync(
+        path.join(tempProject, 'docs/architecture_overview.md'),
+        '# SSOT\nCovers ADR-0001 to ADR-0018\n'
+      );
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempProject, { recursive: true, force: true });
+    });
+
+    it('allows non-PR commands immediately', () => {
+      const result = handlePrePrAuditGate({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'git push origin main' },
+        },
+      });
+      expect(result.decision).toBe('allow');
+    });
+
+    it('denies gh pr create if any 4-axis document is missing or empty', () => {
+      fs.unlinkSync(path.join(issueDir, 'walkthrough.md'));
+
+      const result = handlePrePrAuditGate(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create --title "feat: test"' },
+          },
+        },
+        { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+      );
+
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toContain('Pre-PR Audit Failed: Missing or incomplete 4-axis document');
+      expect(result.reason).toContain('walkthrough.md');
+    });
+
+    it('denies gh pr create if acceptance criteria contains unchecked items (- [ ])', () => {
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 5. 受け入れ基準\n- [x] Item 1 done\n- [ ] Item 2 pending\n'
+      );
+
+      const result = handlePrePrAuditGate(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create --title "feat: test"' },
+          },
+        },
+        { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+      );
+
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toContain('Pre-PR Audit Failed: Unchecked Pre-PR acceptance criteria (- [ ])');
+      expect(result.reason).toContain('marked as [x]');
+
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 5. 受け入れ基準\n- [x] Item 1 done\n- [   ] Item 2 pending with spaces\n'
+      );
+
+      const resultWithSpaces = handlePrePrAuditGate(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create --title "feat: test"' },
+          },
+        },
+        { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+      );
+
+      expect(resultWithSpaces.decision).toBe('deny');
+      expect(resultWithSpaces.reason).toContain('Pre-PR Audit Failed: Unchecked Pre-PR acceptance criteria (- [ ])');
+    });
+
+    it('allows gh pr create when 5.1 Pre-PR DoD is completed even if 5.2 Pre-Merge Gate has unchecked items', () => {
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 5. 受け入れ基準\n\n### 5.1. PR作成前完了基準 (Pre-PR DoD)\n- [x] Implementation done\n- [x] Fast tests passed\n\n### 5.2. マージ前完了ゲート (Pre-Merge Gate)\n- [ ] CI passed\n- [ ] Fleet review LGTM\n- [ ] Human merged\n'
+      );
+
+      const result = handlePrePrAuditGate(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create --title "feat: test"' },
+          },
+        },
+        { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+      );
+
+      expect(result.decision).toBe('allow');
+    });
+
+    it('denies gh pr create if 5.1 Pre-PR DoD has unchecked items even if 5.2 is present', () => {
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 5. 受け入れ基準\n\n### 5.1. PR作成前完了基準 (Pre-PR DoD)\n- [x] Implementation done\n- [ ] Fast tests not run\n\n### 5.2. マージ前完了ゲート (Pre-Merge Gate)\n- [ ] CI passed\n'
+      );
+
+      const result = handlePrePrAuditGate(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create --title "feat: test"' },
+          },
+        },
+        { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+      );
+
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toContain('Pre-PR Audit Failed: Unchecked Pre-PR acceptance criteria (- [ ])');
+    });
+
+    it('denies gh pr create if latest ADR is not synchronized in architecture_overview.md (SSOT)', () => {
+      fs.writeFileSync(path.join(adrDir, '0019-new-feature.md'), '# ADR-0019\n');
+
+      const result = handlePrePrAuditGate(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create --title "feat: test"' },
+          },
+        },
+        { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+      );
+
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toContain('Pre-PR Audit Failed: The latest ADR (0019-new-feature.md) is not synchronized');
+      expect(result.reason).toContain('architecture_overview.md');
+    });
+
+    it('allows gh pr create when all pre-PR audit checks pass', () => {
+      const result = handlePrePrAuditGate(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create --title "feat: test"' },
+          },
+        },
+        { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+      );
+
+      expect(result.decision).toBe('allow');
+    });
+
+    it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
+      const handlerPath = path.resolve(__dirname, '../../.agents/hooks/prePrAuditGate.js');
+      const inputPayload = JSON.stringify({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'git push origin main' },
+        },
+      });
+      const stdout = execSync(`node "${handlerPath}"`, {
+        input: inputPayload,
+        encoding: 'utf8',
+      });
+      const parsed = JSON.parse(stdout.trim());
+      expect(parsed.decision).toBe('allow');
+    });
+  });
+
+  describe('postPrCreate (.agents/hooks/postPrCreate.js)', () => {
     it('ignores failed commands with error', () => {
-      const result = handlePostTool(
+      const result = handlePostPrCreate(
         {
           toolCall: {
             name: 'run_command',
@@ -689,7 +775,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
 
     it('transitions state to PR_CREATED on successful gh pr create (fallback)', () => {
-      const result = handlePostTool(
+      const result = handlePostPrCreate(
         {
           toolCall: {
             name: 'run_command',
@@ -704,7 +790,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
 
     it('extracts PR number from tool output URL', () => {
-      const result = handlePostTool(
+      const result = handlePostPrCreate(
         {
           toolCall: {
             name: 'run_command',
@@ -720,13 +806,12 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
 
     it('does not falsely extract issue number from command line and uses safe fallback or PR URL', () => {
-      const result = handlePostTool(
+      const result = handlePostPrCreate(
         {
           toolCall: {
             name: 'run_command',
             args: { CommandLine: 'gh pr create --body "Closes #46"' },
           },
-          // toolResult containing genuine PR URL
           result: 'https://github.com/yuki-yamagishi/job-eval/pull/105\n',
         },
         testMachine
@@ -737,7 +822,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
 
     it('uses safe fallback when no PR URL is detected', () => {
-      const result = handlePostTool(
+      const result = handlePostPrCreate(
         {
           toolCall: {
             name: 'run_command',
@@ -749,6 +834,22 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       expect(result).toEqual({});
       expect(testMachine.getState().status).toBe(STATUS.PR_CREATED);
       expect(testMachine.getState().prNumber).toBeGreaterThanOrEqual(1);
+    });
+
+    it('executes directly via node CLI with stdin/stdout JSON protocol', () => {
+      const handlerPath = path.resolve(__dirname, '../../.agents/hooks/postPrCreate.js');
+      const inputPayload = JSON.stringify({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'git status' },
+        },
+      });
+      const stdout = execSync(`node "${handlerPath}"`, {
+        input: inputPayload,
+        encoding: 'utf8',
+      });
+      const parsed = JSON.parse(stdout.trim());
+      expect(parsed).toEqual({});
     });
   });
 });

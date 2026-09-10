@@ -1,5 +1,50 @@
 {
-  "loop-engineering-gate": {
+  "safety-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/safetyGuard.js",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
+  "branch-dor-gate": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/branchDoRGate.js",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
+  "pre-pr-audit-gate": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/prePrAuditGate.js",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
+  "review-loop-guard": {
     "enabled": true,
     "Stop": [
       {
@@ -8,25 +53,13 @@
         "timeout": 15
       }
     ],
-    "PreToolUse": [
-      {
-        "matcher": "run_command",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ./hooks/preToolHook.js",
-            "timeout": 15
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "run_command",
         "hooks": [
           {
             "type": "command",
-            "command": "node ./hooks/postToolHook.js",
+            "command": "node ./hooks/postPrCreate.js",
             "timeout": 15
           }
         ]

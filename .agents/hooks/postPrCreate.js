@@ -1,5 +1,5 @@
 /**
- * PostTool Hook Handler (.agents/hooks/postToolHook.js)
+ * Post PR Create Hook (.agents/hooks/postPrCreate.js)
  * 
  * Intercepts PostToolUse for run_command.
  * Automatically transitions loop state to PR_CREATED when gh pr create succeeds.
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 import { defaultStateMachine } from '../state/loopState.js';
 import { readStdinJson, writeStdoutJson } from './hookUtils.js';
 
-export function handlePostTool(payload = {}, stateMachine = defaultStateMachine) {
+export function handlePostPrCreate(payload = {}, stateMachine = defaultStateMachine) {
   if (payload.error) {
     return {};
   }
@@ -80,7 +80,7 @@ const isDirectExecution = process.argv[1] &&
 
 if (isDirectExecution) {
   readStdinJson().then((payload) => {
-    const result = handlePostTool(payload);
+    const result = handlePostPrCreate(payload);
     writeStdoutJson(result);
     process.exit(0);
   });

@@ -38,5 +38,7 @@
 | [ADR-0018](file:///docs/adr/0018-antigravity-customization-layer-refactoring.md) | Google Antigravity 公式仕様に準拠した Customization Layer への抜本的刷新 | **Accepted** | 2026-09-09 |
 | [ADR-0019](file:///docs/adr/0019-multi-agent-review-consortium.md) | Fleet レビュー体制の 2 者合議制（コード品質担当 ＋ 批判的完了性監査担当）への拡張 | **Accepted** | 2026-09-09 |
 | [ADR-0020](file:///docs/adr/0020-fast-inner-loop-and-pre-impact-check.md) | 高速 Inner Loop（単体反復）の確立と着手前 Impact & Duplication Check 物理検査の採用 | **Accepted** | 2026-09-09 |
+| [ADR-0021](file:///docs/adr/0021-lifecycle-hooks-modular-separation.md) | AGY公式仕様に準拠したライフサイクルフックの責務分離とモジュール化アーキテクチャの採用 | **Accepted** | 2026-09-10 |
+
 
 
