@@ -1,7 +1,7 @@
 # JobEval アーキテクチャ概説 & システム仕様 (Architecture Overview & SSOT)
 
 JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** で構築された、AI求人適合度評価 & Markdownドキュメント管理デスクトップ/PWAアプリケーションです。
-本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0021）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
+本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0022）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
 
 ---
 
@@ -74,27 +74,32 @@ tests/                    # 自動テストハーネス (Vitest)
 | [ADR-0019](./adr/0019-multi-agent-review-consortium.md) | Fleet レビュー体制の 2 者合議制（コード品質担当 ＋ 批判的完了性監査担当）への拡張 | **Accepted** | 2者 Fleet の責任分離（コード品質・型・セキュリティ担当 `fleet_reviewer` ＋ 批判的完了性・Why・排除リスク監査担当 `fleet_completion_auditor`）と両者合議判定ゲート（Consortium Gate）。 |
 | [ADR-0020](./adr/0020-fast-inner-loop-and-pre-impact-check.md) | 高速 Inner Loop（単体反復）の確立と着手前 Impact & Duplication Check 物理検査の採用 | **Accepted** | Inner Loop（`check:fast`, `test:related`）と Outer Loop（Git Hook & CI）の明確な分離、および PreToolHook Block 3D による着手前 Impact Check の物理強制。 |
 | [ADR-0021](./adr/0021-lifecycle-hooks-modular-separation.md) | AGY公式仕様に準拠したライフサイクルフックの責務分離とモジュール化アーキテクチャの採用 | **Accepted** | AGY公式準拠の名前付きフック分割（safety-guard, branch-dor-gate, pre-pr-audit-gate, review-loop-guard）とハンドラーモジュール化によるプラグイン化下準備。 |
+| [ADR-0022](./adr/0022-antigravity-plugin-packaging.md) | Antigravity公式仕様に準拠した自律レビューループ機構のプラグイン化パッケージング | **Accepted** | 自律レビューループ機構全体を公式プラグイン仕様準拠の `.agents/plugins/antigravity-review-loop/` 配下にカプセル化・完全一本化し、直下互換層を完全撤廃して自己完結性と他プロジェクトへの移植性を確立。 |
 
 ---
 
 ## 4. AI 駆動開発 Customization Layer と多層ガバナンス
 
-本リポジトリは、Google Antigravity 公式仕様に準拠した **Customization Layer（カスタマイズ層）** を備えています。
+本リポジトリは、Google Antigravity 公式仕様に準拠した **ワークスペースプラグイン (`.agents/plugins/antigravity-review-loop/`)** および **Customization Layer（カスタマイズ層）** を備えています。
 
-1. **憲章とスキルの分離 (Progressive Disclosure)**:
+1. **公式プラグインパッケージング (ADR-0022)**:
+   - `.agents/plugins/antigravity-review-loop/`: `plugin.json`, `hooks.json`, `hooks/`, `skills/`, `rules/`, `agents/`, `state/` を単一の自己完結型プラグインとしてカプセル化。
+   - レビュー用サブエージェント（`fleet_reviewer.md`, `fleet_completion_auditor.md`）も公式 subagents 仕様に準拠してプラグイン配下の `agents/` に同梱。
+   - 直下の過渡的互換アダプターを完全撤廃し、純粋なプラグイン一本化（`.agents/` 直下は `plugins/` のみ）を達成。動的ルート探索（`findProjectRoot`）により高い可搬性を実現。
+2. **憲章とスキルの分離 (Progressive Disclosure)**:
    - `AGENTS.md`: 毎ターン読み込まれるコア憲章（DoD・絶対遵守事項・アーキテクチャ不可侵原則）。
-   - `.agents/skills/`: 各フェーズに応じた 3 つの単一責務スキル（`issue-lifecycle`, `dev-lifecycle`, `review-self-healing`）をオンデマンドで段階的開示。
-2. **多重物理ガードレール (Mechanism & Flat Modular Hooks - ADR-0021)**:
+   - プラグインスキル群: 各フェーズに応じた 3 つの単一責務スキル（`issue-lifecycle`, `dev-lifecycle`, `review-self-healing`）をオンデマンドで段階的開示。
+3. **多重物理ガードレール (Mechanism & Flat Modular Hooks - ADR-0021)**:
    - `hooks.json`: AGY公式仕様に完全準拠し、4つの名前付きフック（`safety-guard`, `branch-dor-gate`, `pre-pr-audit-gate`, `review-loop-guard`）に分割。
-   - フラットフックモジュール (`.agents/hooks/`): ファサードを完全撤廃し、`safetyGuard.js`（`gh pr merge`禁止・テスト抑止）、`branchDoRGate.js`（DoR・Why・排除リスク・重複点検）、`prePrAuditGate.js`（4軸書類・DoD完備・SSOT同期）、`postPrCreate.js`（PR作成検知）、`stopHook.js`（合議前早期停止ブロック）をフラットに配置。
+   - フラットフックモジュール: `safetyGuard.js`（`gh pr merge`禁止・テスト抑止）、`branchDoRGate.js`（DoR・Why・排除リスク・重複点検）、`prePrAuditGate.js`（4軸書類・DoD完備・SSOT同期）、`postPrCreate.js`（PR作成検知）、`stopHook.js`（合議前早期停止ブロック）をフラットに配置。
    - `loopState.js`: CI 未通過時のレビュー依頼ブロック（CI Gate）、および PR 未マージ時の勝手なリセット阻止（Merge Verification Gate）。
    - `stopHook.js`: レビュー指摘の解消と Fleet の Re-review（LGTM）を受領するまで早期停止をブロック。
-3. **2者 Fleet 並行合議レビュー (Review Consortium)**:
+4. **2者 Fleet 並行合議レビュー (Review Consortium)**:
    - 公式仕様の独立サブエージェント 2 体（`fleet_reviewer` と `fleet_completion_auditor`）を並行起動。
    - コード品質（How）と批判的完了性（Why / What）を完全に分離し、両者が共に `LGTM` を出した場合のみマージ依頼を許可する合議制ゲートを配備。
-4. **内外分離 (Boundary Design)**:
+5. **内外分離 (Boundary Design)**:
    - 人間向け（意思決定・承認）は完全日本語で記述し、エージェント向け（内部制御・修復指示）は英語に完全統一してトークン効率と指示追従性を最大化。
-5. **Inner Loop と Outer Loop の分離 & 着手前 Impact Check (ADR-0020)**:
+6. **Inner Loop と Outer Loop の分離 & 着手前 Impact Check (ADR-0020)**:
    - Inner Loop は型検査（`check:fast`）や関連テスト（`test:related`）などミリ秒単位の高速反復に純化。全量検査は Git Pre-Push Hook と CI に集約。
    - ブランチ作成時に `branchDoRGate.js`（`branch-dor-gate` フック）が事前検証記録（`pre_verification.md`）と重複・パッチワーク点検（Impact & Duplication Check）の完了を物理検査。
 

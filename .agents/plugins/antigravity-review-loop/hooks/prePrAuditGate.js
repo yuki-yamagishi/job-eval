@@ -11,7 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { readStdinJson, writeStdoutJson } from './hookUtils.js';
+import { readStdinJson, writeStdoutJson, findProjectRoot } from './hookUtils.js';
 
 /**
  * Step 1: Validates 4-axis documents completeness (issue.md, pre_verification.md, plan.md, walkthrough.md).
@@ -110,7 +110,7 @@ export function handlePrePrAuditGate(payload = {}, options = {}) {
   }
 
   const exec = options.execFn || execSync;
-  const projectRoot = options.projectRoot || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+  const projectRoot = options.projectRoot || findProjectRoot(path.dirname(fileURLToPath(import.meta.url)));
 
   // Detect current branch and target issue
   let currentBranch = options.currentBranch || '';

@@ -6,7 +6,7 @@ import {
   LoopStateMachine, 
   STATUS, 
   createInitialState 
-} from '../../.agents/state/loopState.js';
+} from '../../.agents/plugins/antigravity-review-loop/state/loopState.js';
 
 describe('LoopStateMachine', () => {
   let tempDir: string;

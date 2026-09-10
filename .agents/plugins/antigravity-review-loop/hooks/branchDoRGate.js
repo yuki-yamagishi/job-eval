@@ -12,7 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { readStdinJson, writeStdoutJson } from './hookUtils.js';
+import { readStdinJson, writeStdoutJson, findProjectRoot } from './hookUtils.js';
 import { defaultStateMachine, STATUS } from '../state/loopState.js';
 
 /**
@@ -126,7 +126,7 @@ export function handleBranchDoRGate(payload = {}, options = {}) {
   const branchName = branchMatch[1];
   const exec = options.execFn || execSync;
   const stateMachine = options.stateMachine || defaultStateMachine;
-  const projectRoot = options.projectRoot || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+  const projectRoot = options.projectRoot || findProjectRoot(path.dirname(fileURLToPath(import.meta.url)));
 
   // Step 1: Working tree cleanliness
   const cleanlinessResult = verifyWorkingTreeCleanliness(exec, projectRoot);

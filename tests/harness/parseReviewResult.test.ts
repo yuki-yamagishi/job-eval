@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { parseReviewResult } from '../../.agents/skills/review-self-healing/scripts/parseReviewResult.js';
-import { STATUS } from '../../.agents/state/loopState.js';
+import { parseReviewResult } from '../../.agents/plugins/antigravity-review-loop/skills/review-self-healing/scripts/parseReviewResult.js';
+import { STATUS } from '../../.agents/plugins/antigravity-review-loop/state/loopState.js';
 
 describe('parseReviewResult', () => {
   it('handles clean LGTM with no issues', () => {

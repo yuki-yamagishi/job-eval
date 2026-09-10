@@ -1,7 +1,10 @@
 /**
- * Hook Utilities (.agents/hooks/hookUtils.js)
+ * Hook Utilities (.agents/plugins/antigravity-review-loop/hooks/hookUtils.js)
  * Helper functions for stdin/stdout JSON protocol in Antigravity lifecycle hooks.
  */
+
+import fs from 'fs';
+import path from 'path';
 
 export async function readStdinJson(timeoutMs = 2000) {
   return new Promise((resolve) => {
@@ -47,4 +50,19 @@ export async function readStdinJson(timeoutMs = 2000) {
 
 export function writeStdoutJson(data) {
   process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+}
+
+/**
+ * Searches upward from startDir to find the project root directory
+ * identified by package.json and .git directory.
+ */
+export function findProjectRoot(startDir) {
+  let cur = path.resolve(startDir);
+  while (cur && path.dirname(cur) !== cur) {
+    if (fs.existsSync(path.join(cur, 'package.json')) && fs.existsSync(path.join(cur, '.git'))) {
+      return cur;
+    }
+    cur = path.dirname(cur);
+  }
+  return path.resolve(startDir, '../../../..');
 }

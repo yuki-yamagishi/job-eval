@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { LoopStateMachine, STATUS } from '../../.agents/state/loopState.js';
-import { parseReviewResult } from '../../.agents/skills/review-self-healing/scripts/parseReviewResult.js';
-import { resolveReview } from '../../.agents/skills/review-self-healing/scripts/resolveReview.js';
-import { handlePostPrCreate } from '../../.agents/hooks/postPrCreate.js';
-import { handleStop } from '../../.agents/hooks/stopHook.js';
+import { LoopStateMachine, STATUS } from '../../.agents/plugins/antigravity-review-loop/state/loopState.js';
+import { parseReviewResult } from '../../.agents/plugins/antigravity-review-loop/skills/review-self-healing/scripts/parseReviewResult.js';
+import { resolveReview } from '../../.agents/plugins/antigravity-review-loop/skills/review-self-healing/scripts/resolveReview.js';
+import { handlePostPrCreate } from '../../.agents/plugins/antigravity-review-loop/hooks/postPrCreate.js';
+import { handleStop } from '../../.agents/plugins/antigravity-review-loop/hooks/stopHook.js';
 
 describe('Self-Healing Review Loop E2E Integration Test', () => {
   let tempDir: string;

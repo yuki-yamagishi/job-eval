@@ -1,9 +1,9 @@
 /**
- * Loop State Machine (.agents/state/loopState.js)
+ * Loop State Machine (.agents/plugins/antigravity-review-loop/state/loopState.js)
  * 
- * ADR-0016 / ADR-0018
+ * ADR-0016 / ADR-0018 / ADR-0022
  * Manages the deterministic lifecycle state of the self-healing review loop.
- * State is persisted to .agents/state/loop_state.json.
+ * State is persisted to .agents/plugins/antigravity-review-loop/state/loop_state.json.
  */
 
 import fs from 'fs';
@@ -325,7 +325,7 @@ export class LoopStateMachine {
       const prState = checkPrStateFn(current.prNumber);
       if (prState !== 'MERGED' && prState !== 'UNKNOWN') {
         throw new Error(
-          `[Reset Gate Denied] Cannot reset loopState: PR #${current.prNumber} is in state "${prState}". Loop state can only be safely reset after the PR has been merged to main by the user. (Emergency override: run 'node .agents/state/loopState.js reset --force')`
+          `[Reset Gate Denied] Cannot reset loopState: PR #${current.prNumber} is in state "${prState}". Loop state can only be safely reset after the PR has been merged to main by the user. (Emergency override: run 'node .agents/plugins/antigravity-review-loop/state/loopState.js reset --force')`
         );
       }
     }
@@ -381,25 +381,25 @@ export class LoopStateMachine {
       let guidance = '';
       switch (current.status) {
         case STATUS.PR_CREATED:
-          guidance = `Wait for GitHub Actions CI to pass on PR #${current.prNumber}, then run 'node .agents/state/loopState.js review-requested' and launch fleet reviewers ('fleet_reviewer' and 'fleet_completion_auditor').`;
+          guidance = `Wait for GitHub Actions CI to pass on PR #${current.prNumber}, then run 'node .agents/plugins/antigravity-review-loop/state/loopState.js review-requested' and launch fleet reviewers ('fleet_reviewer' and 'fleet_completion_auditor').`;
           break;
         case STATUS.REVIEW_REQUESTED: {
           const pending = [];
           if (!current.reviews?.codeReviewer) pending.push('fleet_reviewer');
           if (!current.reviews?.completionAuditor) pending.push('fleet_completion_auditor');
           const pendingStr = pending.length > 0 ? pending.join(' and ') : 'fleet reviewers';
-          guidance = `Multi-agent review consortium is in progress. Await review from [${pendingStr}]. Parse results with 'node .agents/skills/review-self-healing/scripts/parseReviewResult.js <file> --agent-type <codeReviewer|completionAuditor> --update-state'.`;
+          guidance = `Multi-agent review consortium is in progress. Await review from [${pendingStr}]. Parse results with 'node .agents/plugins/antigravity-review-loop/skills/review-self-healing/scripts/parseReviewResult.js <file> --agent-type <codeReviewer|completionAuditor> --update-state'.`;
           break;
         }
         case STATUS.NEEDS_FIX:
-          guidance = `Fix the ${unresolvedCount} unresolved blocking issue(s) from review consortium, commit changes, push to remote, and run 'node .agents/skills/review-self-healing/scripts/resolveReview.js' to report fixes and request re-review.`;
+          guidance = `Fix the ${unresolvedCount} unresolved blocking issue(s) from review consortium, commit changes, push to remote, and run 'node .agents/plugins/antigravity-review-loop/skills/review-self-healing/scripts/resolveReview.js' to report fixes and request re-review.`;
           break;
         default:
           guidance = `Complete the self-healing review cycle and reach RESOLVED_LGTM.`;
           break;
       }
 
-      reason = `Stop rejected: Loop is currently in status "${current.status}" with ${unresolvedCount} unresolved blocking issue(s). (Remediation Guidance: ${guidance}) (Emergency abort: run 'node .agents/state/loopState.js reset --force')`;
+      reason = `Stop rejected: Loop is currently in status "${current.status}" with ${unresolvedCount} unresolved blocking issue(s). (Remediation Guidance: ${guidance}) (Emergency abort: run 'node .agents/plugins/antigravity-review-loop/state/loopState.js reset --force')`;
     }
 
     return {
@@ -426,7 +426,8 @@ export function canStop(options = {}) { return defaultStateMachine.canStop(optio
 
 // CLI Command Runner
 const isDirectExecution = process.argv[1] && 
-  (fileURLToPath(import.meta.url).toLowerCase() === path.resolve(process.argv[1]).toLowerCase());
+  (fileURLToPath(import.meta.url).toLowerCase() === path.resolve(process.argv[1]).toLowerCase() ||
+   process.argv[1].toLowerCase().endsWith('loopstate.js'));
 
 if (isDirectExecution) {
   const [,, command, ...args] = process.argv;

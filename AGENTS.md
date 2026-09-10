@@ -4,7 +4,7 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
 本憲章は、AI エージェントが開発時に厳格に遵守すべき **「コア原則・不可侵規約・完了定義 (DoD)」** を定めます。
 
 > 📖 **詳細実践ガイド**:
-> 開発フェーズに応じた詳細な実践手順書は、Customization Layer のスキル群（`.agents/skills/issue-lifecycle/`, `.agents/skills/dev-lifecycle/`, `.agents/skills/review-self-healing/`）に Progressive Disclosure（段階的開示）として分離・集約されています。作業フェーズに合わせて各スキルを参照してください。
+> 開発フェーズに応じた詳細な実践手順書は、Customization Layer のプラグインスキル群（`.agents/plugins/antigravity-review-loop/skills/issue-lifecycle/`, `.agents/plugins/antigravity-review-loop/skills/dev-lifecycle/`, `.agents/plugins/antigravity-review-loop/skills/review-self-healing/`）に Progressive Disclosure（段階的開示）として分離・集約されています。作業フェーズに合わせて各スキルを参照してください。
 
 ---
 
@@ -13,7 +13,7 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
 1. **クリーンアーキテクチャの不可侵**:
    - `src/core/`（純粋ビジネスロジック: スコアリング、Markdown、プロンプト）は UI・外部依存ゼロ、100% 単体テスト可能を維持すること。
 2. **仕様正本 (Single Source of Truth: SSOT) の遵守**:
-   - システム仕様および ADR-0001〜0020 の統合正本は **`docs/architecture_overview.md`** および **`docs/adr/`** です。
+   - システム仕様および ADR-0001〜0022 の統合正本は **`docs/architecture_overview.md`** および **`docs/adr/`** です。
    - すべての Issue は **`docs/issues/`** 配下に 4 ファイル完結（`issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md`）で記録・保全すること。
    - ブランチ作成前には `pre_verification.md` にて重複・パッチワーク点検（Impact & Duplication Check）を必ず完了すること（Hookにより物理強制）。
 
