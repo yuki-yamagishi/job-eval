@@ -32,6 +32,7 @@ Antigravity（AGY）公式プラグイン仕様（`https://antigravity.google/do
 - **スキル内スクリプト参照の整合**: `.agents/plugins/antigravity-review-loop/skills/review-self-healing/SKILL.md` 内の旧パス（`.agents/skills/...`）を新プラグインパス（`.agents/plugins/antigravity-review-loop/...`）へ完全同期。
 - **Delegation Adapter 直接実行テストの配備**: `tests/harness/hooks.test.ts` に `.agents/hooks/*.js` の直接 CLI 実行（stdin/stdout JSON プロトコル）検証テストを追加。
 - **サブエージェント存在検査の拡充**: `scripts/checkers/agentSkillChecker.js` に `fleet_completion_auditor.md` の存在検査を追加。
+- **状態管理ファイルの Git 除外 & インデックス除去**: 状態管理ファイル（`loop_state.json`）の配置先移設に伴い、`.gitignore` に `.agents/**/state/*.json` を追加し、Git インデックスから `loop_state.json` を untrack 化。次期 Issue 着手時のワーキングツリー清浄度検査（`branchDoRGate` Step 1）における誤ブロックリスクを物理排除。
 
 ## 3. 検証結果
 
@@ -54,3 +55,4 @@ Antigravity（AGY）公式プラグイン仕様（`https://antigravity.google/do
 - **パス解決破損リスク**: Delegation Adapter と `findProjectRoot` により、セッション実行中の無停止移行と高い可搬性を両立。
 - **二重管理負債リスク**: 実装ロジックはプラグイン本体のみに存在し、アダプターは委譲のみを行うことで SSOT を完全維持。
 - **多重実行ハザードリスク**: アダプターとプラグインのインポート境界において、ダイレクト実行判定を厳格化して二重起動を物理排除。
+- **状態ファイル混入による DoR 閉塞リスク**: `.gitignore` の全階層対応と Git インデックスからの除去により、ワーキングツリーの恒常的清浄度を担保。
