@@ -14,7 +14,7 @@ description: Pull Request 作成、GitHub Actions CI 監視、Fleet レビュー
 1. **★【物理制約】PR 作成前最終監査 (Pre-PR Final Audit) の確認**:
    `gh pr create` 実行前に、以下が満たされている必要があります（満たされていない場合は `prePrAuditGate.js`（`pre-pr-audit-gate` フック）により物理ブロックされます）：
    - **4軸ドキュメントの完備**: `docs/issues/<Issue>/` 配下に `issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md` がすべて存在し、内容が記載されていること。
-   - **Pre-PR DoD（PR作成前受け入れ基準）の完全達成**: `issue.md` 内の「5.1. PR作成前完了基準 (Pre-PR DoD)」に未チェック項目（`- [ ]`）が残っていないこと（すべて `[x]` に更新済であること）。
+   - **Pre-PR DoD（PR作成前受け入れ基準）の完全達成**: `issue.md` 内の「5.2. PR作成前プロセス完了基準 (Pre-PR Process DoD)」（旧フォーマットでは 5.1）に未チェック項目（`- [ ]`）が残っていないこと（すべて `[x]` に更新済であること）。
    - **SSOT (`architecture_overview.md`) と最新 ADR の同期**: `docs/adr/` 配下の最新 ADR が `docs/architecture_overview.md` に登録・反映されていること。
 
 2. **PR 作成**:
@@ -42,8 +42,8 @@ description: Pull Request 作成、GitHub Actions CI 監視、Fleet レビュー
    ```
 2. **Fleet 2者の並行起動 (invoke_subagent)**:
    - Antigravity の `invoke_subagent` ツールを用い、以下の 2 体の専門サブエージェントを配列で**同時に並行起動**します：
-     - **`fleet_reviewer`**: コード品質・型安全性・セキュリティ・アーキテクチャ原則・デッドロック防止の専門レビュー
-     - **`fleet_completion_auditor`**: 批判的完了性・Why / 排除リスク・受け入れ基準（DoD）・やり残し・ユーザー視点での死角監査
+      - **`fleet_reviewer`**: コード品質・型安全性・セキュリティ・アーキテクチャ原則・デッドロック防止の専門レビュー
+      - **`fleet_completion_auditor`**: 批判的完了性・Why / 排除リスク・受け入れ基準（DoD）・やり残し監査。反例提示の義務化（Counterexample Obligation）に基づき、具体的な破綻シナリオが示せない場合は無理な指摘を禁止し、`[good]` を付与して速やかに合格判定を行う。また、PR 段階でのゴールポスト移動（後出し要求）を厳禁とする。
    - 各 Fleet は Conventional Comments 形式（`[must]`, `[should]`, `[imo]`, `[nits]`, `[ask]`, `[good]`）および JSON メタデータブロック（`agentType: "codeReviewer" | "completionAuditor"`, `verdict: "LGTM" | "REQUEST_CHANGES"`）を出力します。
 3. **Reactive Wakeup 待機**:
    - 親エージェントはツール呼び出しを行わずにターンを終了し、両 Fleet の完了通知を待ちます。

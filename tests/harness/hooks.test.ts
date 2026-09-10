@@ -386,7 +386,7 @@ describe('Lifecycle Hooks (antigravity-review-loop/hooks/)', () => {
       fs.mkdirSync(issueDir, { recursive: true });
       fs.writeFileSync(
         path.join(issueDir, 'issue.md'),
-        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nWhy details\n\n## 3. 排除するリスク\nRisk details\n'
+        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nWhy details\n\n## 3. 排除するリスク\nRisk details\n\n## 5. 受け入れ基準\n- [ ] 機能受け入れ基準および単体テストが正常に動作すること\n'
       );
       fs.writeFileSync(
         path.join(issueDir, 'pre_verification.md'),
@@ -432,13 +432,13 @@ describe('Lifecycle Hooks (antigravity-review-loop/hooks/)', () => {
         {
           toolCall: {
             name: 'run_command',
-            args: { CommandLine: 'git checkout -b feature/issue-999-nonexistent' },
+            args: { CommandLine: 'git checkout -b feature/issue-99999-nonexistent' },
           },
         },
         { execFn: mockExec, stateMachine: testMachine }
       );
       expect(result.decision).toBe('deny');
-      expect(result.reason).toContain('No issue document found for Issue #999');
+      expect(result.reason).toContain('No issue document found for Issue #99999');
     });
 
     it('denies branch creation if issue.md lacks Why or Risk sections', () => {
@@ -473,7 +473,7 @@ describe('Lifecycle Hooks (antigravity-review-loop/hooks/)', () => {
       fs.mkdirSync(issueDir, { recursive: true });
       fs.writeFileSync(
         path.join(issueDir, 'issue.md'),
-        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk'
+        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk\n\n## 5. 受け入れ基準\n- [ ] 機能受け入れ基準および単体テストが正常に動作すること\n'
       );
 
       try {
@@ -501,7 +501,7 @@ describe('Lifecycle Hooks (antigravity-review-loop/hooks/)', () => {
       fs.mkdirSync(issueDir, { recursive: true });
       fs.writeFileSync(
         path.join(issueDir, 'issue.md'),
-        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk'
+        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk\n\n## 5. 受け入れ基準\n- [ ] 機能受け入れ基準および単体テストが正常に動作すること\n'
       );
       fs.writeFileSync(
         path.join(issueDir, 'pre_verification.md'),
@@ -526,14 +526,108 @@ describe('Lifecycle Hooks (antigravity-review-loop/hooks/)', () => {
       }
     });
 
-    it('allows branch creation when tree is clean, state is IDLE, issue.md has Why/Risk, and pre_verification.md has Impact Check', () => {
+    it('denies branch creation if issue.md lacks concrete Acceptance Criteria', () => {
+      const mockExec = vi.fn().mockReturnValue('');
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'criteria-vague-'));
+      const issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
+      fs.mkdirSync(issueDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk\n\n## 5. 受け入れ基準\nEmpty header\n'
+      );
+      fs.writeFileSync(
+        path.join(issueDir, 'pre_verification.md'),
+        '# Pre Verification\n\n## 1. 日時\n2026-09-09\n\n## 3. 重複・パッチワーク点検 (Impact & Duplication Check)\n調査済み\n'
+      );
+
+      try {
+        const result = handleBranchDoRGate(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'git checkout -b feature/issue-99-test' },
+            },
+          },
+          { execFn: mockExec, stateMachine: testMachine, projectRoot: tempProject }
+        );
+        expect(result.decision).toBe('deny');
+        expect(result.reason).toContain('Acceptance Criteria in ISSUE-099_test/issue.md is empty or too vague');
+        expect(result.reason).toContain('fleet_dor_auditor');
+      } finally {
+        fs.rmSync(tempProject, { recursive: true, force: true });
+      }
+    });
+
+    it('denies branch creation if issue.md contains ambiguous terms in acceptance criteria', () => {
+      const mockExec = vi.fn().mockReturnValue('');
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'vague-terms-'));
+      const issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
+      fs.mkdirSync(issueDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk\n\n## 5. 受け入れ基準\n- [ ] スコアリングが適切に改善されること\n- [ ] 必要に応じてよしなに調整すること\n'
+      );
+      fs.writeFileSync(
+        path.join(issueDir, 'pre_verification.md'),
+        '# Pre Verification\n\n## 1. 日時\n2026-09-09\n\n## 3. 重複・パッチワーク点検 (Impact & Duplication Check)\n調査済み\n'
+      );
+
+      try {
+        const result = handleBranchDoRGate(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'git checkout -b feature/issue-99-test' },
+            },
+          },
+          { execFn: mockExec, stateMachine: testMachine, projectRoot: tempProject }
+        );
+        expect(result.decision).toBe('deny');
+        expect(result.reason).toContain('contains ambiguous terms');
+        expect(result.reason).toContain('fleet_dor_auditor');
+      } finally {
+        fs.rmSync(tempProject, { recursive: true, force: true });
+      }
+    });
+
+    it('allows branch creation when issue.md contains template guidance blockquotes but clean Given-When-Then scenarios', () => {
+      const mockExec = vi.fn().mockReturnValue('');
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'blockquote-clean-'));
+      const issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
+      fs.mkdirSync(issueDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk\n\n## 5. 受け入れ基準\n\n> ⚠️ **【重要】曖昧語の禁止**:\n> 「適切に」「よしなに」「必要に応じて」といった曖昧な言葉は使用禁止。\n\n- **シナリオ 1: 正常系**\n  - **Given**: 初期状態\n  - **When**: 実行\n  - **Then**: 期待結果\n'
+      );
+      fs.writeFileSync(
+        path.join(issueDir, 'pre_verification.md'),
+        '# Pre Verification\n\n## 1. 日時\n2026-09-09\n\n## 3. 重複・パッチワーク点検 (Impact & Duplication Check)\n既存コード調査済み。重複なし。'
+      );
+
+      try {
+        const result = handleBranchDoRGate(
+          {
+            toolCall: {
+              name: 'run_command',
+              args: { CommandLine: 'git checkout -b feature/issue-99-test' },
+            },
+          },
+          { execFn: mockExec, stateMachine: testMachine, projectRoot: tempProject }
+        );
+        expect(result.decision).toBe('allow');
+      } finally {
+        fs.rmSync(tempProject, { recursive: true, force: true });
+      }
+    });
+
+    it('allows branch creation when tree is clean, state is IDLE, issue.md has Why/Risk/Acceptance, and pre_verification.md has Impact Check', () => {
       const mockExec = vi.fn().mockReturnValue('');
       const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'why-pass-'));
       const issueDir = path.join(tempProject, 'docs/issues/ISSUE-099_test');
       fs.mkdirSync(issueDir, { recursive: true });
       fs.writeFileSync(
         path.join(issueDir, 'issue.md'),
-        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk'
+        '# Issue 99\n\n## 1. 解決すべき課題・背景 (Why)\nSome why\n\n## 3. 排除するリスク (Risks to Eliminate)\nSome risk\n\n## 5. 受け入れ基準\n- **シナリオ 1: 正常系**\n  - **Given**: 初期状態\n  - **When**: 実行\n  - **Then**: 期待結果\n'
       );
       fs.writeFileSync(
         path.join(issueDir, 'pre_verification.md'),
@@ -707,6 +801,45 @@ describe('Lifecycle Hooks (antigravity-review-loop/hooks/)', () => {
 
       expect(result.decision).toBe('deny');
       expect(result.reason).toContain('Pre-PR Audit Failed: Unchecked Pre-PR acceptance criteria (- [ ])');
+    });
+
+    it('denies gh pr create if new format 5.2 Pre-PR Process DoD has unchecked items when 5.1 is Given-When-Then', () => {
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 5. 受け入れ基準\n\n### 5.1. 機能受け入れシナリオ (Given-When-Then)\n- **シナリオ 1**\n  - **Given**: 初期状態\n  - **When**: 実行\n  - **Then**: 期待結果\n\n### 5.2. PR作成前プロセス完了基準 (Pre-PR Process DoD)\n- [x] Unit test passed\n- [ ] Quality gate not run\n\n### 5.3. マージ前完了ゲート (Pre-Merge Gate)\n- [ ] CI passed\n'
+      );
+
+      const result = handlePrePrAuditGate(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create --title "feat: test"' },
+          },
+        },
+        { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+      );
+
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toContain('Pre-PR Audit Failed: Unchecked Pre-PR acceptance criteria (- [ ])');
+    });
+
+    it('allows gh pr create when new format 5.2 Pre-PR Process DoD is completed even if 5.3 has unchecked items', () => {
+      fs.writeFileSync(
+        path.join(issueDir, 'issue.md'),
+        '# Issue 99\n\n## 5. 受け入れ基準\n\n### 5.1. 機能受け入れシナリオ (Given-When-Then)\n- **シナリオ 1**\n  - **Given**: 初期状態\n  - **When**: 実行\n  - **Then**: 期待結果\n\n### 5.2. PR作成前プロセス完了基準 (Pre-PR Process DoD)\n- [x] Unit test passed\n- [x] Quality gate passed\n\n### 5.3. マージ前完了ゲート (Pre-Merge Gate)\n- [ ] CI passed\n- [ ] Fleet review LGTM\n'
+      );
+
+      const result = handlePrePrAuditGate(
+        {
+          toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'gh pr create --title "feat: test"' },
+          },
+        },
+        { currentBranch: 'feature/issue-99-test', projectRoot: tempProject }
+      );
+
+      expect(result.decision).toBe('allow');
     });
 
     it('denies gh pr create if latest ADR is not synchronized in architecture_overview.md (SSOT)', () => {

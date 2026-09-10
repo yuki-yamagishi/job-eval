@@ -41,8 +41,8 @@ function verifyAcceptanceCriteriaCompleted(targetPath, targetIssueDir) {
   const issueMdContent = fs.readFileSync(path.resolve(targetPath, 'issue.md'), 'utf8');
 
   let prePrSection = issueMdContent;
-  // If 5.1 / Pre-PR DoD and 5.2 / Pre-Merge Gate sections exist, only audit Pre-PR DoD
-  const prePrMatch = issueMdContent.match(/###?\s*5\.1[^\n]*\n([\s\S]*?)(?=###?\s*5\.2|\n##\s|$)/i);
+  // Match Pre-PR DoD section specifically across both new (5.2 Pre-PR Process DoD) and legacy (5.1 Pre-PR DoD) formats
+  const prePrMatch = issueMdContent.match(/###?\s*(?:5\.[12])?[^\n]*(?:PR作成前|Pre-PR\s*DoD)[^\n]*\n([\s\S]*?)(?=###?\s*(?:5\.[23])?[^\n]*(?:マージ前|Pre-Merge)|\n##\s|$)/i);
   if (prePrMatch) {
     prePrSection = prePrMatch[1];
   } else {

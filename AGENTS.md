@@ -13,9 +13,9 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
 1. **クリーンアーキテクチャの不可侵**:
    - `src/core/`（純粋ビジネスロジック: スコアリング、Markdown、プロンプト）は UI・外部依存ゼロ、100% 単体テスト可能を維持すること。
 2. **仕様正本 (Single Source of Truth: SSOT) の遵守**:
-   - システム仕様および ADR-0001〜0022 の統合正本は **`docs/architecture_overview.md`** および **`docs/adr/`** です。
+   - システム仕様および ADR-0001〜0023 の統合正本は **`docs/architecture_overview.md`** および **`docs/adr/`** です。
    - すべての Issue は **`docs/issues/`** 配下に 4 ファイル完結（`issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md`）で記録・保全すること。
-   - ブランチ作成前には `pre_verification.md` にて重複・パッチワーク点検（Impact & Duplication Check）を必ず完了すること（Hookにより物理強制）。
+   - ブランチ作成前には `issue.md`（Why・排除リスク・Given-When-Then受入シナリオ）と `pre_verification.md`（重複点検）を完備し、`fleet_dor_auditor` による DoR 監査を受領すること（Hookにより物理強制）。
 
 ---
 
@@ -42,8 +42,9 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
    - **Outer Loop（プッシュ前・PR作成前・CI）**: 必ず `npm.cmd run check`（シークレットスキャン + ドキュメント検査 + 型検査 + 全単体テスト & カバレッジ + 本番ビルド）を実行し、全項目 100% PASS を確認すること。
 3. **PR 作成後の自動マージ厳禁**:
    - PR 発行直後の自動マージは厳禁。PR は必ず OPEN 状態を維持すること。
-4. **2者 Fleet 並行合議レビューの必須受領**:
+4. **2者 Fleet 並行合議レビューの必須受領 (ADR-0023)**:
    - PR 発行後、思考コンテキストを切り離した独立サブエージェント 2 体（`fleet_reviewer` と `fleet_completion_auditor`）を並行起動し、コード品質（How）と批判的完了性（Why / What）の両面から客観的レビューを受領して合議（両者 LGTM）を成立させること。
+   - 完了性監査は反例提示義務（Counterexample Obligation）およびゴールポスト移動禁止を遵守し、具体的な破綻シナリオがない言いがかり・過剰攻撃によるマージブロックを厳禁とする。
 5. **ループエンジニアリング完了定義 (DoD) & 早期停止ガード**:
    - ループ状態マシン（`loopState`）により、PR 作成後の早期停止・会話終了は物理的にブロックされる。
    - レビュー指摘の修正後、解決報告ツール `resolveReview` を実行し、さらに Fleet の再レビュー（Re-review）を受領して状態を `RESOLVED_LGTM` に収束させること（自己承認は物理禁止）。

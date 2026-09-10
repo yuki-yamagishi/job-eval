@@ -1,4 +1,4 @@
-# 実装成果レポートポインタ (Walkthrough Pointer)
+# 成果レポートポインタ (Walkthrough Pointer)
 
-現在進行中のフェーズの実装成果レポートは以下を参照してください：
-- [Issue #74 実装成果レポート (ISSUE-074_antigravity_plugin_packaging)](./issues/ISSUE-074_antigravity_plugin_packaging/walkthrough.md)
+現在進行中のフェーズの成果レポートは以下を参照してください：
+- [Issue #76 成果レポート (ISSUE-076_two_phase_completion_and_dor_audit)](./issues/ISSUE-076_two_phase_completion_and_dor_audit/walkthrough.md)
