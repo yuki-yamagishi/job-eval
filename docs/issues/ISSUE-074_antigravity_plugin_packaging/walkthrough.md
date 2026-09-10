@@ -15,6 +15,7 @@ Antigravity（AGY）公式プラグイン仕様（`https://antigravity.google/do
   - `hooks/`: 単一責務フックスクリプト群（`branchDoRGate.js`, `hookUtils.js`, `postPrCreate.js`, `prePrAuditGate.js`, `safetyGuard.js`, `stopHook.js`）
   - `skills/`: Customization Layer 専門スキル群（`issue-lifecycle/`, `dev-lifecycle/`, `review-self-healing/`）
   - `rules/`: ルールファイル（`single-command.md`）
+  - `agents/`: 同梱サブエージェント群（`fleet_reviewer.md`, `fleet_completion_auditor.md` - 公式 subagents 仕様準拠）
   - `state/`: 状態マシン（`loopState.js`, `loop_state.json`）
 
 ### 2.3 実行中セッション互換のための Delegation Adapter パターン
@@ -33,6 +34,7 @@ Antigravity（AGY）公式プラグイン仕様（`https://antigravity.google/do
 - **Delegation Adapter 直接実行テストの配備**: `tests/harness/hooks.test.ts` に `.agents/hooks/*.js` の直接 CLI 実行（stdin/stdout JSON プロトコル）検証テストを追加。
 - **サブエージェント存在検査の拡充**: `scripts/checkers/agentSkillChecker.js` に `fleet_completion_auditor.md` の存在検査を追加。
 - **状態管理ファイルの Git 除外 & インデックス除去**: 状態管理ファイル（`loop_state.json`）の配置先移設に伴い、`.gitignore` に `.agents/**/state/*.json` を追加し、Git インデックスから `loop_state.json` を untrack 化。次期 Issue 着手時のワーキングツリー清浄度検査（`branchDoRGate` Step 1）における誤ブロックリスクを物理排除。
+- **レビュー用サブエージェント群 (`agents/`) のプラグイン同梱**: `https://antigravity.google/docs/subagents/` の Bundled Plugin Package 仕様に準拠し、`fleet_reviewer.md` と `fleet_completion_auditor.md` を `.agents/plugins/antigravity-review-loop/agents/` 配下に完全カプセル化。稼働中セッション互換用の直下配置も維持し、`agentSkillChecker.js` で二重検証。
 
 ## 3. 検証結果
 

@@ -83,7 +83,8 @@ tests/                    # 自動テストハーネス (Vitest)
 本リポジトリは、Google Antigravity 公式仕様に準拠した **ワークスペースプラグイン (`.agents/plugins/antigravity-review-loop/`)** および **Customization Layer（カスタマイズ層）** を備えています。
 
 1. **公式プラグインパッケージング (ADR-0022)**:
-   - `.agents/plugins/antigravity-review-loop/`: `plugin.json`, `hooks.json`, `hooks/`, `skills/`, `rules/`, `state/` を単一の自己完結型プラグインとしてカプセル化。
+   - `.agents/plugins/antigravity-review-loop/`: `plugin.json`, `hooks.json`, `hooks/`, `skills/`, `rules/`, `agents/`, `state/` を単一の自己完結型プラグインとしてカプセル化。
+   - レビュー用サブエージェント（`fleet_reviewer.md`, `fleet_completion_auditor.md`）も公式 subagents 仕様に準拠してプラグイン配下の `agents/` に同梱。
    - セッション互換のための Delegation Adapter（`.agents/hooks/`）と動的ルート探索（`findProjectRoot`）により、実行中ランタイムの無破壊移行と高い可搬性を両立。
 2. **憲章とスキルの分離 (Progressive Disclosure)**:
    - `AGENTS.md`: 毎ターン読み込まれるコア憲章（DoD・絶対遵守事項・アーキテクチャ不可侵原則）。

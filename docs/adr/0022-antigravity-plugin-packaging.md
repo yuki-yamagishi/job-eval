@@ -51,9 +51,12 @@ Antigravity 公式仕様に基づき、自律レビューループ機構全体�
 │       └── SKILL.md
 ├── rules/            # ルール群
 │   └── single-command.md
+├── agents/           # 同梱サブエージェント群 (公式 subagents 仕様準拠)
+│   ├── fleet_reviewer.md
+│   └── fleet_completion_auditor.md
 └── state/            # 状態マシン
     ├── loopState.js
-    └── loop_state.json
+    └── loop_state.json (git無視)
 ```
 
 ### 2.2 `plugin.json` マニフェストの配備
@@ -73,13 +76,20 @@ Antigravity IDE ランタイムはセッション起動時に `.agents/hooks.jso
 
 ### 2.4 テストスイート・チェッカーのプラグイン配下への直接追随
 - ハーネステスト（`tests/harness/*.test.ts`）は、新プラグイン配下のスクリプトを直接インポート・検証する形に更新する。
-- チェッカー（`scripts/checkers/agentSkillChecker.js`）は、公式プラグインマニフェスト（`plugin.json`）およびプラグイン配下のスキル群の完全性を検証するよう更新する。
+- チェッカー（`scripts/checkers/agentSkillChecker.js`）は、公式プラグインマニフェスト（`plugin.json`）、プラグイン配下のスキル群、および同梱サブエージェント群の完全性を検証するよう更新する。
+
+### 2.5 レビュー用サブエージェント群 (`agents/`) のプラグイン同梱
+Antigravity 公式サブエージェント仕様（`https://antigravity.google/docs/subagents/`）の「Agent Location and Discovery」に基づき、プラグイン配下の `agents/`（スコープ: `Bundled Plugin Package`）は自動ディスカバリー対象として正式にサポートされている。
+自律レビューループ機構を完全かつ自己完結したパッケージとして配布可能とするため、レビュー用サブエージェント 2 者（`fleet_reviewer.md`, `fleet_completion_auditor.md`）を `.agents/plugins/antigravity-review-loop/agents/` 配下にカプセル化する。
+- **SSOT の一元化**: コード品質担当（`fleet_reviewer`）および完了性監査担当（`fleet_completion_auditor`）のペルソナ定義正本をプラグイン配下に集約。
+- **後方互換性**: 稼働中セッションの直下探索に対応するため、`.agents/agents/` にも互換配置を保持。
+- **自動検査**: `scripts/checkers/agentSkillChecker.js` により、プラグイン同梱エージェントおよび互換配置の両方の存在を常時自動検証。
 
 ---
 
 ## 3. 結果・影響 (Consequences)
 
 ### ポジティブな影響
-- **公式仕様準拠とディスカバリー**: Antigravity 2.0 のプラグインディスカバリー仕様に 100% 準拠し、ワークスペースプラグインとして自動認識される。
-- **再利用性・可搬性の極大化**: `antigravity-review-loop` フォルダごと別プロジェクトの `.agents/plugins/`（またはグローバル `~/.gemini/config/plugins/`）へ配置するだけで、同一の自律レビューループとガバナンス機構を容易に展開可能になった。
-- **高い堅牢性とゼロ回帰**: 全 212 単体テストおよび E2E 統合テストが 100% PASS しており、既存の品質ガードレール・安全制約が何一つ損なわれずに維持されている。
+- **公式仕様準拠とディスカバリー**: Antigravity 2.0 のプラグインディスカバリー仕様（Plugins & Subagents）に 100% 準拠し、ワークスペースプラグインとして自動認識される。
+- **完全な自己完結性・可搬性**: レビューループに必要な全要素（Hooks, Skills, Rules, State, Agents）が 1 フォルダに集約され、他プロジェクトへの配布が極めて容易になった。
+- **高い堅牢性とゼロ回帰**: 全単体テストおよび E2E 統合テストが 100% PASS しており、既存の品質ガードレール・安全制約が何一つ損なわれずに維持されている。
