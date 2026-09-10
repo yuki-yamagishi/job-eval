@@ -68,11 +68,11 @@ Antigravity 公式仕様に基づき、自律レビューループ機構全体�
 }
 ```
 
-### 2.3 実行中セッション互換のための Delegation Adapter パターン
-Antigravity IDE ランタイムはセッション起動時に `.agents/hooks.json` のコマンドパスをキャッシュしているため、プラグイン配下へ移設した際に実行時エラーとならないよう、`.agents/hooks/` に薄い Delegation Adapter を配備する。
-- すべての検証・制御ロジックの Single Source of Truth（SSOT）はプラグイン本体（`.agents/plugins/antigravity-review-loop/hooks/`）に置く。
-- `.agents/hooks/*.js` はプラグイン側のハンドラーをインポートして呼び出す委譲コードのみとし、重複実装（パッチワーク）を排除する。
-- フック内のプロジェクトルート解決には、階層固定の相対パス（`../..`）ではなく、`package.json` および `.git` を動的探索する `findProjectRoot` を導入し、配置階層の変更に対する堅牢性を担保する。
+### 2.3 直下互換層の完全撤廃と純粋プラグイン一本化
+移行初期に稼働中ランタイムのキャッシュ互換のために設けていた過渡的な直下アダプター（`.agents/hooks/`）およびフォワーダー（`.agents/state/loopState.js`）は、二重構造の解消および Antigravity 公式仕様への完全一本化のため完全に撤廃した。
+- すべての検証・制御ロジックの Single Source of Truth（SSOT）はプラグイン本体（`.agents/plugins/antigravity-review-loop/`）に一元化。
+- `.agents/` 直下には `plugins/` のみが存在し、プラグイン自己完結性（Self-containment）を 100% 達成。
+- フック内のプロジェクトルート解決には、`package.json` および `.git` を動的探索する `findProjectRoot` を採用し、配置階層に依存しない堅牢性を担保。
 
 ### 2.4 テストスイート・チェッカーのプラグイン配下への直接追随
 - ハーネステスト（`tests/harness/*.test.ts`）は、新プラグイン配下のスクリプトを直接インポート・検証する形に更新する。
@@ -82,8 +82,8 @@ Antigravity IDE ランタイムはセッション起動時に `.agents/hooks.jso
 Antigravity 公式サブエージェント仕様（`https://antigravity.google/docs/subagents/`）の「Agent Location and Discovery」に基づき、プラグイン配下の `agents/`（スコープ: `Bundled Plugin Package`）は自動ディスカバリー対象として正式にサポートされている。
 自律レビューループ機構を完全かつ自己完結したパッケージとして配布可能とするため、レビュー用サブエージェント 2 者（`fleet_reviewer.md`, `fleet_completion_auditor.md`）を `.agents/plugins/antigravity-review-loop/agents/` 配下にカプセル化する。
 - **SSOT の一元化**: コード品質担当（`fleet_reviewer`）および完了性監査担当（`fleet_completion_auditor`）のペルソナ定義正本をプラグイン配下に集約。
-- **後方互換性**: 稼働中セッションの直下探索に対応するため、`.agents/agents/` にも互換配置を保持。
-- **自動検査**: `scripts/checkers/agentSkillChecker.js` により、プラグイン同梱エージェントおよび互換配置の両方の存在を常時自動検証。
+- **純粋プラグイン配置**: 直下の `.agents/agents/` は撤廃し、公式仕様（Bundled Plugin Package: `antigravity-review-loop/agents/`）配下に完全一本化。
+- **自動検査**: `scripts/checkers/agentSkillChecker.js` により、プラグイン同梱エージェント（`fleet_reviewer.md`, `fleet_completion_auditor.md`）の存在を常時自動検証。
 
 ---
 

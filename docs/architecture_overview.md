@@ -74,7 +74,7 @@ tests/                    # 自動テストハーネス (Vitest)
 | [ADR-0019](./adr/0019-multi-agent-review-consortium.md) | Fleet レビュー体制の 2 者合議制（コード品質担当 ＋ 批判的完了性監査担当）への拡張 | **Accepted** | 2者 Fleet の責任分離（コード品質・型・セキュリティ担当 `fleet_reviewer` ＋ 批判的完了性・Why・排除リスク監査担当 `fleet_completion_auditor`）と両者合議判定ゲート（Consortium Gate）。 |
 | [ADR-0020](./adr/0020-fast-inner-loop-and-pre-impact-check.md) | 高速 Inner Loop（単体反復）の確立と着手前 Impact & Duplication Check 物理検査の採用 | **Accepted** | Inner Loop（`check:fast`, `test:related`）と Outer Loop（Git Hook & CI）の明確な分離、および PreToolHook Block 3D による着手前 Impact Check の物理強制。 |
 | [ADR-0021](./adr/0021-lifecycle-hooks-modular-separation.md) | AGY公式仕様に準拠したライフサイクルフックの責務分離とモジュール化アーキテクチャの採用 | **Accepted** | AGY公式準拠の名前付きフック分割（safety-guard, branch-dor-gate, pre-pr-audit-gate, review-loop-guard）とハンドラーモジュール化によるプラグイン化下準備。 |
-| [ADR-0022](./adr/0022-antigravity-plugin-packaging.md) | Antigravity公式仕様に準拠した自律レビューループ機構のプラグイン化パッケージング | **Accepted** | 自律レビューループ機構全体を公式プラグイン仕様準拠の `.agents/plugins/antigravity-review-loop/` 配下にカプセル化し、Delegation Adapter による完全後方互換性と他プロジェクトへの移植性を確立。 |
+| [ADR-0022](./adr/0022-antigravity-plugin-packaging.md) | Antigravity公式仕様に準拠した自律レビューループ機構のプラグイン化パッケージング | **Accepted** | 自律レビューループ機構全体を公式プラグイン仕様準拠の `.agents/plugins/antigravity-review-loop/` 配下にカプセル化・完全一本化し、直下互換層を完全撤廃して自己完結性と他プロジェクトへの移植性を確立。 |
 
 ---
 
@@ -85,7 +85,7 @@ tests/                    # 自動テストハーネス (Vitest)
 1. **公式プラグインパッケージング (ADR-0022)**:
    - `.agents/plugins/antigravity-review-loop/`: `plugin.json`, `hooks.json`, `hooks/`, `skills/`, `rules/`, `agents/`, `state/` を単一の自己完結型プラグインとしてカプセル化。
    - レビュー用サブエージェント（`fleet_reviewer.md`, `fleet_completion_auditor.md`）も公式 subagents 仕様に準拠してプラグイン配下の `agents/` に同梱。
-   - セッション互換のための Delegation Adapter（`.agents/hooks/`）と動的ルート探索（`findProjectRoot`）により、実行中ランタイムの無破壊移行と高い可搬性を両立。
+   - 直下の過渡的互換アダプターを完全撤廃し、純粋なプラグイン一本化（`.agents/` 直下は `plugins/` のみ）を達成。動的ルート探索（`findProjectRoot`）により高い可搬性を実現。
 2. **憲章とスキルの分離 (Progressive Disclosure)**:
    - `AGENTS.md`: 毎ターン読み込まれるコア憲章（DoD・絶対遵守事項・アーキテクチャ不可侵原則）。
    - プラグインスキル群: 各フェーズに応じた 3 つの単一責務スキル（`issue-lifecycle`, `dev-lifecycle`, `review-self-healing`）をオンデマンドで段階的開示。

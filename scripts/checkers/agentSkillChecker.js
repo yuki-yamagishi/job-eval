@@ -17,8 +17,6 @@ export function checkAgentSkillIntegrity(projectRoot) {
   const reviewSkillPath = path.resolve(projectRoot, '.agents/plugins/antigravity-review-loop/skills/review-self-healing/SKILL.md');
   const pluginFleetAgentPath = path.resolve(projectRoot, '.agents/plugins/antigravity-review-loop/agents/fleet_reviewer.md');
   const pluginFleetAuditorPath = path.resolve(projectRoot, '.agents/plugins/antigravity-review-loop/agents/fleet_completion_auditor.md');
-  const compatFleetAgentPath = path.resolve(projectRoot, '.agents/agents/fleet_reviewer.md');
-  const compatFleetAuditorPath = path.resolve(projectRoot, '.agents/agents/fleet_completion_auditor.md');
 
   if (!fs.existsSync(agentsPath)) {
     console.error('\n❌ [エージェント規約欠落] AGENTS.md がプロジェクト直下に存在しません。');
@@ -48,8 +46,6 @@ export function checkAgentSkillIntegrity(projectRoot) {
   const agentsToCheck = [
     { path: pluginFleetAgentPath, name: 'プラグイン同梱 Fleet レビュアー (antigravity-review-loop/agents/fleet_reviewer.md)' },
     { path: pluginFleetAuditorPath, name: 'プラグイン同梱 Fleet 完了性監査 (antigravity-review-loop/agents/fleet_completion_auditor.md)' },
-    { path: compatFleetAgentPath, name: '互換用 Fleet レビュアー (.agents/agents/fleet_reviewer.md)' },
-    { path: compatFleetAuditorPath, name: '互換用 Fleet 完了性監査 (.agents/agents/fleet_completion_auditor.md)' },
   ];
 
   for (const a of agentsToCheck) {

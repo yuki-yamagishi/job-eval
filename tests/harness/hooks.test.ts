@@ -10,7 +10,7 @@ import { handleBranchDoRGate } from '../../.agents/plugins/antigravity-review-lo
 import { handlePrePrAuditGate } from '../../.agents/plugins/antigravity-review-loop/hooks/prePrAuditGate.js';
 import { handlePostPrCreate } from '../../.agents/plugins/antigravity-review-loop/hooks/postPrCreate.js';
 
-describe('Lifecycle Hooks (.agents/hooks/)', () => {
+describe('Lifecycle Hooks (antigravity-review-loop/hooks/)', () => {
   let tempDir: string;
   let testStateFile: string;
   let testMachine: LoopStateMachine;
@@ -31,7 +31,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     }
   });
 
-  describe('stopHook (.agents/hooks/stopHook.js)', () => {
+  describe('stopHook (antigravity-review-loop/hooks/stopHook.js)', () => {
     it('allows stop when status is IDLE', () => {
       const result = handleStop({}, testMachine);
       expect(result.decision).toBe('allow');
@@ -180,7 +180,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
   });
 
-  describe('safetyGuard (.agents/hooks/safetyGuard.js)', () => {
+  describe('safetyGuard (antigravity-review-loop/hooks/safetyGuard.js)', () => {
     it('allows non-command tools', () => {
       const result = handleSafetyGuard({
         toolCall: {
@@ -354,7 +354,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
   });
 
-  describe('branchDoRGate (.agents/hooks/branchDoRGate.js)', () => {
+  describe('branchDoRGate (antigravity-review-loop/hooks/branchDoRGate.js)', () => {
     it('allows non-branch commands immediately', () => {
       const result = handleBranchDoRGate({
         toolCall: {
@@ -573,7 +573,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
   });
 
-  describe('prePrAuditGate (.agents/hooks/prePrAuditGate.js)', () => {
+  describe('prePrAuditGate (antigravity-review-loop/hooks/prePrAuditGate.js)', () => {
     let tempProject: string;
     let issueDir: string;
     let adrDir: string;
@@ -758,7 +758,7 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
     });
   });
 
-  describe('postPrCreate (.agents/hooks/postPrCreate.js)', () => {
+  describe('postPrCreate (antigravity-review-loop/hooks/postPrCreate.js)', () => {
     it('ignores failed commands with error', () => {
       const result = handlePostPrCreate(
         {
@@ -852,95 +852,5 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       expect(parsed).toEqual({});
     });
   });
-
-  describe('Delegation Adapters (.agents/hooks/*.js)', () => {
-    const adaptersDir = path.resolve(__dirname, '../../.agents/hooks');
-
-    it('safetyGuard adapter executes directly and delegates properly', () => {
-      const adapterPath = path.join(adaptersDir, 'safetyGuard.js');
-      const allowPayload = JSON.stringify({
-        toolCall: {
-          name: 'run_command',
-          args: { CommandLine: 'git status' },
-        },
-      });
-      const allowStdout = execSync(`node "${adapterPath}"`, {
-        input: allowPayload,
-        encoding: 'utf8',
-      });
-      expect(JSON.parse(allowStdout.trim())).toEqual({ decision: 'allow' });
-
-      const denyPayload = JSON.stringify({
-        toolCall: {
-          name: 'run_command',
-          args: { CommandLine: 'gh pr merge 1' },
-        },
-      });
-      const denyStdout = execSync(`node "${adapterPath}"`, {
-        input: denyPayload,
-        encoding: 'utf8',
-      });
-      const denyResult = JSON.parse(denyStdout.trim());
-      expect(denyResult.decision).toBe('deny');
-      expect(denyResult.reason).toContain('gh pr merge');
-    });
-
-    it('branchDoRGate adapter executes directly and delegates properly', () => {
-      const adapterPath = path.join(adaptersDir, 'branchDoRGate.js');
-      const payload = JSON.stringify({
-        toolCall: {
-          name: 'run_command',
-          args: { CommandLine: 'git status' },
-        },
-      });
-      const stdout = execSync(`node "${adapterPath}"`, {
-        input: payload,
-        encoding: 'utf8',
-      });
-      expect(JSON.parse(stdout.trim())).toEqual({ decision: 'allow' });
-    });
-
-    it('prePrAuditGate adapter executes directly and delegates properly', () => {
-      const adapterPath = path.join(adaptersDir, 'prePrAuditGate.js');
-      const payload = JSON.stringify({
-        toolCall: {
-          name: 'run_command',
-          args: { CommandLine: 'git status' },
-        },
-      });
-      const stdout = execSync(`node "${adapterPath}"`, {
-        input: payload,
-        encoding: 'utf8',
-      });
-      expect(JSON.parse(stdout.trim())).toEqual({ decision: 'allow' });
-    });
-
-    it('postPrCreate adapter executes directly and delegates properly', () => {
-      const adapterPath = path.join(adaptersDir, 'postPrCreate.js');
-      const payload = JSON.stringify({
-        toolCall: {
-          name: 'run_command',
-          args: { CommandLine: 'git status' },
-        },
-      });
-      const stdout = execSync(`node "${adapterPath}"`, {
-        input: payload,
-        encoding: 'utf8',
-      });
-      expect(JSON.parse(stdout.trim())).toEqual({});
-    });
-
-    it('stopHook adapter executes directly and delegates properly', () => {
-      const adapterPath = path.join(adaptersDir, 'stopHook.js');
-      const payload = JSON.stringify({
-        fullyIdle: true,
-      });
-      const stdout = execSync(`node "${adapterPath}"`, {
-        input: payload,
-        encoding: 'utf8',
-      });
-      const parsed = JSON.parse(stdout.trim());
-      expect(parsed.decision).toBeDefined();
-    });
-  });
 });
+
