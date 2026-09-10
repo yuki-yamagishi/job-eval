@@ -12,7 +12,7 @@ description: Pull Request 作成、GitHub Actions CI 監視、Fleet レビュー
 ## 1. PR 作成 & 早期停止ガード発動
 
 1. **★【物理制約】PR 作成前最終監査 (Pre-PR Final Audit) の確認**:
-   `gh pr create` 実行前に、以下が満たされている必要があります（満たされていない場合は `preToolHook` (Block 4) により物理ブロックされます）：
+   `gh pr create` 実行前に、以下が満たされている必要があります（満たされていない場合は `prePrAuditGate.js`（`pre-pr-audit-gate` フック）により物理ブロックされます）：
    - **4軸ドキュメントの完備**: `docs/issues/<Issue>/` 配下に `issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md` がすべて存在し、内容が記載されていること。
    - **Pre-PR DoD（PR作成前受け入れ基準）の完全達成**: `issue.md` 内の「5.1. PR作成前完了基準 (Pre-PR DoD)」に未チェック項目（`- [ ]`）が残っていないこと（すべて `[x]` に更新済であること）。
    - **SSOT (`architecture_overview.md`) と最新 ADR の同期**: `docs/adr/` 配下の最新 ADR が `docs/architecture_overview.md` に登録・反映されていること。
@@ -22,7 +22,7 @@ description: Pull Request 作成、GitHub Actions CI 監視、Fleet レビュー
    gh pr create --title "<タイトル>" --body-file <一時ファイル>
    ```
    - PR 本文には `Closes #<Issue番号>` を必ず含める。
-   - `postToolHook.js` が PR 作成を自動検知し、`loopState.js` の状態が `PR_CREATED` に遷移します。
+   - `postPrCreate.js` が PR 作成を自動検知し、`loopState.js` の状態が `PR_CREATED` に遷移します。
    - この時点で Stop フック（`stopHook.js`）による早期停止ガードが有効になります。
 
 3. **★【必須】リモート CI (GitHub Actions) の待機 & 監視**:
@@ -87,7 +87,7 @@ description: Pull Request 作成、GitHub Actions CI 監視、Fleet レビュー
 
 1. **人間（ユーザー）への報告**:
    - 全指摘解消と総合判定 `[LGTM (All Resolved)]` を確認し、ユーザーにマージを依頼します。
-   - **【最重要】PR のマージは人間（ユーザー）が実施します。エージェント自身が `gh pr merge` を実行することは `preToolHook` により禁止されています。**
+   - **【最重要】PR のマージは人間（ユーザー）が実施します。エージェント自身が `gh pr merge` を実行することは `safetyGuard.js`（`safety-guard` フック）により物理禁止されています。**
 2. **状態リセット**:
    マージ完了後、ループ状態をリセットします：
    ```bash

@@ -96,4 +96,5 @@ tests/                    # 自動テストハーネス (Vitest)
    - 人間向け（意思決定・承認）は完全日本語で記述し、エージェント向け（内部制御・修復指示）は英語に完全統一してトークン効率と指示追従性を最大化。
 5. **Inner Loop と Outer Loop の分離 & 着手前 Impact Check (ADR-0020)**:
    - Inner Loop は型検査（`check:fast`）や関連テスト（`test:related`）などミリ秒単位の高速反復に純化。全量検査は Git Pre-Push Hook と CI に集約。
-   - ブランチ作成時に PreToolHook (Block 3D) が事前検証記録（`pre_verification.md`）と重複・パッチワーク点検（Impact & Duplication Check）の完了を物理検査。
+   - ブランチ作成時に `branchDoRGate.js`（`branch-dor-gate` フック）が事前検証記録（`pre_verification.md`）と重複・パッチワーク点検（Impact & Duplication Check）の完了を物理検査。
+
