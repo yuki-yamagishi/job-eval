@@ -852,4 +852,95 @@ describe('Lifecycle Hooks (.agents/hooks/)', () => {
       expect(parsed).toEqual({});
     });
   });
+
+  describe('Delegation Adapters (.agents/hooks/*.js)', () => {
+    const adaptersDir = path.resolve(__dirname, '../../.agents/hooks');
+
+    it('safetyGuard adapter executes directly and delegates properly', () => {
+      const adapterPath = path.join(adaptersDir, 'safetyGuard.js');
+      const allowPayload = JSON.stringify({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'git status' },
+        },
+      });
+      const allowStdout = execSync(`node "${adapterPath}"`, {
+        input: allowPayload,
+        encoding: 'utf8',
+      });
+      expect(JSON.parse(allowStdout.trim())).toEqual({ decision: 'allow' });
+
+      const denyPayload = JSON.stringify({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'gh pr merge 1' },
+        },
+      });
+      const denyStdout = execSync(`node "${adapterPath}"`, {
+        input: denyPayload,
+        encoding: 'utf8',
+      });
+      const denyResult = JSON.parse(denyStdout.trim());
+      expect(denyResult.decision).toBe('deny');
+      expect(denyResult.reason).toContain('gh pr merge');
+    });
+
+    it('branchDoRGate adapter executes directly and delegates properly', () => {
+      const adapterPath = path.join(adaptersDir, 'branchDoRGate.js');
+      const payload = JSON.stringify({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'git status' },
+        },
+      });
+      const stdout = execSync(`node "${adapterPath}"`, {
+        input: payload,
+        encoding: 'utf8',
+      });
+      expect(JSON.parse(stdout.trim())).toEqual({ decision: 'allow' });
+    });
+
+    it('prePrAuditGate adapter executes directly and delegates properly', () => {
+      const adapterPath = path.join(adaptersDir, 'prePrAuditGate.js');
+      const payload = JSON.stringify({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'git status' },
+        },
+      });
+      const stdout = execSync(`node "${adapterPath}"`, {
+        input: payload,
+        encoding: 'utf8',
+      });
+      expect(JSON.parse(stdout.trim())).toEqual({ decision: 'allow' });
+    });
+
+    it('postPrCreate adapter executes directly and delegates properly', () => {
+      const adapterPath = path.join(adaptersDir, 'postPrCreate.js');
+      const payload = JSON.stringify({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'git status' },
+        },
+      });
+      const stdout = execSync(`node "${adapterPath}"`, {
+        input: payload,
+        encoding: 'utf8',
+      });
+      expect(JSON.parse(stdout.trim())).toEqual({});
+    });
+
+    it('stopHook adapter executes directly and delegates properly', () => {
+      const adapterPath = path.join(adaptersDir, 'stopHook.js');
+      const payload = JSON.stringify({
+        fullyIdle: true,
+      });
+      const stdout = execSync(`node "${adapterPath}"`, {
+        input: payload,
+        encoding: 'utf8',
+      });
+      const parsed = JSON.parse(stdout.trim());
+      expect(parsed.decision).toBeDefined();
+    });
+  });
 });

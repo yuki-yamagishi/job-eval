@@ -178,8 +178,7 @@ export function handleBranchDoRGate(payload = {}, options = {}) {
 }
 
 const isDirectExecution = process.argv[1] && 
-  (fileURLToPath(import.meta.url).toLowerCase() === path.resolve(process.argv[1]).toLowerCase() ||
-   process.argv[1].toLowerCase().endsWith('branchdorgate.js'));
+  (fileURLToPath(import.meta.url).toLowerCase() === path.resolve(process.argv[1]).toLowerCase());
 
 if (isDirectExecution) {
   readStdinJson().then((payload) => {

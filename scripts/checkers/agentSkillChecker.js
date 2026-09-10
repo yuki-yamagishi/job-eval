@@ -16,6 +16,7 @@ export function checkAgentSkillIntegrity(projectRoot) {
   const devSkillPath = path.resolve(projectRoot, '.agents/plugins/antigravity-review-loop/skills/dev-lifecycle/SKILL.md');
   const reviewSkillPath = path.resolve(projectRoot, '.agents/plugins/antigravity-review-loop/skills/review-self-healing/SKILL.md');
   const fleetAgentPath = path.resolve(projectRoot, '.agents/agents/fleet_reviewer.md');
+  const fleetAuditorPath = path.resolve(projectRoot, '.agents/agents/fleet_completion_auditor.md');
 
   if (!fs.existsSync(agentsPath)) {
     console.error('\n❌ [エージェント規約欠落] AGENTS.md がプロジェクト直下に存在しません。');
@@ -42,11 +43,18 @@ export function checkAgentSkillIntegrity(projectRoot) {
     }
   }
 
-  if (!fs.existsSync(fleetAgentPath)) {
-    console.error('\n❌ [サブエージェント定義欠落] .agents/agents/fleet_reviewer.md が存在しません。');
-    hasError = true;
-  } else {
-    console.log('    ✓ Fleet レビュアー公式サブエージェント (.agents/agents/fleet_reviewer.md): 構成確認済');
+  const agentsToCheck = [
+    { path: fleetAgentPath, name: 'Fleet レビュアー公式サブエージェント (.agents/agents/fleet_reviewer.md)' },
+    { path: fleetAuditorPath, name: 'Fleet 完了性監査公式サブエージェント (.agents/agents/fleet_completion_auditor.md)' },
+  ];
+
+  for (const a of agentsToCheck) {
+    if (!fs.existsSync(a.path)) {
+      console.error(`\n❌ [サブエージェント定義欠落] ${a.name} が存在しません。`);
+      hasError = true;
+    } else {
+      console.log(`    ✓ ${a.name}: 構成確認済`);
+    }
   }
 
   const agentsContent = fs.readFileSync(agentsPath, 'utf-8');

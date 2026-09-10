@@ -1,12 +1,86 @@
 {
-  "status": "IDLE",
-  "prNumber": null,
-  "reviewRequestedAt": null,
+  "status": "NEEDS_FIX",
+  "prNumber": 75,
+  "reviewRequestedAt": "2026-09-10T01:21:16.274Z",
   "reviews": {
-    "codeReviewer": null,
-    "completionAuditor": null
+    "codeReviewer": {
+      "verdict": "REQUEST_CHANGES",
+      "issues": [
+        {
+          "id": "issue-1",
+          "source": "codeReviewer",
+          "type": "must",
+          "description": "`review-self-healing/SKILL.md` 内の実行スクリプトパスの不整合・破損**:",
+          "resolved": false,
+          "resolvedCommit": null
+        },
+        {
+          "id": "issue-2",
+          "source": "codeReviewer",
+          "type": "should",
+          "description": "プラグインフックと Delegation Adapter 間の多重実行（Dual-Execution）ハザード**:",
+          "resolved": false,
+          "resolvedCommit": null
+        },
+        {
+          "id": "issue-3",
+          "source": "codeReviewer",
+          "type": "should",
+          "description": "Delegation Adapter（`.agents/hooks/*.js`）の直接実行テストの追加**:",
+          "resolved": false,
+          "resolvedCommit": null
+        },
+        {
+          "id": "issue-4",
+          "source": "codeReviewer",
+          "type": "nits",
+          "description": "`scripts/checkers/agentSkillChecker.js` における合議制サブエージェントの検証拡充**:",
+          "resolved": false,
+          "resolvedCommit": null
+        }
+      ],
+      "reviewedAt": "2026-09-10T01:25:21.686Z"
+    },
+    "completionAuditor": {
+      "verdict": "LGTM",
+      "issues": [],
+      "reviewedAt": "2026-09-10T01:25:24.628Z"
+    }
   },
-  "issues": [],
+  "issues": [
+    {
+      "id": "issue-1",
+      "source": "codeReviewer",
+      "type": "must",
+      "description": "`review-self-healing/SKILL.md` 内の実行スクリプトパスの不整合・破損**:",
+      "resolved": false,
+      "resolvedCommit": null
+    },
+    {
+      "id": "issue-2",
+      "source": "codeReviewer",
+      "type": "should",
+      "description": "プラグインフックと Delegation Adapter 間の多重実行（Dual-Execution）ハザード**:",
+      "resolved": false,
+      "resolvedCommit": null
+    },
+    {
+      "id": "issue-3",
+      "source": "codeReviewer",
+      "type": "should",
+      "description": "Delegation Adapter（`.agents/hooks/*.js`）の直接実行テストの追加**:",
+      "resolved": false,
+      "resolvedCommit": null
+    },
+    {
+      "id": "issue-4",
+      "source": "codeReviewer",
+      "type": "nits",
+      "description": "`scripts/checkers/agentSkillChecker.js` における合議制サブエージェントの検証拡充**:",
+      "resolved": false,
+      "resolvedCommit": null
+    }
+  ],
   "activeSubagents": false,
-  "updatedAt": "2026-09-10T01:13:00.232Z"
+  "updatedAt": "2026-09-10T01:25:24.628Z"
 }
