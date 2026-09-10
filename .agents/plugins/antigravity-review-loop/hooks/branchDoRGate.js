@@ -55,7 +55,7 @@ function verifyLoopStateIdle(stateMachine) {
 }
 
 /**
- * Step 3: Validates Why-First & Risk Elimination definitions in issue.md.
+ * Step 3: Validates Why-First, Risk Elimination, and Acceptance Criteria definitions in issue.md.
  */
 function verifyWhyAndRiskSections(issuesDir, targetIssueDir) {
   const issueMdPath = path.resolve(issuesDir, targetIssueDir, 'issue.md');
@@ -69,15 +69,45 @@ function verifyWhyAndRiskSections(issuesDir, targetIssueDir) {
   const issueContent = fs.readFileSync(issueMdPath, 'utf8');
   const hasWhySection = /##\s+(?:\d+\.\s+)?(?:解決すべき課題・背景|解決する課題・背景)\s*(?:\([^)]*Why[^)]*\))?/i.test(issueContent);
   const hasRiskSection = /##\s+(?:\d+\.\s+)?(?:排除するリスク)\s*(?:\([^)]*Risks?[^)]*\))?/i.test(issueContent);
+  const hasCriteriaSection = /##\s+(?:\d+\.\s+)?(?:受け入れ基準|受入基準|(?:Acceptance Criteria|Definition of Done|DoD)\b)/i.test(issueContent);
 
-  if (!hasWhySection || !hasRiskSection) {
+  if (!hasWhySection || !hasRiskSection || !hasCriteriaSection) {
     const missing = [];
     if (!hasWhySection) missing.push("'Why (Background & Problem)'");
     if (!hasRiskSection) missing.push("'Risks to Eliminate'");
+    if (!hasCriteriaSection) missing.push("'Acceptance Criteria / Definition of Done'");
     return {
       decision: 'deny',
-      reason: `[BranchDoRGate Denied] Missing required sections in ${targetIssueDir}/issue.md: ${missing.join(', ')}. Define the root problem (Why) and risks before jumping into implementation (What). (Remediation Guidance: Refer to 'docs/issues/template_issue.md' and add the required sections.)`,
+      reason: `[BranchDoRGate Denied] Missing required sections in ${targetIssueDir}/issue.md: ${missing.join(', ')}. Define the root problem (Why), risks, and concrete acceptance criteria before jumping into implementation (What). (Remediation Guidance: Refer to 'docs/issues/template_issue.md' and add the required sections.)`,
     };
+  }
+
+  // Verify that Acceptance Criteria contains concrete scenarios or checklists (not just empty headers)
+  const criteriaMatch = issueContent.match(/##\s+(?:\d+\.\s+)?(?:受け入れ基準|受入基準|(?:Acceptance Criteria|Definition of Done|DoD)\b)[\s\S]*?(?=\n##\s|$)/i);
+  if (criteriaMatch) {
+    const criteriaBody = criteriaMatch[0];
+
+    // Strip blockquotes (e.g. '> ...') and HTML comments so template guidance doesn't self-trigger false positives
+    const criteriaTextWithoutQuotes = criteriaBody
+      .replace(/^\s*>.*$/gm, '')
+      .replace(/<!--[\s\S]*?-->/g, '');
+
+    // Detect ambiguous words that indicate unformed requirements in actual criteria text
+    const hasVagueWords = /(?:適切に|よしなに|必要に応じて)/.test(criteriaTextWithoutQuotes);
+    if (hasVagueWords) {
+      return {
+        decision: 'deny',
+        reason: `[BranchDoRGate Denied] Acceptance Criteria in ${targetIssueDir}/issue.md contains ambiguous terms ('適切に', 'よしなに', or '必要に応じて'). Define concrete Given-When-Then scenarios with verifiable expectations before creating a branch. (Remediation Guidance: Use 'fleet_dor_auditor' to audit and refine 'docs/issues/${targetIssueDir}/issue.md'.)`,
+      };
+    }
+
+    const hasConcreteItems = /(?:シナリオ|Given\b|When\b|Then\b|- \[[ x]\])/i.test(criteriaBody);
+    if (!hasConcreteItems || criteriaBody.trim().length < 40) {
+      return {
+        decision: 'deny',
+        reason: `[BranchDoRGate Denied] Acceptance Criteria in ${targetIssueDir}/issue.md is empty or too vague. Define concrete Given-When-Then scenarios or DoD checklists to eliminate ambiguity before creating a branch. (Remediation Guidance: Use 'fleet_dor_auditor' to audit and refine 'docs/issues/${targetIssueDir}/issue.md'.)`,
+      };
+    }
   }
 
   return { decision: 'allow' };

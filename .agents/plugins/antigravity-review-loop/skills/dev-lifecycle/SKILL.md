@@ -15,7 +15,7 @@ description: JobEval における実装・TDD高速反復・4軸ドキュメン�
    - 純粋ビジネスロジック（`src/core/`）は UI・外部依存ゼロ、100% 単体テスト可能を維持する。
 2. **Issue フォルダ完結型ドキュメントの作成**:
    `docs/issues/ISSUE-XXX_<slug>/` 配下に以下の 4 ファイルを完全日本語で作成：
-   - `issue.md`: 要件定義・受入基準
+   - `issue.md`: Why・排除リスク・機能受け入れシナリオ (Given-When-Then)・受入基準
    - `pre_verification.md`: 4軸事前検証ログ ＋ 重複・パッチワーク点検（Impact & Duplication Check）
    - `plan.md`: 実装計画書（変更ファイル一覧、実装内容、検証手順）
    - `walkthrough.md`: 実装成果レポート（作業完了時に成果を記録）

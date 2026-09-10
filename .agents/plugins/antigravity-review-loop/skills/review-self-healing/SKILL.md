@@ -42,8 +42,8 @@ description: Pull Request 作成、GitHub Actions CI 監視、Fleet レビュー
    ```
 2. **Fleet 2者の並行起動 (invoke_subagent)**:
    - Antigravity の `invoke_subagent` ツールを用い、以下の 2 体の専門サブエージェントを配列で**同時に並行起動**します：
-     - **`fleet_reviewer`**: コード品質・型安全性・セキュリティ・アーキテクチャ原則・デッドロック防止の専門レビュー
-     - **`fleet_completion_auditor`**: 批判的完了性・Why / 排除リスク・受け入れ基準（DoD）・やり残し・ユーザー視点での死角監査
+      - **`fleet_reviewer`**: コード品質・型安全性・セキュリティ・アーキテクチャ原則・デッドロック防止の専門レビュー
+      - **`fleet_completion_auditor`**: 批判的完了性・Why / 排除リスク・受け入れ基準（DoD）・やり残し監査。反例提示の義務化（Counterexample Obligation）に基づき、具体的な破綻シナリオが示せない場合は無理な指摘を禁止し、`[good]` を付与して速やかに合格判定を行う。また、PR 段階でのゴールポスト移動（後出し要求）を厳禁とする。
    - 各 Fleet は Conventional Comments 形式（`[must]`, `[should]`, `[imo]`, `[nits]`, `[ask]`, `[good]`）および JSON メタデータブロック（`agentType: "codeReviewer" | "completionAuditor"`, `verdict: "LGTM" | "REQUEST_CHANGES"`）を出力します。
 3. **Reactive Wakeup 待機**:
    - 親エージェントはツール呼び出しを行わずにターンを終了し、両 Fleet の完了通知を待ちます。

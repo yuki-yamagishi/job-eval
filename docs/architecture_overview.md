@@ -75,6 +75,7 @@ tests/                    # 自動テストハーネス (Vitest)
 | [ADR-0020](./adr/0020-fast-inner-loop-and-pre-impact-check.md) | 高速 Inner Loop（単体反復）の確立と着手前 Impact & Duplication Check 物理検査の採用 | **Accepted** | Inner Loop（`check:fast`, `test:related`）と Outer Loop（Git Hook & CI）の明確な分離、および PreToolHook Block 3D による着手前 Impact Check の物理強制。 |
 | [ADR-0021](./adr/0021-lifecycle-hooks-modular-separation.md) | AGY公式仕様に準拠したライフサイクルフックの責務分離とモジュール化アーキテクチャの採用 | **Accepted** | AGY公式準拠の名前付きフック分割（safety-guard, branch-dor-gate, pre-pr-audit-gate, review-loop-guard）とハンドラーモジュール化によるプラグイン化下準備。 |
 | [ADR-0022](./adr/0022-antigravity-plugin-packaging.md) | Antigravity公式仕様に準拠した自律レビューループ機構のプラグイン化パッケージング | **Accepted** | 自律レビューループ機構全体を公式プラグイン仕様準拠の `.agents/plugins/antigravity-review-loop/` 配下にカプセル化・完全一本化し、直下互換層を完全撤廃して自己完結性と他プロジェクトへの移植性を確立。 |
+| [ADR-0023](./adr/0023-two-phase-completion-and-dor-audit.md) | 2段階監査（Pre-Phase DoR 要件監査 ＋ Post-Phase 反証型完了性監査）と過剰攻撃防止ガードレール | **Accepted** | Pre-Phase（`fleet_dor_auditor`）による要件具体化（Given-When-Then・曖昧語排除）と、Post-Phase（`fleet_completion_auditor`）の反証型トレース・反例提示義務・後出し要求禁止による過剰攻撃防止。 |
 
 ---
 
@@ -84,19 +85,20 @@ tests/                    # 自動テストハーネス (Vitest)
 
 1. **公式プラグインパッケージング (ADR-0022)**:
    - `.agents/plugins/antigravity-review-loop/`: `plugin.json`, `hooks.json`, `hooks/`, `skills/`, `rules/`, `agents/`, `state/` を単一の自己完結型プラグインとしてカプセル化。
-   - レビュー用サブエージェント（`fleet_reviewer.md`, `fleet_completion_auditor.md`）も公式 subagents 仕様に準拠してプラグイン配下の `agents/` に同梱。
+   - レビュー用サブエージェント（`fleet_reviewer.md`, `fleet_completion_auditor.md`, `fleet_dor_auditor.md`）も公式 subagents 仕様に準拠してプラグイン配下の `agents/` に同梱。
    - 直下の過渡的互換アダプターを完全撤廃し、純粋なプラグイン一本化（`.agents/` 直下は `plugins/` のみ）を達成。動的ルート探索（`findProjectRoot`）により高い可搬性を実現。
 2. **憲章とスキルの分離 (Progressive Disclosure)**:
    - `AGENTS.md`: 毎ターン読み込まれるコア憲章（DoD・絶対遵守事項・アーキテクチャ不可侵原則）。
    - プラグインスキル群: 各フェーズに応じた 3 つの単一責務スキル（`issue-lifecycle`, `dev-lifecycle`, `review-self-healing`）をオンデマンドで段階的開示。
-3. **多重物理ガードレール (Mechanism & Flat Modular Hooks - ADR-0021)**:
+3. **多重物理ガードレール (Mechanism & Flat Modular Hooks - ADR-0021, ADR-0023)**:
    - `hooks.json`: AGY公式仕様に完全準拠し、4つの名前付きフック（`safety-guard`, `branch-dor-gate`, `pre-pr-audit-gate`, `review-loop-guard`）に分割。
-   - フラットフックモジュール: `safetyGuard.js`（`gh pr merge`禁止・テスト抑止）、`branchDoRGate.js`（DoR・Why・排除リスク・重複点検）、`prePrAuditGate.js`（4軸書類・DoD完備・SSOT同期）、`postPrCreate.js`（PR作成検知）、`stopHook.js`（合議前早期停止ブロック）をフラットに配置。
+   - フラットフックモジュール: `safetyGuard.js`（`gh pr merge`禁止・テスト抑止）、`branchDoRGate.js`（DoR・Why・排除リスク・機能受入シナリオ・重複点検）、`prePrAuditGate.js`（4軸書類・DoD完備・SSOT同期）、`postPrCreate.js`（PR作成検知）、`stopHook.js`（合議前早期停止ブロック）をフラットに配置。
    - `loopState.js`: CI 未通過時のレビュー依頼ブロック（CI Gate）、および PR 未マージ時の勝手なリセット阻止（Merge Verification Gate）。
    - `stopHook.js`: レビュー指摘の解消と Fleet の Re-review（LGTM）を受領するまで早期停止をブロック。
-4. **2者 Fleet 並行合議レビュー (Review Consortium)**:
-   - 公式仕様の独立サブエージェント 2 体（`fleet_reviewer` と `fleet_completion_auditor`）を並行起動。
-   - コード品質（How）と批判的完了性（Why / What）を完全に分離し、両者が共に `LGTM` を出した場合のみマージ依頼を許可する合議制ゲートを配備。
+4. **2段階監査と過剰攻撃防止ガードレール (ADR-0023)**:
+   - **Pre-Phase（着手前）**: サブエージェント `fleet_dor_auditor` が `issue.md` の Why 根本原因、Given-When-Then 機能受け入れシナリオ、境界値・異常系、曖昧語の排除を批判的に監査し、ブランチ前の要件を研ぎ澄ます。
+   - **Post-Phase（PR後）**: 公式仕様の独立サブエージェント 2 体（`fleet_reviewer` と `fleet_completion_auditor`）を並行起動。
+   - **反例提示義務 (Counterexample Obligation)**: 定性的な不安や推測での指摘を禁止し、具体的な反例・破綻シナリオが提示できない場合は速やかに `[good]` & `LGTM` を出す。PR 段階でのゴールポスト移動（後出し要求）を厳禁とし、粗探しによる開発停滞を物理排除。
 5. **内外分離 (Boundary Design)**:
    - 人間向け（意思決定・承認）は完全日本語で記述し、エージェント向け（内部制御・修復指示）は英語に完全統一してトークン効率と指示追従性を最大化。
 6. **Inner Loop と Outer Loop の分離 & 着手前 Impact Check (ADR-0020)**:
