@@ -14,7 +14,7 @@ description: Pull Request 作成、GitHub Actions CI 監視、Fleet レビュー
 1. **★【物理制約】PR 作成前最終監査 (Pre-PR Final Audit) の確認**:
    `gh pr create` 実行前に、以下が満たされている必要があります（満たされていない場合は `prePrAuditGate.js`（`pre-pr-audit-gate` フック）により物理ブロックされます）：
    - **4軸ドキュメントの完備**: `docs/issues/<Issue>/` 配下に `issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md` がすべて存在し、内容が記載されていること。
-   - **Pre-PR DoD（PR作成前受け入れ基準）の完全達成**: `issue.md` 内の「5.1. PR作成前完了基準 (Pre-PR DoD)」に未チェック項目（`- [ ]`）が残っていないこと（すべて `[x]` に更新済であること）。
+   - **Pre-PR DoD（PR作成前受け入れ基準）の完全達成**: `issue.md` 内の「5.2. PR作成前プロセス完了基準 (Pre-PR Process DoD)」（旧フォーマットでは 5.1）に未チェック項目（`- [ ]`）が残っていないこと（すべて `[x]` に更新済であること）。
    - **SSOT (`architecture_overview.md`) と最新 ADR の同期**: `docs/adr/` 配下の最新 ADR が `docs/architecture_overview.md` に登録・反映されていること。
 
 2. **PR 作成**:

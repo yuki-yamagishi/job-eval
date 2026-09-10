@@ -39,3 +39,5 @@
 | 全体単体テストスイート | `npm.cmd run test:fast` | **PASS (217 tests, 100%)** |
 | フル品質ゲート | `npm.cmd run check` | **PASS (100%)** |
 | サブエージェント実機 E2E | `fleet_dor_auditor` 監査、`fleet_completion_auditor` 監査・Re-audit | **LGTM 受領 (100%)** |
+| GitHub Actions CI | `gh pr checks 77` | **PASS (Full Quality Gate, 100%)** |
+| Fleet 2者並行合議レビュー | PR #77 (`fleet_reviewer` + `fleet_completion_auditor`) | **両者 LGTM (RESOLVED_LGTM, 100%)** |

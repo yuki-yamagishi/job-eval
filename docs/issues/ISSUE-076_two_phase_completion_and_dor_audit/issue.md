@@ -63,8 +63,8 @@
 - [x] フル品質ゲート（npm.cmd run check）が 100% PASS すること。
 
 ### 5.3. マージ前完了ゲート (Pre-Merge Gate)
-- [ ] GitHub Actions CI が PASS していること。
-- [ ] 2者合議レビュー（fleet_reviewer ＋ fleet_completion_auditor）による客観的再レビューで両者 LGTM を受領すること。
+- [x] GitHub Actions CI が PASS していること。
+- [x] 2者合議レビュー（fleet_reviewer ＋ fleet_completion_auditor）による客観的再レビューで両者 LGTM を受領すること。
 - [ ] 人間（ユーザー）による最終確認とマージが完了していること。
 
 ## 6. 関連ドキュメント・仕様正本 (References & SSOT)
