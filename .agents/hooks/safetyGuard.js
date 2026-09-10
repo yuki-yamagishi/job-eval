@@ -10,6 +10,34 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { readStdinJson, writeStdoutJson } from './hookUtils.js';
 
+/**
+ * Validates that gh pr merge is not executed directly by autonomous agents.
+ */
+function verifyGhPrMergeProhibited(commandLine) {
+  if (/\bgh\s+pr\s+merge\b/i.test(commandLine)) {
+    return {
+      decision: 'deny',
+      reason: "[SafetyGuard Denied] Direct execution of 'gh pr merge' by the autonomous agent is strictly prohibited. Merging to main is exclusively performed by the user (human). Please request the user to review and merge the PR.",
+    };
+  }
+  return { decision: 'allow' };
+}
+
+/**
+ * Validates that interactive watch tests causing process hang are not executed.
+ */
+function verifyNonInteractiveTestExecution(commandLine) {
+  if (/\bnpm(?:\.cmd)?\s+(?:run\s+)?test\b/i.test(commandLine) && 
+      !/--run\b/i.test(commandLine) && 
+      !/\btest:(?:run|coverage|fast|related)\b/i.test(commandLine)) {
+    return {
+      decision: 'deny',
+      reason: "[SafetyGuard Denied] Interactive test runner detected. Use 'npm run test:fast', 'npm run test:related', or 'npm run test:run' for deterministic execution.",
+    };
+  }
+  return { decision: 'allow' };
+}
+
 export function handleSafetyGuard(payload = {}) {
   const toolCall = payload.toolCall || {};
   const toolName = toolCall.name || '';
@@ -22,20 +50,17 @@ export function handleSafetyGuard(payload = {}) {
 
   const trimmed = commandLine.trim();
 
-  // Block 1: Prohibit direct gh pr merge by the autonomous agent (Human approval/merge policy)
-  if (/\bgh\s+pr\s+merge\b/i.test(trimmed)) {
-    return {
-      decision: 'deny',
-      reason: "[PreToolHook Denied] Direct execution of 'gh pr merge' by the autonomous agent is strictly prohibited. Merging to main is exclusively performed by the user (human). Please request the user to review and merge the PR.",
-    };
-  }
+  // Safety verification pipeline
+  const checks = [
+    () => verifyGhPrMergeProhibited(trimmed),
+    () => verifyNonInteractiveTestExecution(trimmed),
+  ];
 
-  // Block 2: Prohibit interactive watch test execution that causes hanging
-  if (/\bnpm(?:\.cmd)?\s+(?:run\s+)?test\b/i.test(trimmed) && !/--run\b/i.test(trimmed) && !/\btest:(?:run|coverage|fast|related)\b/i.test(trimmed)) {
-    return {
-      decision: 'deny',
-      reason: "[PreToolHook Denied] Interactive test runner detected. Use 'npm run test:fast', 'npm run test:related', or 'npm run test:run' for deterministic execution.",
-    };
+  for (const check of checks) {
+    const result = check();
+    if (result.decision === 'deny') {
+      return result;
+    }
   }
 
   return { decision: 'allow' };

@@ -27,6 +27,12 @@ AGY（Antigravity）公式仕様（`https://antigravity.google/docs/hooks/`）�
 4. **ADR-0021 の策定と SSOT 同期**:
    - `docs/adr/0021-lifecycle-hooks-modular-separation.md` を採択し、`docs/architecture_overview.md`（SSOT）を同期更新。
 
+5. **フック内部の旧ブロック記号（3A〜3D, 4A〜4C, Block 1〜2）の完全撤廃とパイプライン関数抽出**:
+   - 分割前の単一ファイル（`preToolHook.js`）時代のブロックナンバリング残骸（3A〜3D, 4A〜4C 等）を完全に撤廃。
+   - 各フック内部の検査ステップを自己完結した単一責任の検証関数（`verifyWorkingTreeCleanliness`, `verifyLoopStateIdle`, `verifyWhyAndRiskSections`, `verifyImpactDuplicationCheck`、`verifyFourAxisDocumentsComplete`, `verifyAcceptanceCriteriaCompleted`, `verifySsotAndAdrSynchronized`、`verifyGhPrMergeProhibited`, `verifyNonInteractiveTestExecution`）へ美しく関数抽出し、メインハンドラーでパイプライン実行する構造へ整理。
+   - 拒絶プレフィックスも `[SafetyGuard Denied]`, `[BranchDoRGate Denied]`, `[PrePrAuditGate Denied]` に統一。
+
+
 ---
 
 ## 2. 変更ファイル一覧
