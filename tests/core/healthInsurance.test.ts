@@ -104,5 +104,20 @@ describe("Health Insurance Core Logic & Master (SSOT)", () => {
       const result = extractHealthInsuranceFromText(jobText);
       expect(result).toBeNull();
     });
+
+    it("does not trigger false positive on general English words containing 'its' (e.g. visits, credits, benefits, commits)", () => {
+      const jobTextWithEnglish = `
+        【業務内容】
+        月間1,000万 visits を誇るWebサービスの開発。
+        決済 credits 基盤の設計・マイクロサービス化。
+        Git commits や PR submits の自動化パイプライン構築。
+        福利厚生: benefits package 完備、unit limits なし。
+        growing its business globally.
+      `;
+      // inferHealthInsuranceType should safely return unknown
+      expect(inferHealthInsuranceType(undefined, jobTextWithEnglish)).toBe("unknown");
+      // extractHealthInsuranceFromText should safely return null
+      expect(extractHealthInsuranceFromText(jobTextWithEnglish)).toBeNull();
+    });
   });
 });

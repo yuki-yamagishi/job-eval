@@ -1068,29 +1068,33 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                   })()}
 
                   {/* Corporate DC */}
-                  <div className="bg-slate-950/70 p-3 rounded-xl border border-teal-500/20 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Coins className="h-4 w-4 text-amber-400" />
-                        <span className="text-xs text-slate-200 font-bold">企業型確定拠出年金 (DC):</span>
-                        <span className="text-xs font-semibold text-amber-300">
-                          {analysisResult.benefitResearch.corporateDC.hasDC === true
-                            ? "✅ 導入あり"
-                            : analysisResult.benefitResearch.corporateDC.hasDC === false
-                            ? "❌ 導入なし"
-                            : "❓ 不明・要確認"}
-                        </span>
+                  {analysisResult.benefitResearch.corporateDC && (
+                    <div className="bg-slate-950/70 p-3 rounded-xl border border-teal-500/20 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Coins className="h-4 w-4 text-amber-400" />
+                          <span className="text-xs text-slate-200 font-bold">企業型確定拠出年金 (DC):</span>
+                          <span className="text-xs font-semibold text-amber-300">
+                            {analysisResult.benefitResearch.corporateDC.hasDC === true
+                              ? "✅ 導入あり"
+                              : analysisResult.benefitResearch.corporateDC.hasDC === false
+                              ? "❌ 導入なし"
+                              : "❓ 不明・要確認"}
+                          </span>
+                        </div>
+                        {analysisResult.benefitResearch.corporateDC.matchingContribution === true && (
+                          <Badge variant="outline" className="text-[10px] bg-amber-950/60 border-amber-600/50 text-amber-300">
+                            マッチング拠出可（節税メリット大）
+                          </Badge>
+                        )}
                       </div>
-                      {analysisResult.benefitResearch.corporateDC.matchingContribution === true && (
-                        <Badge variant="outline" className="text-[10px] bg-amber-950/60 border-amber-600/50 text-amber-300">
-                          マッチング拠出可（節税メリット大）
-                        </Badge>
+                      {analysisResult.benefitResearch.corporateDC.details && (
+                        <p className="text-[11px] text-slate-300 leading-relaxed">
+                          {analysisResult.benefitResearch.corporateDC.details}
+                        </p>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">
-                      {analysisResult.benefitResearch.corporateDC.details}
-                    </p>
-                  </div>
+                  )}
 
                   {/* Work Environment (Holidays / Leave / Side job) */}
                   {analysisResult.benefitResearch.workEnvironment && (

@@ -49,11 +49,13 @@
 ## 3. 検証結果
 
 ### 3.1. 単体テスト・コンポーネントテスト
-- `tests/core/healthInsurance.test.ts`: 11 件 PASS（TJK、ITS、協会けんぽ等の推論、境界値、メタデータ取得）
+- `tests/core/healthInsurance.test.ts`: **12 件 PASS**（TJK、ITS、協会けんぽ等の推論、境界値、メタデータ取得、英単語「benefits」「visits」「credits」「commits」等の部分一致による誤判定排除ネガティブテスト）
 - `tests/core/markdownGenerator.test.ts`: 7 件 PASS（健保種別付き出力・復元、旧書式後方互換性）
 - `tests/services/corporateBenefitResearch.test.ts`: 5 件 PASS（TJK判定、初回即時抽出、Markdownシリアライズ永続性）
-- `tests/features/PreviewPane.test.tsx`: 15 件 PASS（健保バッジ、手動変更、解説カード）
+- `tests/features/PreviewPane.test.tsx`: **17 件 PASS**（健保バッジ、解説カード、シナリオ4: 調査済みカードおよび未調査バナーからの健保手動変更・`onUpdateJob` 発火・Markdown同期）
 - `tests/features/JobDashboard.test.tsx`: 10 件 PASS（健保バッジ、健保ドロップダウンフィルター、リセット動作）
 
-### 3.2. 型検査
+### 3.2. 型検査 & セーフティ
 - `npm.cmd run check:fast` (TypeScript `tsc --noEmit`): **0 エラー PASS**
+- `geminiProvider.ts` の `any` を完全排除し、`RawBenefitResearchJson` 型安全インターフェースとバリデーションを導入。
+- `PreviewPane.tsx` において `corporateDC` の未定義安全ガードを追加。

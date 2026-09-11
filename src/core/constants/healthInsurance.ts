@@ -132,14 +132,18 @@ export function inferHealthInsuranceType(
   if (!combined.trim()) return "unknown";
 
   // 1. ITS健保の判定（優先度高）
-  if (
+  // 単純な includes("its") は benefits, commits, visits, credits 等の英単語に部分一致して重大な誤判定を招くため、
+  // 日本語の正式・略称名称、または健保文脈の正規表現でのみ判定する
+  const isExplicitItsName = Boolean(name && /^\s*its(\s*(健保|健康保険|kenpo|組合))?\s*$/i.test(name.trim()));
+  const hasItsKeyword =
     combined.includes("関東it") ||
     combined.includes("its健保") ||
     combined.includes("its健康保険") ||
     combined.includes("ソフトウェア健康保険組合") ||
-    combined.includes("its") ||
-    combined.includes("関東アイティー")
-  ) {
+    combined.includes("関東アイティー") ||
+    /\bits\s*(健保|健康保険|kenpo|組合)/i.test(combined);
+
+  if (isExplicitItsName || hasItsKeyword) {
     return "its";
   }
 

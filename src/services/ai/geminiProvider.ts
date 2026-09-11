@@ -10,7 +10,7 @@ import {
   GEMINI_CAREER_TRAJECTORY_SCHEMA,
 } from "@/core/prompt/jobAnalysisPrompt";
 import { generateJobMarkdown } from "@/core/markdown/markdownGenerator";
-import { inferHealthInsuranceType, extractHealthInsuranceFromText } from "@/core/constants/healthInsurance";
+import { inferHealthInsuranceType, extractHealthInsuranceFromText, type HealthInsuranceType } from "@/core/constants/healthInsurance";
 
 interface GeminiRawResponse {
   company?: string;
@@ -436,14 +436,38 @@ export class GeminiAiProvider implements AiProvider {
           }
         }
 
+        interface RawBenefitResearchJson {
+          company_name?: string;
+          health_insurance?: {
+            type?: HealthInsuranceType;
+            name?: string;
+            confidence?: string;
+            benefits?: string[];
+            notes?: string;
+          };
+          corporate_dc?: {
+            has_dc?: boolean | string;
+            matching_contribution?: boolean;
+            db_plan?: boolean;
+            details?: string;
+          };
+          work_environment?: {
+            annual_holidays?: string;
+            paid_leave_rate?: string;
+            side_job_allowed?: boolean | string;
+            notes?: string[];
+          };
+          summary_advice?: string;
+        }
+
         // Parse JSON from raw text (handling markdown code blocks if present)
-        let parsed: any = null;
+        let parsed: RawBenefitResearchJson = {};
         try {
           const jsonMatch = rawText.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            parsed = JSON.parse(jsonMatch[0]);
+            parsed = JSON.parse(jsonMatch[0]) as RawBenefitResearchJson;
           } else {
-            parsed = JSON.parse(rawText);
+            parsed = JSON.parse(rawText) as RawBenefitResearchJson;
           }
         } catch {
           // Fallback parsing if plain text was returned
@@ -467,6 +491,17 @@ export class GeminiAiProvider implements AiProvider {
 
         const rawHealthName = parsed.health_insurance?.name || "要確認";
         const healthType = parsed.health_insurance?.type || inferHealthInsuranceType(rawHealthName, rawText);
+        const validConfidences = ["high", "medium", "low"] as const;
+        const rawConfidence = parsed.health_insurance?.confidence;
+        const confidence: "high" | "medium" | "low" =
+          rawConfidence && (validConfidences as readonly string[]).includes(rawConfidence)
+            ? (rawConfidence as "high" | "medium" | "low")
+            : "medium";
+
+        const normalizeBooleanOrUnknown = (val: unknown): boolean | "不明" => {
+          if (val === true || val === false) return val;
+          return "不明";
+        };
 
         return {
           companyName: parsed.company_name || jobResult.metadata.company,
@@ -474,12 +509,12 @@ export class GeminiAiProvider implements AiProvider {
           healthInsurance: {
             type: healthType,
             name: rawHealthName,
-            confidence: (parsed.health_insurance?.confidence as any) || "medium",
+            confidence,
             benefits: Array.isArray(parsed.health_insurance?.benefits) ? parsed.health_insurance.benefits : [],
             notes: parsed.health_insurance?.notes,
           },
           corporateDC: {
-            hasDC: parsed.corporate_dc?.has_dc ?? "不明",
+            hasDC: normalizeBooleanOrUnknown(parsed.corporate_dc?.has_dc),
             matchingContribution: parsed.corporate_dc?.matching_contribution,
             dbPlan: parsed.corporate_dc?.db_plan,
             details: parsed.corporate_dc?.details || "詳細不明",
@@ -487,7 +522,7 @@ export class GeminiAiProvider implements AiProvider {
           workEnvironment: parsed.work_environment ? {
             annualHolidays: parsed.work_environment.annual_holidays,
             paidLeaveRate: parsed.work_environment.paid_leave_rate,
-            sideJobAllowed: parsed.work_environment.side_job_allowed,
+            sideJobAllowed: normalizeBooleanOrUnknown(parsed.work_environment.side_job_allowed),
             notes: Array.isArray(parsed.work_environment.notes) ? parsed.work_environment.notes : [],
           } : undefined,
           sources: sources.length > 0 ? sources : [
