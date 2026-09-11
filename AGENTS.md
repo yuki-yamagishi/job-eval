@@ -13,7 +13,7 @@ JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** 
 1. **クリーンアーキテクチャの不可侵**:
    - `src/core/`（純粋ビジネスロジック: スコアリング、Markdown、プロンプト）は UI・外部依存ゼロ、100% 単体テスト可能を維持すること。
 2. **仕様正本 (Single Source of Truth: SSOT) の遵守**:
-   - システム仕様および ADR-0001〜0023 の統合正本は **`docs/architecture_overview.md`** および **`docs/adr/`** です。
+   - システム仕様および ADR-0001〜0024 の統合正本は **`docs/architecture_overview.md`** および **`docs/adr/`** です。
    - すべての Issue は **`docs/issues/`** 配下に 4 ファイル完結（`issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md`）で記録・保全すること。
    - ブランチ作成前には `issue.md`（Why・排除リスク・Given-When-Then受入シナリオ）と `pre_verification.md`（重複点検）を完備し、`fleet_dor_auditor` による DoR 監査を受領すること（Hookにより物理強制）。
 

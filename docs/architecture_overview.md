@@ -1,7 +1,7 @@
 # JobEval アーキテクチャ概説 & システム仕様 (Architecture Overview & SSOT)
 
 JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** で構築された、AI求人適合度評価 & Markdownドキュメント管理デスクトップ/PWAアプリケーションです。
-本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0022）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
+本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0024）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
 
 ---
 
@@ -76,6 +76,7 @@ tests/                    # 自動テストハーネス (Vitest)
 | [ADR-0021](./adr/0021-lifecycle-hooks-modular-separation.md) | AGY公式仕様に準拠したライフサイクルフックの責務分離とモジュール化アーキテクチャの採用 | **Accepted** | AGY公式準拠の名前付きフック分割（safety-guard, branch-dor-gate, pre-pr-audit-gate, review-loop-guard）とハンドラーモジュール化によるプラグイン化下準備。 |
 | [ADR-0022](./adr/0022-antigravity-plugin-packaging.md) | Antigravity公式仕様に準拠した自律レビューループ機構のプラグイン化パッケージング | **Accepted** | 自律レビューループ機構全体を公式プラグイン仕様準拠の `.agents/plugins/antigravity-review-loop/` 配下にカプセル化・完全一本化し、直下互換層を完全撤廃して自己完結性と他プロジェクトへの移植性を確立。 |
 | [ADR-0023](./adr/0023-two-phase-completion-and-dor-audit.md) | 2段階監査（Pre-Phase DoR 要件監査 ＋ Post-Phase 反証型完了性監査）と過剰攻撃防止ガードレール | **Accepted** | Pre-Phase（`fleet_dor_auditor`）による要件具体化（Given-When-Then・曖昧語排除）と、Post-Phase（`fleet_completion_auditor`）の反証型トレース・反例提示義務・後出し要求禁止による過剰攻撃防止。 |
+| [ADR-0024](./adr/0024-external-plugin-submodule.md) | antigravity-review-loop プラグインの外部リポジトリ分離と Git Submodule 運用への移行 | **Accepted** | 自律レビューループ機構を独立 GitHub リポジトリ（`yuki-yamagishi/antigravity-review-loop`）として公開し、JobEval には Git Submodule として取り込み、独立品質保証・他プロジェクト展開・CI 自動同期を確立。 |
 
 ---
 
@@ -83,10 +84,10 @@ tests/                    # 自動テストハーネス (Vitest)
 
 本リポジトリは、Google Antigravity 公式仕様に準拠した **ワークスペースプラグイン (`.agents/plugins/antigravity-review-loop/`)** および **Customization Layer（カスタマイズ層）** を備えています。
 
-1. **公式プラグインパッケージング (ADR-0022)**:
-   - `.agents/plugins/antigravity-review-loop/`: `plugin.json`, `hooks.json`, `hooks/`, `skills/`, `rules/`, `agents/`, `state/` を単一の自己完結型プラグインとしてカプセル化。
+1. **公式プラグインパッケージング & Git Submodule 連携 (ADR-0022, ADR-0024)**:
+   - `.agents/plugins/antigravity-review-loop/`: `plugin.json`, `hooks.json`, `hooks/`, `skills/`, `rules/`, `agents/`, `state/` を単一の自己完結型プラグインとして独立リポジトリ（`yuki-yamagishi/antigravity-review-loop`）にパッケージングし、JobEval には **Git Submodule** として取り込み。
    - レビュー用サブエージェント（`fleet_reviewer.md`, `fleet_completion_auditor.md`, `fleet_dor_auditor.md`）も公式 subagents 仕様に準拠してプラグイン配下の `agents/` に同梱。
-   - 直下の過渡的互換アダプターを完全撤廃し、純粋なプラグイン一本化（`.agents/` 直下は `plugins/` のみ）を達成。動的ルート探索（`findProjectRoot`）により高い可搬性を実現。
+   - 他プロジェクトへの再利用性を極大化し、CI（`.github/workflows/ci.yml`）での `submodules: true` による物理自動同期と、プロジェクト間でのコードドリフト防止を確立。
 2. **憲章とスキルの分離 (Progressive Disclosure)**:
    - `AGENTS.md`: 毎ターン読み込まれるコア憲章（DoD・絶対遵守事項・アーキテクチャ不可侵原則）。
    - プラグインスキル群: 各フェーズに応じた 3 つの単一責務スキル（`issue-lifecycle`, `dev-lifecycle`, `review-self-healing`）をオンデマンドで段階的開示。
