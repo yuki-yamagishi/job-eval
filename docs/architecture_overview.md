@@ -1,7 +1,7 @@
 # JobEval アーキテクチャ概説 & システム仕様 (Architecture Overview & SSOT)
 
 JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** で構築された、AI求人適合度評価 & Markdownドキュメント管理デスクトップ/PWAアプリケーションです。
-本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0024）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
+本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0026）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
 
 ---
 
@@ -78,6 +78,7 @@ tests/                    # 自動テストハーネス (Vitest)
 | [ADR-0023](./adr/0023-two-phase-completion-and-dor-audit.md) | 2段階監査（Pre-Phase DoR 要件監査 ＋ Post-Phase 反証型完了性監査）と過剰攻撃防止ガードレール | **Accepted** | Pre-Phase（`fleet_dor_auditor`）による要件具体化（Given-When-Then・曖昧語排除）と、Post-Phase（`fleet_completion_auditor`）の反証型トレース・反例提示義務・後出し要求禁止による過剰攻撃防止。 |
 | [ADR-0024](./adr/0024-external-plugin-submodule.md) | antigravity-review-loop プラグインの外部リポジトリ分離と Git Submodule 運用への移行 | **Accepted** | 自律レビューループ機構を独立 GitHub リポジトリ（`yuki-yamagishi/antigravity-review-loop`）として公開し、JobEval には Git Submodule として取り込み、独立品質保証・他プロジェクト展開・CI 自動同期を確立。 |
 | [ADR-0025](./adr/0025-health-insurance-benefit-acquisition.md) | 福利厚生情報（TJK/関東IT/協会けんぽ等）の精密取得・分類・可視化と求人票即時抽出 | **Accepted** | 健保種別型（HealthInsuranceType）とメタデータマスターの新設、求人票からの初回即時抽出（Track 1）とWeb精密調査（Track 2）の統合、一覧・詳細でのバッジ・フィルター・手動編集の提供。 |
+| [ADR-0026](./adr/0026-cloudflare-pages-automated-deployment.md) | GitHub Actions による Cloudflare Pages への安全な自動デプロイパイプラインの採用 | **Accepted** | main push 時の Outer Loop 品質ゲート通過後直列自動デプロイ、成果物アーティファクト同一性保証、および Environment 保護による多層防壁。 |
 
 ---
 

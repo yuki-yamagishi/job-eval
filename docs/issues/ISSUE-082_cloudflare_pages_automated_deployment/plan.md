@@ -37,13 +37,16 @@
 ## 3. 実装ステップ
 
 ### Step 1: `.github/workflows/ci.yml` の拡張
-- `test-and-build` ジョブに `actions/upload-artifact@v4` を追加し、`dist/` を `build-dist` としてアップロード。
+- `test-and-build` ジョブに `actions/upload-artifact@v4` を追加し、`dist/` を `production-dist` としてアップロード。
 - `deploy` ジョブを定義：
   ```yaml
   deploy:
     name: Deploy to Cloudflare Pages (Production)
     needs: test-and-build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -64,14 +67,14 @@
       - name: Download built assets
         uses: actions/download-artifact@v4
         with:
-          name: build-dist
+          name: production-dist
           path: dist
 
       - name: Deploy to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx --yes wrangler pages deploy dist --project-name job-eval --branch main
+        run: npx --yes wrangler@^3 pages deploy dist --project-name job-eval --branch main
   ```
 
 ### Step 2: ADR-0026 の策定
