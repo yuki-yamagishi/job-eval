@@ -53,11 +53,11 @@
   - **Then**: すべての検査がエラーなく PASS すること。
 
 ### 5.2. PR作成前プロセス完了基準 (Pre-PR Process DoD)
-- [ ] 上記 5.1 の全機能受け入れシナリオを検証する実質的な検査・設定が存在すること。
-- [ ] 排除対象のリスクに対する物理的ガードレール（直列依存 `needs: test-and-build`、`environment: production`、ブランチ限定）が設定されていること。
-- [ ] 重複・パッチワーク点検（Impact & Duplication Check）が pre_verification.md に完了・記録されていること。
-- [ ] 4軸ドキュメント（issue, pre_verification, plan, walkthrough）が揃っていること。
-- [ ] フル品質ゲート（npm.cmd run check）が 100% PASS すること。
+- [x] 上記 5.1 の全機能受け入れシナリオを検証する実質的な検査・設定が存在すること。
+- [x] 排除対象のリスクに対する物理的ガードレール（直列依存 `needs: test-and-build`、`environment: production`、ブランチ限定）が設定されていること。
+- [x] 重複・パッチワーク点検（Impact & Duplication Check）が pre_verification.md に完了・記録されていること。
+- [x] 4軸ドキュメント（issue, pre_verification, plan, walkthrough）が揃っていること。
+- [x] フル品質ゲート（npm.cmd run check）が 100% PASS すること。
 
 ### 5.3. マージ前完了ゲート (Pre-Merge Gate)
 - [ ] GitHub Actions CI が PASS していること。
