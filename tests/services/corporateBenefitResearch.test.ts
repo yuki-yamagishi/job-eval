@@ -105,6 +105,65 @@ describe("Corporate Benefit Research Service", () => {
     const parsed = parseJobMarkdownToJobResult(markdown);
     expect(parsed.benefitResearch).toBeDefined();
     expect(parsed.benefitResearch?.healthInsurance.name).toBe("関東ITソフトウェア健康保険組合 (ITS健保)");
+    expect(parsed.benefitResearch?.healthInsurance.type).toBe("its");
     expect(parsed.benefitResearch?.corporateDC.hasDC).toBe(true);
+  });
+
+  it("accurately identifies TJK健保 when company or job mentions TJK", async () => {
+    const tjkJob: JobAnalysisResult = {
+      ...mockJob,
+      metadata: {
+        ...mockJob.metadata,
+        company: "株式会社情報サービスソリューションズ (TJK)",
+      },
+      originalJobText: "福利厚生: 東京都情報サービス産業健康保険組合 (TJK) 加入、保養所利用可能",
+    };
+
+    const research = await researchCorporateBenefitsWithProfile(tjkJob, DEFAULT_USER_PROFILE);
+    expect(research.healthInsurance.type).toBe("tjk");
+    expect(research.healthInsurance.name).toContain("TJK");
+    expect(research.healthInsurance.benefits.some((b) => b.includes("白樺") || b.includes("箱根"))).toBe(true);
+  });
+
+  it("extracts health insurance immediately from job text using mock provider", async () => {
+    const { MockAiProvider } = await import("@/services/ai/mockAiProvider");
+    const provider = new MockAiProvider();
+    const textWithTJK = `
+      企業名: 株式会社テストデータ
+      募集職種: クラウドエンジニア
+      【福利厚生】
+      社会保険完備（東京都情報サービス産業健康保険組合/TJK加入）
+      退職金制度、確定拠出年金制度導入済み
+    `;
+
+    const result = await provider.analyzeJob(textWithTJK, "直接応募", DEFAULT_USER_PROFILE);
+    expect(result.benefitResearch).toBeDefined();
+    expect(result.benefitResearch?.healthInsurance.type).toBe("tjk");
+    expect(result.benefitResearch?.healthInsurance.confidence).toBe("high");
+    expect(result.benefitResearch?.corporateDC.hasDC).toBe(true);
+    expect(result.markdownContent).toContain("[TJK健保]");
+  });
+
+  it("maintains backward compatibility with legacy markdown without bracketed type", () => {
+    const legacyMarkdown = `---
+company: 株式会社レガシー
+title: インフラエンジニア
+match_score: 85
+judgment: A (即応募推奨)
+date_analyzed: 2026-09-01
+---
+
+## 🌐 企業・福利厚生Webリサーチ (健保・企業型DC等)
+- **加入健康保険組合**: **関東ITソフトウェア健康保険組合 (ITS健保)** (確度: 高)
+  - 保険料率割安
+- **企業型確定拠出年金 (DC)**: ✅ 導入あり (マッチング拠出可)
+  - 導入済み
+- **総合アドバイス**: 手厚い福利厚生環境です。
+`;
+
+    const parsed = parseJobMarkdownToJobResult(legacyMarkdown);
+    expect(parsed.benefitResearch).toBeDefined();
+    expect(parsed.benefitResearch?.healthInsurance.name).toBe("関東ITソフトウェア健康保険組合 (ITS健保)");
+    expect(parsed.benefitResearch?.healthInsurance.type).toBe("its");
   });
 });

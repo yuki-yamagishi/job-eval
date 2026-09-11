@@ -119,6 +119,10 @@ ${projectDetails || "    * プロジェクト登録なし"}`;
 - 候補者の実務経験が不足している領域（例: クラウド実務未経験、特定言語・基盤の経験不足）がある場合、それを資格でアピールして補強するならどの資格を取得すべきか（例: AWS SAA / SAP, AZ-104 / AZ-305, CKA 等）を recommended_certifications に提案。
 - 候補者がすでに「学習中・取得目標」としている資格がある場合はその有効性や、職務経歴書・面接でのアピール戦略を advice に具体的に記述。
 
+【福利厚生・待遇情報 (benefit_info) の抽出指針】
+- 求人票テキスト内に健康保険組合（関東ITソフトウェア健康保険組合/ITS健保、東京都情報サービス産業健康保険組合/TJK、全国健康保険協会/協会けんぽ、自社健保など）の記載がある場合、health_insurance_name に正確に抽出してください。記載がない場合は null としてください。
+- 企業型確定拠出年金 (企業型DC) や確定給付年金、年間休日数の記載があれば同様に抽出してください。
+
 【判定ランク基準】
 - "S (即応募推奨)": 90点以上。スキル・条件・成長性すべてが極めて高水準。
 - "A (即応募推奨)": 80点〜89点。主要スキルと希望条件を満たし即応募を推奨。
@@ -247,6 +251,24 @@ export const GEMINI_JOB_ANALYSIS_SCHEMA = {
     selection_process: {
       type: "string",
       description: "選考プロセス（例: 書類選考 → 一次面接 → 最終面接）",
+    },
+    benefit_info: {
+      type: "object",
+      properties: {
+        health_insurance_name: {
+          type: "string",
+          description: "求人票テキスト内に明記されている健康保険組合名（例: 関東ITソフトウェア健康保険組合, TJK, 協会けんぽ等。記載がない場合はnull）",
+        },
+        has_corporate_dc: {
+          type: "boolean",
+          description: "企業型確定拠出年金 (DC) の導入が求人票に明記されているか（記載がなければnull）",
+        },
+        annual_holidays: {
+          type: "string",
+          description: "年間休日数の記載（例: 125日、完全週休2日制。記載がなければnull）",
+        },
+      },
+      description: "求人票本文から抽出された福利厚生情報（記載がない項目はnull）",
     },
   },
   required: [
@@ -409,6 +431,7 @@ Google検索ツールを活用し、求人票では明記されにくい企業�
 {
   "company_name": "${companyName}",
   "health_insurance": {
+    "type": "tjk",
     "name": "健康保険組合名",
     "confidence": "high",
     "benefits": ["メリット1", "メリット2"],

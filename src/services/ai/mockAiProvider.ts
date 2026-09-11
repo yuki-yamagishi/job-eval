@@ -9,6 +9,7 @@ import { UserProfile } from "@/types/profile";
 import { AiProvider } from "./aiProvider";
 import { calculateJobMatchScore, ScoreInput } from "@/core/scoring/scoringEngine";
 import { generateJobMarkdown } from "@/core/markdown/markdownGenerator";
+import { inferHealthInsuranceType, getHealthInsuranceInfo, extractHealthInsuranceFromText } from "@/core/constants/healthInsurance";
 
 export class MockAiProvider implements AiProvider {
   name = "MockAiProvider";
@@ -109,6 +110,28 @@ export class MockAiProvider implements AiProvider {
       tags: ["AWS", "Azure", "Go", "FullRemote"],
     };
 
+    let benefitResearch: CorporateBenefitResearch | undefined = undefined;
+    const extractedInsurance = extractHealthInsuranceFromText(text);
+    if (extractedInsurance) {
+      benefitResearch = {
+        companyName: company,
+        researchedAt: new Date().toISOString(),
+        healthInsurance: {
+          type: extractedInsurance.type,
+          name: extractedInsurance.name,
+          confidence: extractedInsurance.confidence,
+          benefits: extractedInsurance.benefits,
+          notes: extractedInsurance.notes,
+        },
+        corporateDC: {
+          hasDC: text.includes("確定拠出年金") || text.includes("企業型DC") ? true : "不明",
+          details: "求人票記載情報",
+        },
+        sources: [],
+        summaryAdvice: `${company} は求人票記載情報に基づき ${extractedInsurance.name} に加入しています。`,
+      };
+    }
+
     const markdownContent = generateJobMarkdown({
       metadata,
       scoreBreakdown: scoringResult.breakdown,
@@ -117,6 +140,7 @@ export class MockAiProvider implements AiProvider {
       agentQuestions,
       appealPoints,
       qualificationAdvice,
+      benefitResearch,
       mustRequirements: mustReqs,
       wantRequirements: wantReqs,
       jobDescription: [
@@ -136,6 +160,7 @@ export class MockAiProvider implements AiProvider {
       appealPoints,
       qualificationAdvice,
       careerTrajectory: undefined,
+      benefitResearch,
       jobDetails: {
         mustRequirements: mustReqs,
         wantRequirements: wantReqs,
@@ -263,25 +288,26 @@ export class MockAiProvider implements AiProvider {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     const company = jobResult.metadata.company;
-    const isTech = company.includes("テクノロジー") || company.includes("IT") || company.includes("クラウド") || company.includes("ソフト") || company.includes("ソリューションズ");
+    const originalText = jobResult.originalJobText || "";
+
+    // 健保タイプの推論（TJK, ITS, 協会けんぽ, その他）
+    let type = inferHealthInsuranceType(undefined, `${company} ${originalText}`);
+    if (type === "unknown") {
+      const isTech = company.includes("テクノロジー") || company.includes("IT") || company.includes("クラウド") || company.includes("ソフト") || company.includes("ソリューションズ");
+      type = isTech ? "its" : "kyokai";
+    }
+
+    const info = getHealthInsuranceInfo(type);
 
     return {
       companyName: company,
       researchedAt: new Date().toISOString(),
       healthInsurance: {
-        name: isTech ? "関東ITソフトウェア健康保険組合 (ITS健保)" : "全国健康保険協会 (協会けんぽ)",
+        type,
+        name: info.label,
         confidence: "high",
-        benefits: isTech
-          ? [
-              "保険料率が協会けんぽより約1.5%割安（手取り額が実質増加）",
-              "直営保養施設（トスラブ箱根・熱海等）や提携スポーツジムが格安利用可能",
-              "高額療養費付加給付（自己負担限度額月2万円の独自手当）あり",
-              "インフルエンザ予防接種の費用全額補助",
-            ]
-          : ["標準的な法定給付（傷病手当金・出産一時金等）に対応"],
-        notes: isTech
-          ? "IT・インターネット系企業で最も人気の高い健康保険組合です。"
-          : "中小企業で標準的に適用される公的健康保険です。",
+        benefits: info.keyBenefits,
+        notes: info.description,
       },
       corporateDC: {
         hasDC: true,
@@ -305,7 +331,7 @@ export class MockAiProvider implements AiProvider {
           url: "https://example.com/corporate/csr",
         },
       ],
-      summaryAdvice: `${company} は ${isTech ? "関東ITソフトウェア健保 (ITS)" : "協会けんぽ"} に加入しており、企業型DC（マッチング拠出可）も完備されています。手取り・税制優遇と中長期の資産形成の両面において非常に手厚い福利厚生環境と評価できます。`,
+      summaryAdvice: `${company} は ${info.shortLabel} に加入しており、企業型DC（マッチング拠出可）も完備されています。手取り・税制優遇と中長期の資産形成の両面において非常に手厚い福利厚生環境と評価できます。`,
     };
   }
 }

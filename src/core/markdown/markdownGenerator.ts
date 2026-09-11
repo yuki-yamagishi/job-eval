@@ -1,4 +1,5 @@
 import { JobMetadata, CareerTrajectory, EvaluationHistoryItem, CorporateBenefitResearch } from "@/types/job";
+import { inferHealthInsuranceType, getHealthInsuranceInfo } from "@/core/constants/healthInsurance";
 
 export interface MarkdownGenerationInput {
   metadata: JobMetadata;
@@ -104,11 +105,13 @@ ${ct.careerRisksOrLockin ? `- **キャリア上の留意点・リスク**: ${ct.
     const benefitsList = br.healthInsurance.benefits && br.healthInsurance.benefits.length > 0
       ? br.healthInsurance.benefits.map((b) => `  - ${b}`).join("\n")
       : "";
+    const healthType = br.healthInsurance.type || inferHealthInsuranceType(br.healthInsurance.name);
+    const healthInfo = getHealthInsuranceInfo(healthType);
 
     benefitResearchSection = `
 
 ## 🌐 企業・福利厚生Webリサーチ (健保・企業型DC等)
-- **加入健康保険組合**: **${br.healthInsurance.name}** (確度: ${br.healthInsurance.confidence === "high" ? "高" : br.healthInsurance.confidence === "medium" ? "中" : "推定"})
+- **加入健康保険組合**: [${healthInfo.shortLabel}] **${br.healthInsurance.name}** (確度: ${br.healthInsurance.confidence === "high" ? "高" : br.healthInsurance.confidence === "medium" ? "中" : "推定"})
 ${benefitsList}
 - **企業型確定拠出年金 (DC)**: ${br.corporateDC.hasDC === true ? "✅ 導入あり" : br.corporateDC.hasDC === false ? "❌ 導入なし" : "❓ 要確認"}${br.corporateDC.matchingContribution === true ? " (マッチング拠出可)" : ""}
   - ${br.corporateDC.details}
@@ -424,7 +427,7 @@ export function parseJobMarkdownToJobResult(markdown: string): import("@/types/j
 
   let benefitResearch: import("@/types/job").CorporateBenefitResearch | undefined = undefined;
   if (parsed.body.includes("企業・福利厚生Webリサーチ") || parsed.body.includes("加入健康保険組合")) {
-    const healthInsMatch = parsed.body.match(/加入健康保険組合\*\*:\s*\*\*([^*]+)\*\*(?:\s*\(確度:\s*([^)]+)\))?/);
+    const healthInsMatch = parsed.body.match(/加入健康保険組合\*\*:\s*(?:\[([^\]]+)\]\s*)?\*\*([^*]+)\*\*(?:\s*\(確度:\s*([^)]+)\))?/);
     const dcMatch = parsed.body.match(/企業型確定拠出年金 \(DC\)\*\*:\s*([^\n]+)/);
     if (healthInsMatch || dcMatch) {
       // Extract sources
@@ -446,12 +449,16 @@ export function parseJobMarkdownToJobResult(markdown: string): import("@/types/j
       const leaveMatch = parsed.body.match(/有給消化率\*\*:\s*([^\n]+)/);
       const sideJobMatch = parsed.body.match(/副業可否\*\*:\s*([^\n]+)/);
 
+      const rawHealthName = healthInsMatch ? (healthInsMatch[2] || healthInsMatch[1] || "").trim() : "要確認";
+      const healthType = inferHealthInsuranceType(rawHealthName, parsed.body);
+
       benefitResearch = {
         companyName: fullMetadata.company,
         researchedAt: today,
         healthInsurance: {
-          name: healthInsMatch ? healthInsMatch[1].trim() : "要確認",
-          confidence: healthInsMatch && healthInsMatch[2]?.includes("高") ? "high" : "medium",
+          type: healthType,
+          name: rawHealthName,
+          confidence: healthInsMatch && (healthInsMatch[3]?.includes("高") || healthInsMatch[2]?.includes("高")) ? "high" : "medium",
           benefits: [],
         },
         corporateDC: {

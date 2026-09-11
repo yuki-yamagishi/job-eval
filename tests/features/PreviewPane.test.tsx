@@ -336,4 +336,75 @@ describe("PreviewPane Component", () => {
     expect(screen.getByText(/確定拠出年金あり、マッチング拠出も可能/)).toBeDefined();
     expect(screen.getByText("採用FAQページ")).toBeDefined();
   });
+
+  it("updates health insurance manually via dropdown and calls onUpdateJob (Scenario 4: researched card)", async () => {
+    const handleUpdateJob = vi.fn();
+    const resultWithBenefits: JobAnalysisResult = {
+      ...mockResult,
+      benefitResearch: {
+        companyName: "テスト企業",
+        researchedAt: "2026-09-06T12:00:00Z",
+        healthInsurance: {
+          type: "its",
+          name: "関東ITソフトウェア健康保険組合 (ITS健保)",
+          benefits: ["保養所・施設割引"],
+          confidence: "high",
+          takeHomeAdvantage: "高い（標準以上）",
+        },
+        specialBenefits: [],
+        sources: [],
+        disclaimer: "",
+      },
+    };
+
+    render(
+      <PreviewPane
+        analysisResult={resultWithBenefits}
+        isAnalyzing={false}
+        onUpdateJob={handleUpdateJob}
+      />
+    );
+
+    // Find the select dropdown with title "健保種別を手動で変更"
+    const select = screen.getByTitle("健保種別を手動で変更");
+    expect(select).toBeDefined();
+
+    // Change to TJK
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "tjk" } });
+    });
+
+    expect(handleUpdateJob).toHaveBeenCalledTimes(1);
+    const updatedJob = handleUpdateJob.mock.calls[0][0] as JobAnalysisResult;
+    expect(updatedJob.benefitResearch?.healthInsurance.type).toBe("tjk");
+    expect(updatedJob.benefitResearch?.healthInsurance.name).toContain("東京都情報サービス産業");
+    expect(updatedJob.markdownContent).toContain("[TJK健保]");
+  });
+
+  it("sets health insurance manually from unresearched banner and calls onUpdateJob (Scenario 4: unresearched banner)", async () => {
+    const handleUpdateJob = vi.fn();
+
+    render(
+      <PreviewPane
+        analysisResult={mockResult} // mockResult has no benefitResearch
+        isAnalyzing={false}
+        onUpdateJob={handleUpdateJob}
+      />
+    );
+
+    // Find the select dropdown with title "健保を手動で設定"
+    const select = screen.getByTitle("健保を手動で設定");
+    expect(select).toBeDefined();
+
+    // Select ITS
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "its" } });
+    });
+
+    expect(handleUpdateJob).toHaveBeenCalledTimes(1);
+    const updatedJob = handleUpdateJob.mock.calls[0][0] as JobAnalysisResult;
+    expect(updatedJob.benefitResearch?.healthInsurance.type).toBe("its");
+    expect(updatedJob.benefitResearch?.healthInsurance.name).toContain("関東ITソフトウェア");
+    expect(updatedJob.markdownContent).toContain("[ITS健保]");
+  });
 });
