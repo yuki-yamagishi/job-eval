@@ -108,10 +108,14 @@ export interface WebSourceItem {
   url: string;
 }
 
+import { HealthInsuranceType } from "@/core/constants/healthInsurance";
+export type { HealthInsuranceType };
+
 export interface CorporateBenefitResearch {
   companyName: string;
   researchedAt: string; // ISO 8601 string
   healthInsurance: {
+    type?: HealthInsuranceType; // "its" | "tjk" | "kyokai" | "corporate" | "other" | "unknown"
     name: string; // e.g. "関東ITソフトウェア健康保険組合 (ITS健保)", "協会けんぽ", "自社単一健保" 等
     confidence: "high" | "medium" | "low";
     benefits: string[]; // e.g. ["保険料率が割安で手取り有利", "直営保養所・レストラン・旅行補助", "高額療養費付加給付"]

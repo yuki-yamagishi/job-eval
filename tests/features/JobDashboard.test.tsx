@@ -29,6 +29,20 @@ describe("JobDashboard Component", () => {
       concerns: ["リリース前稼働"],
       agentQuestions: ["オンコール頻度"],
       appealPoints: ["クラウド設計実績"],
+      benefitResearch: {
+        companyName: "株式会社アルファ",
+        researchedAt: "2026-09-11T12:00:00Z",
+        healthInsurance: {
+          type: "its",
+          name: "関東ITソフトウェア健康保険組合 (ITS健保)",
+          confidence: "high",
+          benefits: ["保養施設", "レストラン優待"],
+          takeHomeAdvantage: "高い（標準以上）",
+        },
+        specialBenefits: [],
+        sources: [],
+        disclaimer: "",
+      },
       jobDetails: {
         mustRequirements: ["Azure 3年以上"],
         wantRequirements: ["AZ-305"],
@@ -62,6 +76,20 @@ describe("JobDashboard Component", () => {
       concerns: ["特になし"],
       agentQuestions: ["チーム体制"],
       appealPoints: ["Go開発実績"],
+      benefitResearch: {
+        companyName: "株式会社ベータ",
+        researchedAt: "2026-09-11T12:00:00Z",
+        healthInsurance: {
+          type: "tjk",
+          name: "東京都情報サービス産業健康保険組合 (TJK健保)",
+          confidence: "high",
+          benefits: ["直営保養所", "各種検診補助"],
+          takeHomeAdvantage: "高い（標準以上）",
+        },
+        specialBenefits: [],
+        sources: [],
+        disclaimer: "",
+      },
       jobDetails: {
         mustRequirements: ["Go 2年以上"],
         wantRequirements: ["Kubernetes運用"],
@@ -175,6 +203,52 @@ describe("JobDashboard Component", () => {
 
     // Reset filter
     fireEvent.click(screen.getByText("フィルターをリセット"));
+    expect(screen.getByText("株式会社ベータ")).toBeDefined();
+  });
+
+  it("displays health insurance badges in table and grid views", () => {
+    render(<JobDashboard savedJobs={mockJobs} />);
+
+    // Table view: Should show ITS健保 and TJK健保 badges
+    expect(screen.getByText("ITS健保")).toBeDefined();
+    expect(screen.getByText("TJK健保")).toBeDefined();
+
+    // Switch to Grid view
+    const gridBtn = screen.getByTitle("グリッド表示");
+    fireEvent.click(gridBtn);
+
+    // In grid view, badges should also be present
+    expect(screen.getByText("ITS健保")).toBeDefined();
+    expect(screen.getByText("TJK健保")).toBeDefined();
+  });
+
+  it("filters jobs by health insurance type dropdown", () => {
+    render(<JobDashboard savedJobs={mockJobs} />);
+
+    // Find health insurance filter dropdown
+    const healthSelect = screen.getByDisplayValue("全健保 (すべて)");
+    expect(healthSelect).toBeDefined();
+
+    // Filter by ITS
+    fireEvent.change(healthSelect, { target: { value: "its" } });
+    expect(screen.getByText("株式会社アルファ")).toBeDefined();
+    expect(screen.queryByText("株式会社ベータ")).toBeNull();
+
+    // Filter by TJK
+    fireEvent.change(healthSelect, { target: { value: "tjk" } });
+    expect(screen.queryByText("株式会社アルファ")).toBeNull();
+    expect(screen.getByText("株式会社ベータ")).toBeDefined();
+
+    // Filter by kyokai (no match)
+    fireEvent.change(healthSelect, { target: { value: "kyokai" } });
+    expect(screen.queryByText("株式会社アルファ")).toBeNull();
+    expect(screen.queryByText("株式会社ベータ")).toBeNull();
+    expect(screen.getByText("検索・絞り込み条件に一致する求人がありません")).toBeDefined();
+
+    // Reset filter
+    const resetBtn = screen.getByText("フィルターをリセット");
+    fireEvent.click(resetBtn);
+    expect(screen.getByText("株式会社アルファ")).toBeDefined();
     expect(screen.getByText("株式会社ベータ")).toBeDefined();
   });
 });

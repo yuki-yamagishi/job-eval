@@ -77,6 +77,7 @@ tests/                    # 自動テストハーネス (Vitest)
 | [ADR-0022](./adr/0022-antigravity-plugin-packaging.md) | Antigravity公式仕様に準拠した自律レビューループ機構のプラグイン化パッケージング | **Accepted** | 自律レビューループ機構全体を公式プラグイン仕様準拠の `.agents/plugins/antigravity-review-loop/` 配下にカプセル化・完全一本化し、直下互換層を完全撤廃して自己完結性と他プロジェクトへの移植性を確立。 |
 | [ADR-0023](./adr/0023-two-phase-completion-and-dor-audit.md) | 2段階監査（Pre-Phase DoR 要件監査 ＋ Post-Phase 反証型完了性監査）と過剰攻撃防止ガードレール | **Accepted** | Pre-Phase（`fleet_dor_auditor`）による要件具体化（Given-When-Then・曖昧語排除）と、Post-Phase（`fleet_completion_auditor`）の反証型トレース・反例提示義務・後出し要求禁止による過剰攻撃防止。 |
 | [ADR-0024](./adr/0024-external-plugin-submodule.md) | antigravity-review-loop プラグインの外部リポジトリ分離と Git Submodule 運用への移行 | **Accepted** | 自律レビューループ機構を独立 GitHub リポジトリ（`yuki-yamagishi/antigravity-review-loop`）として公開し、JobEval には Git Submodule として取り込み、独立品質保証・他プロジェクト展開・CI 自動同期を確立。 |
+| [ADR-0025](./adr/0025-health-insurance-benefit-acquisition.md) | 福利厚生情報（TJK/関東IT/協会けんぽ等）の精密取得・分類・可視化と求人票即時抽出 | **Accepted** | 健保種別型（HealthInsuranceType）とメタデータマスターの新設、求人票からの初回即時抽出（Track 1）とWeb精密調査（Track 2）の統合、一覧・詳細でのバッジ・フィルター・手動編集の提供。 |
 
 ---
 

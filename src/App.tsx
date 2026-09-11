@@ -174,6 +174,11 @@ export function App() {
     }
   };
 
+  const handleUpdateJob = async (updatedJob: JobAnalysisResult) => {
+    setAnalysisResult(updatedJob);
+    await saveJob(updatedJob);
+  };
+
   const handleSaveMarkdown = async (editedContent?: string) => {
     if (analysisResult) {
       const targetResult = editedContent
@@ -240,6 +245,7 @@ export function App() {
                 onReEvaluateWithProfile={handleReEvaluateWithProfile}
                 onGenerateCareerTrajectory={handleGenerateCareerTrajectory}
                 onResearchCorporateBenefits={handleResearchCorporateBenefits}
+                onUpdateJob={handleUpdateJob}
               />
             </div>
           </div>

@@ -42,6 +42,7 @@
 | [ADR-0022](file:///docs/adr/0022-antigravity-plugin-packaging.md) | Antigravity公式仕様に準拠した自律レビューループ機構のプラグイン化パッケージング | **Accepted** | 2026-09-10 |
 | [ADR-0023](file:///docs/adr/0023-two-phase-completion-and-dor-audit.md) | 2段階監査（Pre-Phase DoR 要件監査 ＋ Post-Phase 反証型完了性監査）と過剰攻撃防止ガードレール | **Accepted** | 2026-09-10 |
 | [ADR-0024](file:///docs/adr/0024-external-plugin-submodule.md) | antigravity-review-loop プラグインの外部リポジトリ分離と Git Submodule 運用への移行 | **Accepted** | 2026-09-11 |
+| [ADR-0025](file:///docs/adr/0025-health-insurance-benefit-acquisition.md) | 福利厚生情報（TJK/関東IT/協会けんぽ等）の精密取得・分類・可視化と求人票即時抽出 | **Accepted** | 2026-09-11 |
 
 
 

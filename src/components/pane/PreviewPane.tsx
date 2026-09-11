@@ -37,10 +37,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { JobAnalysisResult, JudgmentRank } from "@/types/job";
+import { JobAnalysisResult, JudgmentRank, CorporateBenefitResearch } from "@/types/job";
 import { UserProfile, ScoringPresetKey, SCORING_PRESETS, DEFAULT_SCORING_WEIGHTS } from "@/types/profile";
-import { getStandardMarkdownFilename, parseJobMarkdown } from "@/core/markdown/markdownGenerator";
+import { generateJobMarkdown, getStandardMarkdownFilename, parseJobMarkdown } from "@/core/markdown/markdownGenerator";
 import { recalculateScoreWithWeights } from "@/core/scoring/scoringEngine";
+import {
+  HealthInsuranceType,
+  inferHealthInsuranceType,
+  getHealthInsuranceInfo,
+  HEALTH_INSURANCE_OPTIONS,
+} from "@/core/constants/healthInsurance";
 
 interface PreviewPaneProps {
   analysisResult: JobAnalysisResult | null;
@@ -52,6 +58,7 @@ interface PreviewPaneProps {
   onReEvaluateWithProfile?: () => Promise<void>;
   onGenerateCareerTrajectory?: (job: JobAnalysisResult) => Promise<void>;
   onResearchCorporateBenefits?: (job: JobAnalysisResult) => Promise<void>;
+  onUpdateJob?: (job: JobAnalysisResult) => Promise<void>;
 }
 
 type ViewMode = "rich" | "split" | "raw";
@@ -66,6 +73,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
   onReEvaluateWithProfile,
   onGenerateCareerTrajectory,
   onResearchCorporateBenefits,
+  onUpdateJob,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>("rich");
   const [editedMarkdown, setEditedMarkdown] = useState<string>("");
@@ -76,8 +84,66 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
   const [isGeneratingTrajectory, setIsGeneratingTrajectory] = useState(false);
   const [isResearchingBenefits, setIsResearchingBenefits] = useState(false);
   const [isProfileReEvaluating, setIsProfileReEvaluating] = useState(false);
+  const [isUpdatingInsurance, setIsUpdatingInsurance] = useState(false);
 
   const [selectedLens, setSelectedLens] = useState<ScoringPresetKey | "current">("current");
+
+  const handleUpdateHealthInsurance = async (newType: HealthInsuranceType) => {
+    if (!analysisResult) return;
+    setIsUpdatingInsurance(true);
+    try {
+      const info = getHealthInsuranceInfo(newType);
+      const existingBr = analysisResult.benefitResearch;
+      const updatedBr: CorporateBenefitResearch = {
+        companyName: analysisResult.metadata.company,
+        researchedAt: existingBr?.researchedAt || new Date().toISOString(),
+        healthInsurance: {
+          type: newType,
+          name: info.label,
+          confidence: "high",
+          benefits: info.keyBenefits,
+          notes: `ユーザー手動設定 (${info.shortLabel})`,
+        },
+        corporateDC: existingBr?.corporateDC || {
+          hasDC: "不明",
+          details: "未調査",
+        },
+        workEnvironment: existingBr?.workEnvironment,
+        sources: existingBr?.sources || [],
+        summaryAdvice: existingBr?.summaryAdvice || `${analysisResult.metadata.company} は ${info.shortLabel} に加入しています。`,
+      };
+
+      const updatedMarkdown = generateJobMarkdown({
+        metadata: analysisResult.metadata,
+        scoreBreakdown: analysisResult.scoreBreakdown,
+        positives: analysisResult.positives,
+        concerns: analysisResult.concerns,
+        agentQuestions: analysisResult.agentQuestions,
+        appealPoints: analysisResult.appealPoints,
+        qualificationAdvice: analysisResult.qualificationAdvice,
+        careerTrajectory: analysisResult.careerTrajectory,
+        benefitResearch: updatedBr,
+        evaluationHistory: analysisResult.evaluationHistory,
+        mustRequirements: analysisResult.jobDetails.mustRequirements,
+        wantRequirements: analysisResult.jobDetails.wantRequirements,
+        jobDescription: analysisResult.jobDetails.jobDescription,
+        selectionProcess: analysisResult.jobDetails.selectionProcess,
+      });
+
+      const updatedJob: JobAnalysisResult = {
+        ...analysisResult,
+        benefitResearch: updatedBr,
+        markdownContent: updatedMarkdown,
+      };
+
+      setEditedMarkdown(updatedMarkdown);
+      if (onUpdateJob) {
+        await onUpdateJob(updatedJob);
+      }
+    } finally {
+      setIsUpdatingInsurance(false);
+    }
+  };
 
   // Sync markdown content when analysisResult changes
   useEffect(() => {
@@ -926,47 +992,80 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                 </CardHeader>
                 <CardContent className="p-3.5 pt-3 space-y-3">
                   {/* Health Insurance */}
-                  <div className="bg-slate-950/70 p-3 rounded-xl border border-teal-500/20 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <HeartPulse className="h-4 w-4 text-teal-400" />
-                        <span className="text-xs text-slate-200 font-bold">加入健康保険組合:</span>
-                        <span className="text-xs font-semibold text-teal-300">
-                          {analysisResult.benefitResearch.healthInsurance.name}
-                        </span>
-                      </div>
-                      <Badge
-                        variant="secondary"
-                        className={`text-[10px] ${
-                          analysisResult.benefitResearch.healthInsurance.confidence === "high"
-                            ? "bg-emerald-950 border-emerald-700/60 text-emerald-300"
-                            : analysisResult.benefitResearch.healthInsurance.confidence === "medium"
-                            ? "bg-sky-950 border-sky-700/60 text-sky-300"
-                            : "bg-slate-800 text-slate-400"
-                        }`}
-                      >
-                        確度: {analysisResult.benefitResearch.healthInsurance.confidence === "high" ? "高 (公開情報確認)" : analysisResult.benefitResearch.healthInsurance.confidence === "medium" ? "中 (業界/規模高確率)" : "推定"}
-                      </Badge>
-                    </div>
+                  {(() => {
+                    const healthInsurance = analysisResult.benefitResearch.healthInsurance;
+                    const currentType = healthInsurance.type || inferHealthInsuranceType(healthInsurance.name);
+                    const currentInfo = getHealthInsuranceInfo(currentType);
 
-                    {analysisResult.benefitResearch.healthInsurance.benefits.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {analysisResult.benefitResearch.healthInsurance.benefits.map((b, i) => (
-                          <span
-                            key={i}
-                            className="text-[11px] px-2 py-0.5 rounded bg-teal-950/40 border border-teal-800/40 text-teal-200"
-                          >
-                            ✓ {b}
-                          </span>
-                        ))}
+                    return (
+                      <div className="bg-slate-950/70 p-3 rounded-xl border border-teal-500/20 space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <HeartPulse className="h-4 w-4 text-teal-400 shrink-0" />
+                            <span className="text-xs text-slate-200 font-bold">加入健康保険組合:</span>
+                            <span className={`text-[11px] px-2 py-0.5 rounded border font-semibold ${currentInfo.badgeClassName}`}>
+                              {currentInfo.shortLabel}
+                            </span>
+                            <span className="text-xs font-semibold text-teal-300">
+                              {healthInsurance.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge
+                              variant="secondary"
+                              className={`text-[10px] ${
+                                healthInsurance.confidence === "high"
+                                  ? "bg-emerald-950 border-emerald-700/60 text-emerald-300"
+                                  : healthInsurance.confidence === "medium"
+                                  ? "bg-sky-950 border-sky-700/60 text-sky-300"
+                                  : "bg-slate-800 text-slate-400"
+                              }`}
+                            >
+                              確度: {healthInsurance.confidence === "high" ? "高 (確認済)" : healthInsurance.confidence === "medium" ? "中 (高確率)" : "推定"}
+                            </Badge>
+                            <select
+                              value={currentType}
+                              disabled={isUpdatingInsurance}
+                              onChange={(e) => handleUpdateHealthInsurance(e.target.value as HealthInsuranceType)}
+                              className="h-6 px-1.5 text-[10px] rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                              title="健保種別を手動で変更"
+                            >
+                              {HEALTH_INSURANCE_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {currentInfo.rateAdvantage && (
+                          <div className="text-[11px] text-teal-200/90 bg-teal-950/40 p-2 rounded-lg border border-teal-800/30 flex items-start gap-1.5">
+                            <span className="text-xs shrink-0">💡</span>
+                            <span>{currentInfo.rateAdvantage}</span>
+                          </div>
+                        )}
+
+                        {healthInsurance.benefits.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {healthInsurance.benefits.map((b, i) => (
+                              <span
+                                key={i}
+                                className="text-[11px] px-2 py-0.5 rounded bg-teal-950/40 border border-teal-800/40 text-teal-200"
+                              >
+                                ✓ {b}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {healthInsurance.notes && (
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            {healthInsurance.notes}
+                          </p>
+                        )}
                       </div>
-                    )}
-                    {analysisResult.benefitResearch.healthInsurance.notes && (
-                      <p className="text-[11px] text-slate-400 leading-relaxed">
-                        {analysisResult.benefitResearch.healthInsurance.notes}
-                      </p>
-                    )}
-                  </div>
+                    );
+                  })()}
 
                   {/* Corporate DC */}
                   <div className="bg-slate-950/70 p-3 rounded-xl border border-teal-500/20 space-y-1.5">
@@ -1064,34 +1163,54 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                       求人票に書かれない「加入健康保険組合（ITS・TJK等）」「企業型確定拠出年金 (DC)」「有給消化率」をGoogle検索でリアルタイム調査します（500 RPD 枠使用）。
                     </p>
                   </div>
-                  {onResearchCorporateBenefits && (
-                    <Button
-                      size="sm"
-                      disabled={isResearchingBenefits}
-                      onClick={async () => {
-                        if (!analysisResult) return;
-                        setIsResearchingBenefits(true);
-                        try {
-                          await onResearchCorporateBenefits(analysisResult);
-                        } finally {
-                          setIsResearchingBenefits(false);
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+                    <select
+                      value="unknown"
+                      disabled={isUpdatingInsurance}
+                      onChange={(e) => {
+                        if (e.target.value !== "unknown") {
+                          handleUpdateHealthInsurance(e.target.value as HealthInsuranceType);
                         }
                       }}
-                      className="shrink-0 h-8 text-xs bg-teal-600 hover:bg-teal-500 text-white font-medium"
+                      className="h-8 px-2 text-xs rounded bg-slate-900 border border-teal-500/40 text-teal-200 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                      title="健保を手動で設定"
                     >
-                      {isResearchingBenefits ? (
-                        <>
-                          <RotateCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                          Web調査中...
-                        </>
-                      ) : (
-                        <>
-                          <Search className="h-3.5 w-3.5 mr-1.5" />
-                          福利厚生をWeb調査
-                        </>
-                      )}
-                    </Button>
-                  )}
+                      <option value="unknown">手動で健保を設定...</option>
+                      {HEALTH_INSURANCE_OPTIONS.filter((o) => o.value !== "unknown").map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    {onResearchCorporateBenefits && (
+                      <Button
+                        size="sm"
+                        disabled={isResearchingBenefits}
+                        onClick={async () => {
+                          if (!analysisResult) return;
+                          setIsResearchingBenefits(true);
+                          try {
+                            await onResearchCorporateBenefits(analysisResult);
+                          } finally {
+                            setIsResearchingBenefits(false);
+                          }
+                        }}
+                        className="shrink-0 h-8 text-xs bg-teal-600 hover:bg-teal-500 text-white font-medium"
+                      >
+                        {isResearchingBenefits ? (
+                          <>
+                            <RotateCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                            Web調査中...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="h-3.5 w-3.5 mr-1.5" />
+                            福利厚生をWeb調査
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}

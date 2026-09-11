@@ -10,6 +10,7 @@ import {
   GEMINI_CAREER_TRAJECTORY_SCHEMA,
 } from "@/core/prompt/jobAnalysisPrompt";
 import { generateJobMarkdown } from "@/core/markdown/markdownGenerator";
+import { inferHealthInsuranceType, extractHealthInsuranceFromText } from "@/core/constants/healthInsurance";
 
 interface GeminiRawResponse {
   company?: string;
@@ -31,6 +32,11 @@ interface GeminiRawResponse {
   concerns?: string[];
   agent_questions?: string[];
   appeal_points?: string[];
+  benefit_info?: {
+    health_insurance_name?: string;
+    has_corporate_dc?: boolean;
+    annual_holidays?: string;
+  };
   qualification_advice?: {
     required_certifications?: string[];
     recommended_certifications?: string[];
@@ -441,10 +447,12 @@ export class GeminiAiProvider implements AiProvider {
           }
         } catch {
           // Fallback parsing if plain text was returned
+          const inferredType = inferHealthInsuranceType(undefined, rawText);
           parsed = {
             company_name: jobResult.metadata.company,
             health_insurance: {
-              name: rawText.includes("ITS") || rawText.includes("関東IT") ? "関東ITソフトウェア健康保険組合 (ITS健保)" : "全国健康保険協会 (協会けんぽ)",
+              type: inferredType,
+              name: inferredType === "tjk" ? "東京都情報サービス産業健康保険組合 (TJK)" : inferredType === "its" ? "関東ITソフトウェア健康保険組合 (ITS健保)" : "全国健康保険協会 (協会けんぽ)",
               confidence: "medium",
               benefits: ["Web調査結果サマリーを参照"],
               notes: rawText.slice(0, 200),
@@ -457,11 +465,15 @@ export class GeminiAiProvider implements AiProvider {
           };
         }
 
+        const rawHealthName = parsed.health_insurance?.name || "要確認";
+        const healthType = parsed.health_insurance?.type || inferHealthInsuranceType(rawHealthName, rawText);
+
         return {
           companyName: parsed.company_name || jobResult.metadata.company,
           researchedAt: new Date().toISOString(),
           healthInsurance: {
-            name: parsed.health_insurance?.name || "要確認",
+            type: healthType,
+            name: rawHealthName,
             confidence: (parsed.health_insurance?.confidence as any) || "medium",
             benefits: Array.isArray(parsed.health_insurance?.benefits) ? parsed.health_insurance.benefits : [],
             notes: parsed.health_insurance?.notes,
@@ -585,7 +597,7 @@ export class GeminiAiProvider implements AiProvider {
   ): Promise<JobAnalysisResult> {
     const { systemInstruction, userPrompt } = buildJobAnalysisPrompt(jobText, source, profile);
     const parsed = await this.executeGeminiRequest(apiKey, model, systemInstruction, userPrompt, thinkingLevel);
-    const result = this.transformToJobAnalysisResult(parsed, source);
+    const result = this.transformToJobAnalysisResult(parsed, source, jobText);
     return {
       ...result,
       originalJobText: jobText,
@@ -597,7 +609,8 @@ export class GeminiAiProvider implements AiProvider {
    */
   public transformToJobAnalysisResult(
     raw: GeminiRawResponse,
-    source: AgentSource
+    source: AgentSource,
+    originalJobText?: string
   ): JobAnalysisResult {
     const today = new Date().toISOString().split("T")[0];
     const jobId = `job-${today.replace(/-/g, "")}-${Math.floor(100 + Math.random() * 900)}`;
@@ -659,6 +672,34 @@ export class GeminiAiProvider implements AiProvider {
         }
       : undefined;
 
+    // Extract initial corporate benefit research if health insurance or DC is mentioned in job text or raw response
+    let benefitResearch: CorporateBenefitResearch | undefined = undefined;
+    const extractedInsurance = extractHealthInsuranceFromText(
+      raw.benefit_info?.health_insurance_name || originalJobText || ""
+    );
+    if (extractedInsurance) {
+      benefitResearch = {
+        companyName: company,
+        researchedAt: new Date().toISOString(),
+        healthInsurance: {
+          type: extractedInsurance.type,
+          name: extractedInsurance.name,
+          confidence: extractedInsurance.confidence,
+          benefits: extractedInsurance.benefits,
+          notes: extractedInsurance.notes,
+        },
+        corporateDC: {
+          hasDC: raw.benefit_info?.has_corporate_dc ?? (originalJobText?.includes("確定拠出年金") || originalJobText?.includes("企業型DC") ? true : "不明"),
+          details: raw.benefit_info?.has_corporate_dc ? "求人票に導入記載あり" : "求人票記載情報",
+        },
+        workEnvironment: raw.benefit_info?.annual_holidays ? {
+          annualHolidays: raw.benefit_info.annual_holidays,
+        } : undefined,
+        sources: [],
+        summaryAdvice: `${company} は求人票記載情報に基づき ${extractedInsurance.name} に加入しています。`,
+      };
+    }
+
     const markdownContent = generateJobMarkdown({
       metadata,
       scoreBreakdown,
@@ -668,6 +709,7 @@ export class GeminiAiProvider implements AiProvider {
       appealPoints,
       qualificationAdvice,
       careerTrajectory,
+      benefitResearch,
       mustRequirements,
       wantRequirements,
       jobDescription,
@@ -683,6 +725,7 @@ export class GeminiAiProvider implements AiProvider {
       appealPoints,
       qualificationAdvice,
       careerTrajectory,
+      benefitResearch,
       jobDetails: {
         mustRequirements,
         wantRequirements,
