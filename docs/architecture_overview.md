@@ -106,4 +106,6 @@ tests/                    # 自動テストハーネス (Vitest)
 6. **Inner Loop と Outer Loop の分離 & 着手前 Impact Check (ADR-0020)**:
    - Inner Loop は型検査（`check:fast`）や関連テスト（`test:related`）などミリ秒単位の高速反復に純化。全量検査は Git Pre-Push Hook と CI に集約。
    - ブランチ作成時に `branchDoRGate.js`（`branch-dor-gate` フック）が事前検証記録（`pre_verification.md`）と重複・パッチワーク点検（Impact & Duplication Check）の完了を物理検査。
-
+7. **GitHub Actions による Cloudflare Pages 安全自動デプロイパイプライン (ADR-0026)**:
+   - `main` ブランチへの push（PR マージ）を契機に、Outer Loop 品質ゲート（`npm run check`）が 100% 成功した場合にのみ、検証済み成果物（`dist`）および Cloudflare Pages Functions（`functions/api/sync.ts`）を Cloudflare Pages へ直列自動デプロイ。
+   - Public リポジトリの安全性を担保するため、デプロイは `main` push に限定し、GitHub Environments（`production`）および最小権限の Pages API トークンによって Fork PR や意図しないブランチからの実行・Secrets 漏洩を多層防御。
