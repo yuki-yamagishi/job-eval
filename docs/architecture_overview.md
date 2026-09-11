@@ -1,7 +1,7 @@
 # JobEval アーキテクチャ概説 & システム仕様 (Architecture Overview & SSOT)
 
 JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** で構築された、AI求人適合度評価 & Markdownドキュメント管理デスクトップ/PWAアプリケーションです。
-本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0022）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
+本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0024）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
 
 ---
 
