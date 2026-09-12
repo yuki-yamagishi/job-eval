@@ -222,25 +222,23 @@ describe("JobDashboard Component", () => {
     expect(screen.getByText("TJK健保")).toBeDefined();
   });
 
-  it("filters jobs by health insurance type dropdown", () => {
+  it("filters jobs by health insurance name in search input", () => {
     render(<JobDashboard savedJobs={mockJobs} />);
 
-    // Find health insurance filter dropdown
-    const healthSelect = screen.getByDisplayValue("全健保 (すべて)");
-    expect(healthSelect).toBeDefined();
+    const searchInput = screen.getByPlaceholderText(/企業名、職種、技術タグ/);
 
-    // Filter by ITS
-    fireEvent.change(healthSelect, { target: { value: "its" } });
+    // Search by ITS health insurance name
+    fireEvent.change(searchInput, { target: { value: "関東IT" } });
     expect(screen.getByText("株式会社アルファ")).toBeDefined();
     expect(screen.queryByText("株式会社ベータ")).toBeNull();
 
-    // Filter by TJK
-    fireEvent.change(healthSelect, { target: { value: "tjk" } });
+    // Search by TJK health insurance name
+    fireEvent.change(searchInput, { target: { value: "東京都情報サービス" } });
     expect(screen.queryByText("株式会社アルファ")).toBeNull();
     expect(screen.getByText("株式会社ベータ")).toBeDefined();
 
-    // Filter by kyokai (no match)
-    fireEvent.change(healthSelect, { target: { value: "kyokai" } });
+    // Search by unmatched health insurance name
+    fireEvent.change(searchInput, { target: { value: "サイバーエージェント健保" } });
     expect(screen.queryByText("株式会社アルファ")).toBeNull();
     expect(screen.queryByText("株式会社ベータ")).toBeNull();
     expect(screen.getByText("検索・絞り込み条件に一致する求人がありません")).toBeDefined();

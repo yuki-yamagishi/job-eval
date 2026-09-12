@@ -1,4 +1,4 @@
 # 成果レポートポインタ (Walkthrough Pointer)
 
 現在進行中のフェーズの成果レポートは以下を参照してください：
-- [Issue #84 成果レポート (ISSUE-084_actions_node24_native_migration)](./issues/ISSUE-084_actions_node24_native_migration/walkthrough.md)
+- [Issue #86 成果レポート (ISSUE-086_custom_health_insurance_name_direct_edit)](./issues/ISSUE-086_custom_health_insurance_name_direct_edit/walkthrough.md)

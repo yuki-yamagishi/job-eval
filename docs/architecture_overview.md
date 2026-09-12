@@ -1,7 +1,7 @@
 # JobEval アーキテクチャ概説 & システム仕様 (Architecture Overview & SSOT)
 
 JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** で構築された、AI求人適合度評価 & Markdownドキュメント管理デスクトップ/PWAアプリケーションです。
-本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0027）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
+本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0028）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
 
 ---
 
@@ -80,6 +80,7 @@ tests/                    # 自動テストハーネス (Vitest)
 | [ADR-0025](./adr/0025-health-insurance-benefit-acquisition.md) | 福利厚生情報（TJK/関東IT/協会けんぽ等）の精密取得・分類・可視化と求人票即時抽出 | **Accepted** | 健保種別型（HealthInsuranceType）とメタデータマスターの新設、求人票からの初回即時抽出（Track 1）とWeb精密調査（Track 2）の統合、一覧・詳細でのバッジ・フィルター・手動編集の提供。 |
 | [ADR-0026](./adr/0026-cloudflare-pages-automated-deployment.md) | GitHub Actions による Cloudflare Pages への安全な自動デプロイパイプラインの採用 | **Accepted** | main push 時の Outer Loop 品質ゲート通過後直列自動デプロイ、成果物アーティファクト同一性保証、および Environment 保護による多層防壁。 |
 | [ADR-0027](./adr/0027-github-actions-node24-native-migration.md) | GitHub Actions 公式 Action の Node 24 ネイティブ版への移行と Node.js 24 実行環境の標準化 | **Accepted** | CI/CD パイプライン全体の Node 24 ネイティブ移行（Action v7/v8 採用、node-version: 24 指定）による警告解消と Node 20 廃止破壊の恒久回避。 |
+| [ADR-0028](./adr/0028-custom-health-insurance-name-and-direct-edit.md) | 会社独自健保の実名優先化・直接編集と大分類フィルター全廃 | **Accepted** | 大分類カテゴリーEnum丸め込みと不要な健保フィルターを全廃し、実在する健康保険組合の実名取得・表示・直接テキスト編集機能への刷新。 |
 
 ---
 

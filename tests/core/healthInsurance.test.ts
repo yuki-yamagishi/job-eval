@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   inferHealthInsuranceType,
   getHealthInsuranceInfo,
+  getHealthInsuranceBadgeLabel,
   extractHealthInsuranceFromText,
   HEALTH_INSURANCE_MASTER,
 } from "@/core/constants/healthInsurance";
@@ -78,7 +79,7 @@ describe("Health Insurance Core Logic & Master (SSOT)", () => {
       expect(result).not.toBeNull();
       expect(result?.type).toBe("tjk");
       expect(result?.confidence).toBe("high");
-      expect(result?.name).toBe(HEALTH_INSURANCE_MASTER.tjk.label);
+      expect(result?.name).toBe("東京都情報サービス産業健康保険組合");
       expect(result?.benefits.length).toBeGreaterThan(0);
     });
 
@@ -92,7 +93,19 @@ describe("Health Insurance Core Logic & Master (SSOT)", () => {
       expect(result).not.toBeNull();
       expect(result?.type).toBe("its");
       expect(result?.confidence).toBe("high");
-      expect(result?.name).toBe(HEALTH_INSURANCE_MASTER.its.label);
+      expect(result?.name).toBe("関東ITソフトウェア健康保険組合");
+    });
+
+    it("extracts custom single corporate health insurance without rounding to category", () => {
+      const jobText = `
+        ■福利厚生
+        健康保険（サイバーエージェント健康保険組合）、厚生年金、雇用保険、労災保険
+        家賃補助制度（2駅ルール）
+      `;
+      const result = extractHealthInsuranceFromText(jobText);
+      expect(result).not.toBeNull();
+      expect(result?.name).toBe("サイバーエージェント健康保険組合");
+      expect(result?.confidence).toBe("high");
     });
 
     it("returns null when no health insurance is mentioned", () => {
@@ -118,6 +131,56 @@ describe("Health Insurance Core Logic & Master (SSOT)", () => {
       expect(inferHealthInsuranceType(undefined, jobTextWithEnglish)).toBe("unknown");
       // extractHealthInsuranceFromText should safely return null
       expect(extractHealthInsuranceFromText(jobTextWithEnglish)).toBeNull();
+    });
+  });
+
+  describe("getHealthInsuranceBadgeLabel", () => {
+    it("returns ITS健保 for ITS type", () => {
+      const badge = getHealthInsuranceBadgeLabel("関東ITソフトウェア健康保険組合", "its");
+      expect(badge.badgeText).toBe("ITS健保");
+      expect(badge.title).toBe("関東ITソフトウェア健康保険組合");
+      expect(badge.badgeClassName).toContain("emerald");
+    });
+
+    it("returns TJK健保 for TJK type", () => {
+      const badge = getHealthInsuranceBadgeLabel("東京都情報サービス産業健康保険組合", "tjk");
+      expect(badge.badgeText).toBe("TJK健保");
+      expect(badge.title).toBe("東京都情報サービス産業健康保険組合");
+      expect(badge.badgeClassName).toContain("sky");
+    });
+
+    it("returns 協会けんぽ for Kyokai type", () => {
+      const badge = getHealthInsuranceBadgeLabel("全国健康保険協会東京支部", "kyokai");
+      expect(badge.badgeText).toBe("協会けんぽ");
+      expect(badge.title).toBe("全国健康保険協会東京支部");
+      expect(badge.badgeClassName).toContain("slate");
+    });
+
+    it("shortens '〇〇健康保険組合' to '〇〇健保' for custom corporate insurance", () => {
+      const badge = getHealthInsuranceBadgeLabel("日立健康保険組合", "corporate");
+      expect(badge.badgeText).toBe("日立健保");
+      expect(badge.title).toBe("日立健康保険組合");
+      expect(badge.badgeClassName).toContain("purple");
+    });
+
+    it("truncates to 10 chars when shortened name exceeds 10 chars", () => {
+      // "サイバーエージェント健康保険組合" -> "サイバーエージェント健保" (11文字) -> 10文字 truncate + "…"
+      const badgeCyber = getHealthInsuranceBadgeLabel("サイバーエージェント健康保険組合", "corporate");
+      expect(badgeCyber.badgeText).toBe("サイバーエージェント…");
+      expect(badgeCyber.title).toBe("サイバーエージェント健康保険組合");
+
+      // "全国情報サービス産業労働者福祉共済健康保険組合" -> 10文字 truncate + "…"
+      const longName = "全国情報サービス産業労働者福祉共済健康保険組合";
+      const badge = getHealthInsuranceBadgeLabel(longName, "other");
+      expect(badge.badgeText.length).toBeLessThanOrEqual(11); // 10 chars + '…'
+      expect(badge.badgeText.endsWith("…")).toBe(true);
+      expect(badge.title).toBe(longName);
+    });
+
+    it("handles fallback gracefully when name is empty or undefined", () => {
+      const badge = getHealthInsuranceBadgeLabel(undefined, "unknown");
+      expect(badge.badgeText).toBe("健保未確認");
+      expect(badge.badgeClassName).toContain("slate");
     });
   });
 });
