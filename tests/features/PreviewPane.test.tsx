@@ -337,7 +337,7 @@ describe("PreviewPane Component", () => {
     expect(screen.getByText("採用FAQページ")).toBeDefined();
   });
 
-  it("updates health insurance manually via dropdown and calls onUpdateJob (Scenario 4: researched card)", async () => {
+  it("updates health insurance manually via direct text input and calls onUpdateJob (Scenario 4: researched card)", async () => {
     const handleUpdateJob = vi.fn();
     const resultWithBenefits: JobAnalysisResult = {
       ...mockResult,
@@ -365,20 +365,77 @@ describe("PreviewPane Component", () => {
       />
     );
 
-    // Find the select dropdown with title "健保種別を手動で変更"
-    const select = screen.getByTitle("健保種別を手動で変更");
-    expect(select).toBeDefined();
+    // 1. Click "健保名を直接編集" button
+    const editBtn = screen.getByTitle("健保名を直接テキスト編集");
+    expect(editBtn).toBeDefined();
+    fireEvent.click(editBtn);
 
-    // Change to TJK
+    // 2. Form is displayed with input and quick presets
+    const input = screen.getByPlaceholderText(/サイバーエージェント健康保険組合/);
+    expect(input).toBeDefined();
+
+    // 3. Test empty input validation
+    fireEvent.change(input, { target: { value: "   " } });
+    const saveBtn = screen.getByText("保存");
     await act(async () => {
-      fireEvent.change(select, { target: { value: "tjk" } });
+      fireEvent.click(saveBtn);
+    });
+    expect(handleUpdateJob).not.toHaveBeenCalled();
+    expect(screen.getByText(/健保名を入力してください/)).toBeDefined();
+
+    // 4. Enter custom corporate health insurance name
+    fireEvent.change(input, { target: { value: "サイバーエージェント健康保険組合" } });
+    await act(async () => {
+      fireEvent.click(saveBtn);
+    });
+
+    expect(handleUpdateJob).toHaveBeenCalledTimes(1);
+    const updatedJob = handleUpdateJob.mock.calls[0][0] as JobAnalysisResult;
+    expect(updatedJob.benefitResearch?.healthInsurance.name).toBe("サイバーエージェント健康保険組合");
+    expect(["corporate", "other"]).toContain(updatedJob.benefitResearch?.healthInsurance.type);
+    expect(updatedJob.markdownContent).toContain("サイバーエージェント健康保険組合");
+  });
+
+  it("sets health insurance using quick preset chips in direct editing mode", async () => {
+    const handleUpdateJob = vi.fn();
+    const resultWithBenefits: JobAnalysisResult = {
+      ...mockResult,
+      benefitResearch: {
+        companyName: "テスト企業",
+        researchedAt: "2026-09-06T12:00:00Z",
+        healthInsurance: {
+          type: "other",
+          name: "出版健康保険組合",
+          benefits: [],
+          confidence: "medium",
+        },
+      },
+    };
+
+    render(
+      <PreviewPane
+        analysisResult={resultWithBenefits}
+        isAnalyzing={false}
+        onUpdateJob={handleUpdateJob}
+      />
+    );
+
+    // Click edit
+    fireEvent.click(screen.getByTitle("健保名を直接テキスト編集"));
+
+    // Click quick preset chip "TJK健保"
+    const tjkChip = screen.getByRole("button", { name: "TJK健保" });
+    fireEvent.click(tjkChip);
+
+    // Click save
+    await act(async () => {
+      fireEvent.click(screen.getByText("保存"));
     });
 
     expect(handleUpdateJob).toHaveBeenCalledTimes(1);
     const updatedJob = handleUpdateJob.mock.calls[0][0] as JobAnalysisResult;
     expect(updatedJob.benefitResearch?.healthInsurance.type).toBe("tjk");
-    expect(updatedJob.benefitResearch?.healthInsurance.name).toContain("東京都情報サービス産業");
-    expect(updatedJob.markdownContent).toContain("[TJK健保]");
+    expect(updatedJob.benefitResearch?.healthInsurance.name).toBe("東京都情報サービス産業健康保険組合");
   });
 
   it("sets health insurance manually from unresearched banner and calls onUpdateJob (Scenario 4: unresearched banner)", async () => {

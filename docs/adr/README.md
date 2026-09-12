@@ -45,3 +45,4 @@
 | [ADR-0025](file:///docs/adr/0025-health-insurance-benefit-acquisition.md) | 福利厚生情報（TJK/関東IT/協会けんぽ等）の精密取得・分類・可視化と求人票即時抽出 | **Accepted** | 2026-09-11 |
 | [ADR-0026](file:///docs/adr/0026-cloudflare-pages-automated-deployment.md) | GitHub Actions による Cloudflare Pages への安全な自動デプロイパイプラインの採用 | **Accepted** | 2026-09-11 |
 | [ADR-0027](file:///docs/adr/0027-github-actions-node24-native-migration.md) | GitHub Actions 公式 Action の Node 24 ネイティブ版への移行と Node.js 24 実行環境の標準化 | **Accepted** | 2026-09-12 |
+| [ADR-0028](file:///docs/adr/0028-custom-health-insurance-name-and-direct-edit.md) | 会社独自健保の実名優先化・直接編集と大分類フィルター全廃 | **Accepted** | 2026-09-12 |

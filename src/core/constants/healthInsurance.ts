@@ -198,7 +198,81 @@ export function getHealthInsuranceInfo(type?: HealthInsuranceType): HealthInsura
 }
 
 /**
+ * 健保名テキストおよびタイプからカードバッジ表示用ラベル・クラス名を安全に生成する純粋関数
+ * （長大な正式名称を「〇〇健保」に短縮し、レイアウト崩壊を物理防止）
+ */
+export function getHealthInsuranceBadgeLabel(
+  name?: string,
+  type?: HealthInsuranceType
+): {
+  badgeText: string;
+  title: string;
+  badgeClassName: string;
+} {
+  const cleanName = name?.trim() || "";
+  const resolvedType = type || (cleanName ? inferHealthInsuranceType(cleanName) : "unknown");
+  const info = getHealthInsuranceInfo(resolvedType);
+
+  if (!cleanName && resolvedType === "unknown") {
+    return {
+      badgeText: info.shortLabel,
+      title: info.label,
+      badgeClassName: info.badgeClassName,
+    };
+  }
+
+  // 1. 代表的健保の短縮表記
+  if (resolvedType === "its" || /its|関東it/i.test(cleanName)) {
+    return {
+      badgeText: "ITS健保",
+      title: cleanName || info.label,
+      badgeClassName: HEALTH_INSURANCE_MASTER.its.badgeClassName,
+    };
+  }
+  if (resolvedType === "tjk" || /tjk|東京都情報サービス/i.test(cleanName)) {
+    return {
+      badgeText: "TJK健保",
+      title: cleanName || info.label,
+      badgeClassName: HEALTH_INSURANCE_MASTER.tjk.badgeClassName,
+    };
+  }
+  if (resolvedType === "kyokai" || /協会けんぽ|全国健康保険協会/i.test(cleanName)) {
+    return {
+      badgeText: "協会けんぽ",
+      title: cleanName || info.label,
+      badgeClassName: HEALTH_INSURANCE_MASTER.kyokai.badgeClassName,
+    };
+  }
+
+  // 2. 実名が存在する場合の短縮化（〇〇健康保険組合 → 〇〇健保）
+  let shortText = cleanName;
+  if (shortText.endsWith("健康保険組合")) {
+    shortText = shortText.replace(/健康保険組合$/, "健保");
+  } else if (shortText.endsWith("健保組合")) {
+    shortText = shortText.replace(/健保組合$/, "健保");
+  }
+
+  // 10文字を超える場合は 10文字で truncate
+  const maxLength = 10;
+  if (shortText.length > maxLength) {
+    shortText = `${shortText.slice(0, maxLength)}…`;
+  }
+
+  // クラス名の選定（自社健保・その他健保は紫色／インディゴ系のバッジ）
+  const badgeClassName = resolvedType === "corporate"
+    ? HEALTH_INSURANCE_MASTER.corporate.badgeClassName
+    : HEALTH_INSURANCE_MASTER.other.badgeClassName;
+
+  return {
+    badgeText: shortText || info.shortLabel,
+    title: cleanName || info.label,
+    badgeClassName,
+  };
+}
+
+/**
  * 求人テキストから健康保険に関する記述を抽出し、事前判定オブジェクトを返す純粋関数
+ * （〇〇健康保険組合という実名パターンを丸めずにそのまま抽出）
  */
 export function extractHealthInsuranceFromText(jobText: string): {
   type: HealthInsuranceType;
@@ -209,6 +283,22 @@ export function extractHealthInsuranceFromText(jobText: string): {
 } | null {
   if (!jobText || !jobText.trim()) return null;
 
+  // 1. 実在する健保名（〇〇健康保険組合 / 〇〇健保組合）の直接抽出
+  const specificMatch = jobText.match(/([^\s,、。・（）()「」【】]+(健康保険組合|健保組合))/);
+  if (specificMatch) {
+    const extractedName = specificMatch[1].trim();
+    const type = inferHealthInsuranceType(extractedName);
+    const info = getHealthInsuranceInfo(type);
+    return {
+      type,
+      name: extractedName,
+      confidence: "high",
+      benefits: info.keyBenefits.slice(0, 3),
+      notes: `求人票本文から直接抽出 (${extractedName})`,
+    };
+  }
+
+  // 2. 代表的キーワードからの推論
   const type = inferHealthInsuranceType(undefined, jobText);
   if (type === "unknown") return null;
 
@@ -221,3 +311,4 @@ export function extractHealthInsuranceFromText(jobText: string): {
     notes: `求人票本文から自動検出 (${info.shortLabel})`,
   };
 }
+

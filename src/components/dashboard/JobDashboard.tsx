@@ -27,7 +27,7 @@ import { recalculateScoreWithWeights } from "@/core/scoring/scoringEngine";
 import { formatSalary } from "@/lib/utils";
 import { useJobComparison } from "@/hooks/useJobComparison";
 import { BatchReEvaluationProgress } from "@/hooks/useJobs";
-import { inferHealthInsuranceType, getHealthInsuranceInfo } from "@/core/constants/healthInsurance";
+import { inferHealthInsuranceType, getHealthInsuranceBadgeLabel } from "@/core/constants/healthInsurance";
 
 interface JobDashboardProps {
   savedJobs: JobAnalysisResult[];
@@ -72,7 +72,6 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [rankFilter, setRankFilter] = useState<string>("all");
-  const [healthInsuranceFilter, setHealthInsuranceFilter] = useState<string>("all");
   const [selectedLens, setSelectedLens] = useState<ScoringPresetKey | "current">("current");
   const [viewLayout, setViewLayout] = useState<"table" | "grid">("table");
   const [sortBy, setSortBy] = useState<"score" | "date" | "salary">("date");
@@ -162,23 +161,20 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
         };
       })
       .filter((job) => {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
+        const healthName = job.benefitResearch?.healthInsurance?.name?.toLowerCase() || "";
         const matchesQuery =
           !q ||
           job.metadata.company.toLowerCase().includes(q) ||
           job.metadata.title.toLowerCase().includes(q) ||
-          job.metadata.tags.some((t) => t.toLowerCase().includes(q));
+          job.metadata.tags.some((t) => t.toLowerCase().includes(q)) ||
+          healthName.includes(q);
 
         const matchesStatus = statusFilter === "all" || job.metadata.status === statusFilter;
         const matchesRank =
           rankFilter === "all" || job.effectiveJudgment.startsWith(rankFilter);
 
-        const healthType = job.benefitResearch?.healthInsurance?.type ?? inferHealthInsuranceType(job.benefitResearch?.healthInsurance?.name);
-        const matchesHealth =
-          healthInsuranceFilter === "all" ||
-          (healthInsuranceFilter === "unresearched" ? healthType === "unknown" : healthType === healthInsuranceFilter);
-
-        return matchesQuery && matchesStatus && matchesRank && matchesHealth;
+        return matchesQuery && matchesStatus && matchesRank;
       })
       .sort((a, b) => {
         if (sortBy === "score") {
@@ -189,7 +185,7 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
         }
         return b.metadata.dateAnalyzed.localeCompare(a.metadata.dateAnalyzed);
       });
-  }, [savedJobs, searchQuery, statusFilter, rankFilter, healthInsuranceFilter, sortBy, activeWeights, selectedLens]);
+  }, [savedJobs, searchQuery, statusFilter, rankFilter, sortBy, activeWeights, selectedLens]);
 
   const getRankBadgeVariant = (judgment?: JudgmentRank) => {
     if (!judgment) return "secondary";
@@ -323,10 +319,10 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
       {/* Filter & Search Bar */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-slate-950/80 p-3 rounded-xl border border-slate-800">
         {/* Search Box */}
-        <div className="md:col-span-3 relative">
+        <div className="md:col-span-4 relative">
           <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-500" />
           <Input
-            placeholder="企業名、職種、技術タグ（AWS, Go等）で検索..."
+            placeholder="企業名、職種、技術タグ、健保名で検索..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 h-9 text-xs bg-slate-900/90"
@@ -364,23 +360,6 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
           </select>
         </div>
 
-        {/* Health Insurance Filter */}
-        <div className="md:col-span-2">
-          <select
-            value={healthInsuranceFilter}
-            onChange={(e) => setHealthInsuranceFilter(e.target.value)}
-            className="w-full h-9 rounded-lg border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="all">全健保 (すべて)</option>
-            <option value="its">ITS健保 (関東IT)</option>
-            <option value="tjk">TJK健保 (東情産)</option>
-            <option value="kyokai">協会けんぽ</option>
-            <option value="corporate">自社単一健保</option>
-            <option value="other">その他健保</option>
-            <option value="unresearched">未調査 / 不明</option>
-          </select>
-        </div>
-
         {/* Rank Filter */}
         <div className="md:col-span-1">
           <select
@@ -397,7 +376,7 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
         </div>
 
         {/* Sort By */}
-        <div className="md:col-span-1">
+        <div className="md:col-span-2">
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as "score" | "date" | "salary")}
@@ -419,13 +398,12 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
               <span className="text-slate-500 ml-1">（全 {savedJobs.length} 件中）</span>
             )}
           </span>
-          {(searchQuery || statusFilter !== "all" || rankFilter !== "all" || healthInsuranceFilter !== "all") && (
+          {(searchQuery || statusFilter !== "all" || rankFilter !== "all") && (
             <button
               onClick={() => {
                 setSearchQuery("");
                 setStatusFilter("all");
                 setRankFilter("all");
-                setHealthInsuranceFilter("all");
               }}
               className="text-indigo-400 hover:text-indigo-300 underline text-[11px] ml-2"
             >
@@ -509,15 +487,16 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1 items-center">
                         {(() => {
-                          const healthType = job.benefitResearch?.healthInsurance?.type ?? inferHealthInsuranceType(job.benefitResearch?.healthInsurance?.name);
-                          const healthInfo = getHealthInsuranceInfo(healthType);
-                          if (healthType === "unknown" && !job.benefitResearch?.healthInsurance) return null;
+                          const healthName = job.benefitResearch?.healthInsurance?.name;
+                          const healthType = job.benefitResearch?.healthInsurance?.type ?? inferHealthInsuranceType(healthName);
+                          if (healthType === "unknown" && !healthName) return null;
+                          const badge = getHealthInsuranceBadgeLabel(healthName, healthType);
                           return (
                             <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${healthInfo.badgeClassName}`}
-                              title={job.benefitResearch?.healthInsurance?.name || healthInfo.label}
+                              className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${badge.badgeClassName}`}
+                              title={badge.title}
                             >
-                              {healthInfo.shortLabel}
+                              {badge.badgeText}
                             </span>
                           );
                         })()}
@@ -713,15 +692,16 @@ export const JobDashboard: React.FC<JobDashboardProps> = ({
                       <p className="text-xs text-slate-400 truncate">{job.metadata.title}</p>
                       <div className="flex flex-wrap gap-1 mt-1.5 items-center">
                         {(() => {
-                          const healthType = job.benefitResearch?.healthInsurance?.type ?? inferHealthInsuranceType(job.benefitResearch?.healthInsurance?.name);
-                          const healthInfo = getHealthInsuranceInfo(healthType);
-                          if (healthType === "unknown" && !job.benefitResearch?.healthInsurance) return null;
+                          const healthName = job.benefitResearch?.healthInsurance?.name;
+                          const healthType = job.benefitResearch?.healthInsurance?.type ?? inferHealthInsuranceType(healthName);
+                          if (healthType === "unknown" && !healthName) return null;
+                          const badge = getHealthInsuranceBadgeLabel(healthName, healthType);
                           return (
                             <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${healthInfo.badgeClassName}`}
-                              title={job.benefitResearch?.healthInsurance?.name || healthInfo.label}
+                              className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${badge.badgeClassName}`}
+                              title={badge.title}
                             >
-                              {healthInfo.shortLabel}
+                              {badge.badgeText}
                             </span>
                           );
                         })()}

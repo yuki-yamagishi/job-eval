@@ -31,12 +31,15 @@ import {
   HeartPulse,
   Coins,
   Search,
-  ExternalLink
+  ExternalLink,
+  Pencil,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { JobAnalysisResult, JudgmentRank, CorporateBenefitResearch } from "@/types/job";
 import { UserProfile, ScoringPresetKey, SCORING_PRESETS, DEFAULT_SCORING_WEIGHTS } from "@/types/profile";
 import { generateJobMarkdown, getStandardMarkdownFilename, parseJobMarkdown } from "@/core/markdown/markdownGenerator";
@@ -45,6 +48,7 @@ import {
   HealthInsuranceType,
   inferHealthInsuranceType,
   getHealthInsuranceInfo,
+  getHealthInsuranceBadgeLabel,
   HEALTH_INSURANCE_OPTIONS,
 } from "@/core/constants/healthInsurance";
 
@@ -85,24 +89,41 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
   const [isResearchingBenefits, setIsResearchingBenefits] = useState(false);
   const [isProfileReEvaluating, setIsProfileReEvaluating] = useState(false);
   const [isUpdatingInsurance, setIsUpdatingInsurance] = useState(false);
+  const [isEditingInsurance, setIsEditingInsurance] = useState(false);
+  const [insuranceInputName, setInsuranceInputName] = useState("");
+  const [insuranceError, setInsuranceError] = useState<string | null>(null);
+
+  const QUICK_INSURANCE_PRESETS = [
+    { label: "ITS健保", value: "関東ITソフトウェア健康保険組合" },
+    { label: "TJK健保", value: "東京都情報サービス産業健康保険組合" },
+    { label: "協会けんぽ", value: "全国健康保険協会 (協会けんぽ)" },
+  ];
 
   const [selectedLens, setSelectedLens] = useState<ScoringPresetKey | "current">("current");
 
-  const handleUpdateHealthInsurance = async (newType: HealthInsuranceType) => {
+  const handleSaveHealthInsuranceName = async (newName: string) => {
     if (!analysisResult) return;
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      setInsuranceError("健保名を入力してください");
+      return;
+    }
+
+    setInsuranceError(null);
     setIsUpdatingInsurance(true);
     try {
-      const info = getHealthInsuranceInfo(newType);
+      const inferredType = inferHealthInsuranceType(trimmed);
+      const info = getHealthInsuranceInfo(inferredType);
       const existingBr = analysisResult.benefitResearch;
       const updatedBr: CorporateBenefitResearch = {
         companyName: analysisResult.metadata.company,
         researchedAt: existingBr?.researchedAt || new Date().toISOString(),
         healthInsurance: {
-          type: newType,
-          name: info.label,
+          type: inferredType,
+          name: trimmed,
           confidence: "high",
           benefits: info.keyBenefits,
-          notes: `ユーザー手動設定 (${info.shortLabel})`,
+          notes: `ユーザー手動設定 (${trimmed})`,
         },
         corporateDC: existingBr?.corporateDC || {
           hasDC: "不明",
@@ -110,7 +131,7 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
         },
         workEnvironment: existingBr?.workEnvironment,
         sources: existingBr?.sources || [],
-        summaryAdvice: existingBr?.summaryAdvice || `${analysisResult.metadata.company} は ${info.shortLabel} に加入しています。`,
+        summaryAdvice: existingBr?.summaryAdvice || `${analysisResult.metadata.company} は ${trimmed} に加入しています。`,
       };
 
       const updatedMarkdown = generateJobMarkdown({
@@ -140,9 +161,15 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
       if (onUpdateJob) {
         await onUpdateJob(updatedJob);
       }
+      setIsEditingInsurance(false);
     } finally {
       setIsUpdatingInsurance(false);
     }
+  };
+
+  const handleUpdateHealthInsurance = async (newType: HealthInsuranceType) => {
+    const info = getHealthInsuranceInfo(newType);
+    await handleSaveHealthInsuranceName(info.label);
   };
 
   // Sync markdown content when analysisResult changes
@@ -996,48 +1023,128 @@ export const PreviewPane: React.FC<PreviewPaneProps> = ({
                     const healthInsurance = analysisResult.benefitResearch.healthInsurance;
                     const currentType = healthInsurance.type || inferHealthInsuranceType(healthInsurance.name);
                     const currentInfo = getHealthInsuranceInfo(currentType);
+                    const badge = getHealthInsuranceBadgeLabel(healthInsurance.name, currentType);
 
                     return (
-                      <div className="bg-slate-950/70 p-3 rounded-xl border border-teal-500/20 space-y-2">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <HeartPulse className="h-4 w-4 text-teal-400 shrink-0" />
-                            <span className="text-xs text-slate-200 font-bold">加入健康保険組合:</span>
-                            <span className={`text-[11px] px-2 py-0.5 rounded border font-semibold ${currentInfo.badgeClassName}`}>
-                              {currentInfo.shortLabel}
-                            </span>
-                            <span className="text-xs font-semibold text-teal-300">
-                              {healthInsurance.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Badge
-                              variant="secondary"
-                              className={`text-[10px] ${
-                                healthInsurance.confidence === "high"
-                                  ? "bg-emerald-950 border-emerald-700/60 text-emerald-300"
-                                  : healthInsurance.confidence === "medium"
-                                  ? "bg-sky-950 border-sky-700/60 text-sky-300"
-                                  : "bg-slate-800 text-slate-400"
-                              }`}
-                            >
-                              確度: {healthInsurance.confidence === "high" ? "高 (確認済)" : healthInsurance.confidence === "medium" ? "中 (高確率)" : "推定"}
-                            </Badge>
-                            <select
-                              value={currentType}
-                              disabled={isUpdatingInsurance}
-                              onChange={(e) => handleUpdateHealthInsurance(e.target.value as HealthInsuranceType)}
-                              className="h-6 px-1.5 text-[10px] rounded bg-slate-900 border border-slate-700 text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
-                              title="健保種別を手動で変更"
-                            >
-                              {HEALTH_INSURANCE_OPTIONS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </option>
+                      <div className="bg-slate-950/70 p-3 rounded-xl border border-teal-500/20 space-y-2.5">
+                        {isEditingInsurance ? (
+                          /* Direct Text Input & Editing Form */
+                          <div className="space-y-2 bg-slate-900/90 p-2.5 rounded-lg border border-teal-500/40">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs text-teal-300 font-semibold flex items-center gap-1.5">
+                                <Pencil className="h-3.5 w-3.5" />
+                                健保名の直接編集 (実名入力)
+                              </label>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  size="sm"
+                                  disabled={isUpdatingInsurance}
+                                  onClick={() => handleSaveHealthInsuranceName(insuranceInputName)}
+                                  className="h-6 px-2.5 text-[11px] bg-teal-600 hover:bg-teal-500 text-white font-medium"
+                                >
+                                  {isUpdatingInsurance ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Check className="h-3 w-3 mr-1" />
+                                      保存
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={isUpdatingInsurance}
+                                  onClick={() => {
+                                    setIsEditingInsurance(false);
+                                    setInsuranceError(null);
+                                  }}
+                                  className="h-6 px-2 text-[11px] text-slate-400 hover:text-white"
+                                >
+                                  <X className="h-3 w-3 mr-1" />
+                                  キャンセル
+                                </Button>
+                              </div>
+                            </div>
+
+                            <Input
+                              value={insuranceInputName}
+                              onChange={(e) => {
+                                setInsuranceInputName(e.target.value);
+                                if (insuranceError) setInsuranceError(null);
+                              }}
+                              placeholder="例: サイバーエージェント健康保険組合、日立健康保険組合、ITS健保 など"
+                              className="h-8 text-xs bg-slate-950 border-teal-500/30 text-slate-100 placeholder:text-slate-500"
+                              autoFocus
+                            />
+
+                            {insuranceError && (
+                              <p className="text-[11px] text-rose-400 font-medium">
+                                ⚠️ {insuranceError}
+                              </p>
+                            )}
+
+                            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                              <span className="text-[10px] text-slate-400">クイック入力:</span>
+                              {QUICK_INSURANCE_PRESETS.map((preset) => (
+                                <button
+                                  key={preset.label}
+                                  type="button"
+                                  onClick={() => setInsuranceInputName(preset.value)}
+                                  className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 hover:bg-teal-900/60 text-slate-300 hover:text-teal-200 border border-slate-700 transition-colors"
+                                >
+                                  {preset.label}
+                                </button>
                               ))}
-                            </select>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          /* Standard View with Direct Edit Button */
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <HeartPulse className="h-4 w-4 text-teal-400 shrink-0" />
+                              <span className="text-xs text-slate-200 font-bold">加入健康保険組合:</span>
+                              <span
+                                className={`text-[11px] px-2 py-0.5 rounded border font-semibold ${badge.badgeClassName}`}
+                                title={badge.title}
+                              >
+                                {badge.badgeText}
+                              </span>
+                              <span className="text-xs font-semibold text-teal-300">
+                                {healthInsurance.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Badge
+                                variant="secondary"
+                                className={`text-[10px] ${
+                                  healthInsurance.confidence === "high"
+                                    ? "bg-emerald-950 border-emerald-700/60 text-emerald-300"
+                                    : healthInsurance.confidence === "medium"
+                                    ? "bg-sky-950 border-sky-700/60 text-sky-300"
+                                    : "bg-slate-800 text-slate-400"
+                                }`}
+                              >
+                                確度: {healthInsurance.confidence === "high" ? "高 (確認済)" : healthInsurance.confidence === "medium" ? "中 (高確率)" : "推定"}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={isUpdatingInsurance}
+                                onClick={() => {
+                                  setInsuranceInputName(healthInsurance.name || "");
+                                  setInsuranceError(null);
+                                  setIsEditingInsurance(true);
+                                }}
+                                className="h-6 px-2 text-[10px] text-teal-300 hover:text-white hover:bg-teal-950/60 border border-teal-500/30"
+                                title="健保名を直接テキスト編集"
+                              >
+                                <Pencil className="h-3 w-3 mr-1" />
+                                健保名を直接編集
+                              </Button>
+                            </div>
+                          </div>
+                        )}
 
                         {currentInfo.rateAdvantage && (
                           <div className="text-[11px] text-teal-200/90 bg-teal-950/40 p-2 rounded-lg border border-teal-800/30 flex items-start gap-1.5">
