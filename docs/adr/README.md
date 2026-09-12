@@ -44,3 +44,4 @@
 | [ADR-0024](file:///docs/adr/0024-external-plugin-submodule.md) | antigravity-review-loop プラグインの外部リポジトリ分離と Git Submodule 運用への移行 | **Accepted** | 2026-09-11 |
 | [ADR-0025](file:///docs/adr/0025-health-insurance-benefit-acquisition.md) | 福利厚生情報（TJK/関東IT/協会けんぽ等）の精密取得・分類・可視化と求人票即時抽出 | **Accepted** | 2026-09-11 |
 | [ADR-0026](file:///docs/adr/0026-cloudflare-pages-automated-deployment.md) | GitHub Actions による Cloudflare Pages への安全な自動デプロイパイプラインの採用 | **Accepted** | 2026-09-11 |
+| [ADR-0027](file:///docs/adr/0027-github-actions-node24-native-migration.md) | GitHub Actions 公式 Action の Node 24 ネイティブ版への移行と Node.js 24 実行環境の標準化 | **Accepted** | 2026-09-12 |

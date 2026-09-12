@@ -1,7 +1,7 @@
 # JobEval アーキテクチャ概説 & システム仕様 (Architecture Overview & SSOT)
 
 JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** で構築された、AI求人適合度評価 & Markdownドキュメント管理デスクトップ/PWAアプリケーションです。
-本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0026）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
+本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0027）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
 
 ---
 
@@ -79,6 +79,7 @@ tests/                    # 自動テストハーネス (Vitest)
 | [ADR-0024](./adr/0024-external-plugin-submodule.md) | antigravity-review-loop プラグインの外部リポジトリ分離と Git Submodule 運用への移行 | **Accepted** | 自律レビューループ機構を独立 GitHub リポジトリ（`yuki-yamagishi/antigravity-review-loop`）として公開し、JobEval には Git Submodule として取り込み、独立品質保証・他プロジェクト展開・CI 自動同期を確立。 |
 | [ADR-0025](./adr/0025-health-insurance-benefit-acquisition.md) | 福利厚生情報（TJK/関東IT/協会けんぽ等）の精密取得・分類・可視化と求人票即時抽出 | **Accepted** | 健保種別型（HealthInsuranceType）とメタデータマスターの新設、求人票からの初回即時抽出（Track 1）とWeb精密調査（Track 2）の統合、一覧・詳細でのバッジ・フィルター・手動編集の提供。 |
 | [ADR-0026](./adr/0026-cloudflare-pages-automated-deployment.md) | GitHub Actions による Cloudflare Pages への安全な自動デプロイパイプラインの採用 | **Accepted** | main push 時の Outer Loop 品質ゲート通過後直列自動デプロイ、成果物アーティファクト同一性保証、および Environment 保護による多層防壁。 |
+| [ADR-0027](./adr/0027-github-actions-node24-native-migration.md) | GitHub Actions 公式 Action の Node 24 ネイティブ版への移行と Node.js 24 実行環境の標準化 | **Accepted** | CI/CD パイプライン全体の Node 24 ネイティブ移行（Action v7/v8 採用、node-version: 24 指定）による警告解消と Node 20 廃止破壊の恒久回避。 |
 
 ---
 
@@ -110,3 +111,8 @@ tests/                    # 自動テストハーネス (Vitest)
 7. **GitHub Actions による Cloudflare Pages 安全自動デプロイパイプライン (ADR-0026)**:
    - `main` ブランチへの push（PR マージ）を契機に、Outer Loop 品質ゲート（`npm run check`）が 100% 成功した場合にのみ、検証済み成果物（`dist`）および Cloudflare Pages Functions（`functions/api/sync.ts`）を Cloudflare Pages へ直列自動デプロイ。
    - Public リポジトリの安全性を担保するため、デプロイは `main` push に限定し、GitHub Environments（`production`）および最小権限の Pages API トークンによって Fork PR や意図しないブランチからの実行・Secrets 漏洩を多層防御。
+8. **GitHub Actions 公式 Action の Node 24 ネイティブ移行と環境標準化 (ADR-0027)**:
+   - GitHub Actions 公式アクション（`checkout@v7`, `setup-node@v7`, `upload-artifact@v7`, `download-artifact@v8`）を Node 24 ネイティブ対応版へ全面移行。
+   - CI 実行環境を `node-version: 24` に明示指定し、ローカル開発環境（Node.js v24.x）との環境完全一致を保証。
+   - GitHub ランナーの Node 20 廃止・強制実行に伴う Deprecation Annotation Warning を完全に排除し、2026年9月の Node 20 完全削除による CI 停止リスクを未然に防止。
+
