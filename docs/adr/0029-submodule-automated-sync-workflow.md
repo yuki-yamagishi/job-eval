@@ -1,8 +1,8 @@
-# ADR-0029: antigravity-review-loop プラグイン更新の自動検知・品質検証・自動 PR 同期ワークフローの導入
+# ADR-0029: antigravity-review-loop プラグイン更新の完全自律 Pull 型自動検知・品質検証・PR 起票ワークフローの導入
 
 - **ステータス**: Accepted
 - **決定日**: 2026-09-18
-- **対象**: Customization Layer, Git Submodule, CI/CD Automation, GitHub Actions, Governance
+- **対象**: Customization Layer, Git Submodule, CI/CD Automation, GitHub Actions, Dependabot, Governance
 - **関連 Issue**: Issue #89
 
 ---
@@ -11,47 +11,64 @@
 
 ADR-0024 において、自律レビューループ機構（Hooks, Skills, Rules, Agents, State Machine）は外部リポジトリ（`yuki-yamagishi/antigravity-review-loop`）に分離され、JobEval には Git Submodule として取り込む構成へ移行した。
 
-しかし、以下の運用上の課題が存在していた：
-1. **更新反映の手動依存と反映漏れ**:
-   - プラグイン側でバグ修正や安全装置（curl timeout guard や branch DoR 検査強化等）の改修が行われた際、JobEval 側で開発者が手動で `git submodule update` を実行してコミット・PR を作成しない限り最新版が反映されなかった。
-2. **親リポジトリ互換性検証の自動化欠如**:
-   - プラグインの更新が JobEval 本体のチェッカー（`agentSkillChecker.js` 等）、TypeScript 型検査、単体テストスイート、本番ビルドを破壊しないかを自動検証する仕組みがなく、手動テストに依存していた。
-3. **ガバナンスと安全性の両立**:
-   - 人間のマージ専権（AGENTS.md / Global Rules）を担保しつつ、プラグイン更新の検知と反映を自動化する仕組み（Mechanisms over good intentions）が求められていた。
+`antigravity-review-loop` は JobEval 専用のコンポーネントではなく、複数のリポジトリやプロジェクトで共通利用される **独立した汎用ガバナンス基盤** である。
+サブモジュールの最新コミット自動同期を設計するにあたり、以下のアーキテクチャ上の課題と原則を遵守する必要があった：
+
+1. **アップストリーム非干渉・疎結合の原則 (Zero Upstream Coupling)**:
+   - アップストリーム（`antigravity-review-loop`）に特定の下流プロジェクト（JobEval）への通知設定（`repository_dispatch`）、PAT（Personal Access Token）、Secrets をハードコードすることは、**依存関係の逆流アンチパターン（上流が下流を知る密結合）** である。
+   - 下流プロジェクトが複数存在する環境において、アップストリームが個別下流の存在や宛先を管理する構造にしてはならない。
+2. **手動同期への精神論依存の排除 (Mechanisms do)**:
+   - 「更新に気づいたら手動で `git submodule update` を叩く」という個人の注意深さ（Good intentions）に依存していては、セキュリティ修正等の取り込み漏れや古いバージョンへの滞留が発生する。
+3. **下流プロジェクトの完全自律完結 (Autonomous Pull)**:
+   - 依存の方向は常に **「下流（JobEval）➔ 上流（antigravity-review-loop）の一方通行」** でなければならず、更新検知・取り込み・事前検証・PR 起票は下流側が自律的に Pull する責任を負うべきである。
 
 ---
 
-## 2. 決定事項 (Decisions)
+## 2. 決定内容 (Decision)
 
-### 2.1 自動同期ワークフロー（`.github/workflows/sync-submodule.yml`）の新設
-サブモジュール同期専用の独立した GitHub Actions ワークフローを新設し、以下を配備する：
-- **多重トリガー**:
-  - `repository_dispatch`: 外部リポジトリ（`antigravity-review-loop`）からの即時プッシュ通知イベント（`types: [antigravity-review-loop-updated, submodule-update]`）を受信。
-  - `schedule`: 定期 cron（毎日 UTC 0:00 = JST 9:00）によるフェイルセーフな差分検知・同期。
-  - `workflow_dispatch`: GitHub Actions UI からの手動実行。
-- **実行環境の統一**:
-  - ADR-0027 に準拠し、Node 24 ネイティブ版アクション（`actions/checkout@v7`, `actions/setup-node@v7`）を採用。
+以上のアーキテクチャ方針に基づき、**「アップストリームに一切の変更を求めない、下流完全自律 Pull 型（定期ポーリング ＋ 手動即時実行 ＋ Dependabot）および事前品質保証付き PR 自動起票メカニズム」** を採用する：
 
-### 2.2 厳格な品質ゲート（`npm run check`）の必須通過
-サブモジュールを最新コミットへ更新後、差分が検知された場合のみ以下を実行する：
-1. `npm ci` によるクリーンインストール。
-2. `npm run check` によるワンショット品質ゲート（シークレットスキャン、ドキュメント・スキル整合性検査、型検査、Vitest 全テスト、プロダクションビルド）。
-3. 品質ゲートに 1 つでも失敗した場合は直ちにワークフローを中断（Fail）し、破壊的変更の混入を物理遮断する。
+### 2.1 アップストリーム完全非干渉（設定 0 件・PAT 不要）の保証
+- `antigravity-review-loop` 側には、ワークフローの追加、PAT の発行・登録、Secrets の設定などを一切行わない。
+- GitHub Actions 標準の `GITHUB_TOKEN` のみで動作するため、PAT の有効期限管理や漏洩リスクが恒久的にゼロとなる。
+- アップストリームは JobEval の存在や宛先を一切知る必要がなく、独立した汎用ライブラリとしての純粋性を 100% 保持する。
 
-### 2.3 自動トピックブランチ作成と Pull Request 発行（人間マージ専権の維持）
-- main ブランチへの直接 push や自動マージは厳禁とし、専用ブランチ `chore/update-antigravity-review-loop` を作成して Pull Request を自動発行する。
-- 既存の同一ブランチ PR がオープンしている場合は、ブランチへの上書き push により既存 PR を安全に最新化し、多重 PR の乱立を防止する。
-- 人間（ユーザー）が PR 上で差分および CI 結果を確認し、最終マージを決定する。
+### 2.2 親リポジトリ自律の定期ポーリング (`schedule` cron)
+- JobEval 側の GitHub Actions（`.github/workflows/update-review-loop-submodule.yml`）が、6 時間間隔（`cron: '0 */6 * * *'`）で自律的にリモートの最新コミットをチェックする。
+
+### 2.3 手動即時トリガー (`workflow_dispatch`)
+- 「今すぐ最新の review-loop を取り込みたい」場合は、GitHub Actions UI からワンクリックで即座に同期ワークフローを実行可能とする。
+
+### 2.4 プラットフォーム標準 Dependabot (`gitsubmodule`) の併設
+- `.github/dependabot.yml` を配備し、GitHub 公式の依存関係更新機能による日次 Submodule 更新検知も多重配備する。
+
+### 2.5 厳格な事前品質検査と PR 自動起票
+- サブモジュールの更新を `main` に直接 push することは厳禁とし、専用ブランチ（`chore/update-antigravity-review-loop`）で PR を自動起票する（`peter-evans/create-pull-request@v7`）。
+- PR 起票前に、Node 24 環境下で `npm ci` および `npm run check`（シークレットスキャン、ADR・スキル検査、TypeScript 厳格型検査、Vitest 全テスト、プロダクションビルド）を実行し、破壊的変更がないことを 100% 事前保証する。
+- 自動マージは行わず、人間（ユーザー）が PR 上で最新コミットログと検証状況を確認してマージするガバナンス憲章を堅持する。
+
+### 2.6 Git Submodule 追跡設定の明示化
+- `.gitmodules` に `branch = main` を明記し、リモート追跡ブランチを決定論的に固定する。
 
 ---
 
-## 3. 結果と影響 (Consequences)
+## 3. 代替案の検討と却下理由 (Alternatives Considered)
 
-### ポジティブな影響
-- **プラグイン更新の即時・自動反映**: 外部リポジトリの更新が放置されることなく、自動で検証・PR 化される。
-- **高水準の安全性保証**: 親プロジェクトの全品質ゲート（`npm run check`）を通過した健全なコミットのみが PR 化される。
-- **人間中心のガバナンス維持**: 直接 push ではなく PR 方式を採用することで、人間承認原則を一切毀損しない。
+| 方式 | 判定 | 理由 |
+| :--- | :---: | :--- |
+| **A. アップストリームからの Push 通知 (`repository_dispatch`) ＋ PAT** | ❌ **却下** | 汎用基盤（上流）に個別プロジェクト（下流）の宛先や PAT を設定する密結合アンチパターン。他プロジェクトへの展開性を阻害し、PAT 管理リスクを生むため却下。 |
+| **B. main への直接自動プッシュ** | ❌ 却下 | 万一の破壊的変更混入時に本番環境・開発環境が即座にクラッシュする。憲章 2.3（人間マージ専権）に違反。 |
+| **C. 完全自律 Pull 型 (Cron + 手動 + Dependabot)（採用）** | ✅ **採用** | アップストリームに 1 行の変更も求めず、下流側の責任で自律同期・事前検証・PR起票を完結させる世界標準ベストプラクティス。 |
 
-### 留意事項
-- 外部リポジトリ側から push 時に即時トリガーしたい場合は、外部リポジトリ側の Actions から JobEval リポジトリに対して `repository_dispatch` を送信するステップ（PAT または GitHub App トークン）を設定する。
-- 外部通知が設定されていない場合でも、JobEval 側の定期 cron（毎朝 JST 9:00）および手動 dispatch により確実に最新化される。
+---
+
+## 4. 結果・影響 (Consequences)
+
+### メリット (Positive)
+- **ゼロ設定・疎結合**: `antigravity-review-loop` に一切の追加設定（PAT やワークフロー）が不要。
+- **高信頼性・安全性**: ワークフロー内での事前品質ゲート（`npm run check`）により、壊れたコードが PR になることを構造的に防止。
+- **運用の自由度**: 6 時間ごとの自動チェックに加え、必要時にボタン一つで即時同期が可能。
+- **トークン失敗リスクゼロ**: GitHub Actions 標準の `GITHUB_TOKEN` のみで動作するため、PAT の期限切れや漏洩リスクが恒久的にゼロ。
+
+### 留意点 (Trade-offs)
+- プッシュされた瞬間のミリ秒同期ではなく、スケジュール間隔（最大 6 時間）または手動トリガーでの同期となる（開発中の急ぎの更新は手動トリガーで即座に解決可能）。

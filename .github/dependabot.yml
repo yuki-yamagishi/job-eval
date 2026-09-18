@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # Git Submodule (antigravity-review-loop) automated dependency updates
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    labels:
+      - "dependencies"
+      - "automated-pr"
+    open-pull-requests-limit: 5

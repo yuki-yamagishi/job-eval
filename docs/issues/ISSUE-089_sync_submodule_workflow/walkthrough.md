@@ -1,26 +1,35 @@
 # Issue #89 成果レポート: antigravity-review-loop プラグイン更新の自動検知・同期 GitHub Actions ワークフローの構築
 
 ## 1. 実施概要
-Issue #89 に基づき、外部リポジトリ `yuki-yamagishi/antigravity-review-loop` の更新を自動検知・品質ゲート検証・自動 PR 同期する GitHub Actions ワークフロー（`.github/workflows/sync-submodule.yml`）を新設・導入しました。
-また、プラグインの最新修正コミット（`65aa8b9`: curl timeout safety guard & branch DoR validation 強化）を JobEval サブモジュールに取り込み、ADR-0029 を策定して仕様正本と同期しました。
+Issue #89 に基づき、外部リポジトリ `yuki-yamagishi/antigravity-review-loop` の更新を自動検知・品質ゲート検証・PR起票する完全自律 Pull 型 GitHub Actions ワークフロー（`.github/workflows/update-review-loop-submodule.yml`）および Dependabot 構成（`.github/dependabot.yml`）を導入しました。
+アップストリーム（`antigravity-review-loop`）には一切の設定（PAT やワークフロー追加）を求めず、相手側の独立性を 100% 保持したまま、JobEval 側単体で自律運用を完結させています。
+また、プラグインの最新修正コミット（`65aa8b9`: curl timeout safety guard & branch DoR validation 強化）を取り込み、`.gitmodules` に `branch = main` を明記、ADR-0029 を策定して仕様正本と同期しました。
 
 ---
 
 ## 2. 実装ハイライト
 
-### ① 自動同期 GitHub Actions ワークフローの構築 (`.github/workflows/sync-submodule.yml`)
+### ① 完全自律 Pull 型 GitHub Actions ワークフロー (`.github/workflows/update-review-loop-submodule.yml`)
 - **トリガー**:
-  - `repository_dispatch`: 外部リポジトリ push イベント通知（`antigravity-review-loop-updated`, `submodule-update`）による即時同期。
-  - `schedule`: 毎日 UTC 0:00 (JST 9:00) の定期実行による見落とし防止フェイルセーフ。
-  - `workflow_dispatch`: GitHub Actions UI からの手動ワンクリック実行。
+  - `schedule`: 6時間ごとの自律定期ポーリング（`cron: '0 */6 * * *'`）。
+  - `workflow_dispatch`: GitHub Actions UI からの手動即時実行（ワンクリック同期）。
+  - アップストリーム完全非干渉（PAT 発行・管理不要、`GITHUB_TOKEN` のみで 100% 完結）。
 - **実行環境**:
   - ADR-0027 に準拠し、Node 24 ネイティブ版 Action（`actions/checkout@v7`, `actions/setup-node@v7`）を採用。
-- **安全性強制（品質ゲート）**:
+- **安全性強制（事前品質ゲート）**:
   - サブモジュール更新後、差分が検知された場合のみ `npm ci` および `npm run check` を実行。
   - セキュリティスキャン、ドキュメント検査、TypeScript 型検査、Vitest 単体テスト、Vite 本番ビルドの全項目合格を PR 作成の物理的前提とすることで、壊れた更新の混入を物理遮断。
+- **リッチな PR 自動起票 (`peter-evans/create-pull-request@v7`)**:
+  - `OLD_SHA`、`NEW_SHA`、コミット日時、最新コミットログ（`COMMIT_LOG`）を抽出してリッチな Markdown 本文を自動生成。
+  - `dependencies`, `automated-pr` ラベルを自動付与。
 - **ガバナンス遵守（人間マージ専権）**:
-  - 直接 main への push や自動マージを厳禁とし、専用トピックブランチ（`chore/update-antigravity-review-loop`）から Pull Request を自動発行。
-  - 既存 PR がオープンしている場合は、ブランチへの上書き push により既存 PR を安全に最新化。
+  - 直接 main への push や自動マージを厳禁とし、専用トピックブランチ（`chore/update-antigravity-review-loop`）から Pull Request を自動発行して人間が確認・マージするガバナンスを遵守。
+
+### ② プラットフォーム標準 Dependabot 構成の配備 (`.github/dependabot.yml`)
+- GitHub 公式の `gitsubmodule` パッケージエコシステムによる日次 Submodule 更新検知を併設。
+
+### ③ Git Submodule 追跡設定の明示化 (`.gitmodules`)
+- `branch = main` を明記し、リモート追跡ブランチを決定論的に固定。
 
 ### ② プラグインサブモジュールの最新化 (`.agents/plugins/antigravity-review-loop`)
 - コミットポインタを `28222c6` から最新の `65aa8b9`（PR #2: curl timeout safety guard & branch DoR validation 強化）へ更新。

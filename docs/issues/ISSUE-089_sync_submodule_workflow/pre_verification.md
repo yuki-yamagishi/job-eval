@@ -33,16 +33,22 @@
 
 ## 4. 改修方針 (Implementation Strategy)
 1. **GitHub Actions ワークフローの構築**:
-   - `.github/workflows/sync-submodule.yml` を作成。
-   - トリガー: `repository_dispatch` (types: `submodule-update`, `antigravity-review-loop-updated`), `schedule` (cron: `0 0 * * *`), `workflow_dispatch`。
+   - `.github/workflows/update-review-loop-submodule.yml` を作成。
+   - トリガー: `schedule` (cron: `0 */6 * * *` = 6時間自律ポーリング), `workflow_dispatch` (手動即時実行)。
+   - アップストリーム完全非干渉（PAT 不要、相手先設定 0 件）。
    - ステップ:
-     1. リポジトリチェックアウト（`actions/checkout@v7`）
-     2. Node.js 24 セットアップ（`actions/setup-node@v7`）
-     3. サブモジュールの更新（`git submodule update --init --remote --merge .agents/plugins/antigravity-review-loop`）
-     4. 差分判定（`git status --porcelain .agents/plugins/antigravity-review-loop`）
-     5. 差分がある場合、`npm ci` と `npm run check` を実行。
-     6. 自動 PR 作成（既存 PR があれば更新、なければ新規作成）。
-2. **ローカルサブモジュールの最新コミット（`65aa8b9`）への更新**:
+     1. リポジトリチェックアウト（`actions/checkout@v7`, `token: ${{ secrets.GITHUB_TOKEN }}`）
+     2. サブモジュールの更新（`git submodule update --remote --merge`）
+     3. 差分判定（差分なしなら早期正常終了）
+     4. コミット情報（ハッシュ・日時・ログ）抽出
+     5. Node.js 24 セットアップおよび `npm ci`
+     6. フル品質ゲート検証（`npm run check`）
+     7. `peter-evans/create-pull-request@v7` による PR 自動起票
+2. **プラットフォーム標準 Dependabot 構成の配備**:
+   - `.github/dependabot.yml` に `gitsubmodule` パッケージエコシステムを登録。
+3. **Git Submodule 追跡ブランチの明示化**:
+   - `.gitmodules` に `branch = main` を追加。
+4. **ローカルサブモジュールの最新コミット（`65aa8b9`）への更新**:
    - `git submodule update --remote --merge` を実行し、親リポジトリでコミット。
 3. **ADR-0029 の策定**:
    - サブモジュール自動同期ワークフローの設計決定を記録。

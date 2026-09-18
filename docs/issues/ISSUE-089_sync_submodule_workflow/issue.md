@@ -39,24 +39,24 @@
 ## 5. 受け入れ基準 (Acceptance Criteria / Definition of Done)
 
 ### 5.1. 機能受け入れシナリオ (Feature-specific Acceptance Criteria: Given-When-Then)
-- **シナリオ 1: サブモジュール更新の検知と自動 PR 作成（正常系）**
+- **シナリオ 1: サブモジュール更新の自律検知と自動 PR 作成（正常系）**
   - **Given (前提)**: `yuki-yamagishi/antigravity-review-loop` のリモート main に新規コミットが存在し、JobEval のコミットポインタと差分がある。
-  - **When (操作・入力)**: `.github/workflows/sync-submodule.yml` がトリガー（dispatch または schedule）される。
-  - **Then (期待結果)**: サブモジュールがリモート最新に更新され、`npm run check` が実行されて全項目 PASS し、ブランチ `chore/update-antigravity-review-loop` が作成されて Pull Request が発行される。
+  - **When (操作・入力)**: `.github/workflows/update-review-loop-submodule.yml` が自律トリガー（6時間ごとの schedule cron または手動 workflow_dispatch）される。
+  - **Then (期待結果)**: サブモジュールがリモート最新に更新され、`npm run check` が実行されて全項目 PASS し、ブランチ `chore/update-antigravity-review-loop` が作成されて Pull Request が発行される（PAT不要、GITHUB_TOKEN完結）。
 - **シナリオ 2: サブモジュールが既に最新の場合の早期終了（差分なし）**
   - **Given (前提)**: JobEval のサブモジュールポインタがリモート最新と完全に一致している。
-  - **When (操作・入力)**: `.github/workflows/sync-submodule.yml` が実行される。
+  - **When (操作・入力)**: `.github/workflows/update-review-loop-submodule.yml` が実行される。
   - **Then (期待結果)**: 差分なしと判定され、不要な品質ゲート実行や PR 作成をスキップして正常終了（exit code 0）する。
 - **シナリオ 3: プラグイン更新により品質ゲートが失敗した場合の自動遮断（異常系・防護）**
   - **Given (前提)**: プラグインの更新内容に破壊的変更が含まれ、JobEval の `npm run check` が失敗する。
-  - **When (操作・入力)**: `.github/workflows/sync-submodule.yml` が実行される。
+  - **When (操作・入力)**: `.github/workflows/update-review-loop-submodule.yml` が実行される。
   - **Then (期待結果)**: 品質ゲートステップでワークフローが即時失敗終了し、壊れたサブモジュールの PR 作成やマージは阻止される。
 
 ### 5.2. PR作成前プロセス完了基準 (Pre-PR Process DoD)
-- [x] `.github/workflows/sync-submodule.yml` が作成され、構文エラーがないこと。
-- [x] サブモジュール `.agents/plugins/antigravity-review-loop` が最新コミット（`65aa8b9`）に更新されていること。
+- [x] `.github/workflows/update-review-loop-submodule.yml` および `.github/dependabot.yml` が作成され、構文エラーがないこと。
+- [x] `.gitmodules` に `branch = main` が設定され、サブモジュールが最新コミット（`65aa8b9`）に更新されていること。
 - [x] 重複・パッチワーク点検（Impact & Duplication Check）が `pre_verification.md` に記録されていること。
-- [x] ADR-0029 が策定され、設計決定が記録されていること。
+- [x] ADR-0029 が策定され、設計決定（完全自律 Pull 型・PAT 不要）が記録されていること。
 - [x] 4軸ドキュメント（`issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md`）が完備されていること。
 - [x] フル品質ゲート（`npm.cmd run check`）が 100% PASS すること。
 
