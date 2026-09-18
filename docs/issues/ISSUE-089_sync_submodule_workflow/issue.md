@@ -53,12 +53,12 @@
   - **Then (期待結果)**: 品質ゲートステップでワークフローが即時失敗終了し、壊れたサブモジュールの PR 作成やマージは阻止される。
 
 ### 5.2. PR作成前プロセス完了基準 (Pre-PR Process DoD)
-- [ ] `.github/workflows/sync-submodule.yml` が作成され、構文エラーがないこと。
-- [ ] サブモジュール `.agents/plugins/antigravity-review-loop` が最新コミット（`65aa8b9`）に更新されていること。
-- [ ] 重複・パッチワーク点検（Impact & Duplication Check）が `pre_verification.md` に記録されていること。
-- [ ] ADR-0029 が策定され、設計決定が記録されていること。
-- [ ] 4軸ドキュメント（`issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md`）が完備されていること。
-- [ ] フル品質ゲート（`npm.cmd run check`）が 100% PASS すること。
+- [x] `.github/workflows/sync-submodule.yml` が作成され、構文エラーがないこと。
+- [x] サブモジュール `.agents/plugins/antigravity-review-loop` が最新コミット（`65aa8b9`）に更新されていること。
+- [x] 重複・パッチワーク点検（Impact & Duplication Check）が `pre_verification.md` に記録されていること。
+- [x] ADR-0029 が策定され、設計決定が記録されていること。
+- [x] 4軸ドキュメント（`issue.md`, `pre_verification.md`, `plan.md`, `walkthrough.md`）が完備されていること。
+- [x] フル品質ゲート（`npm.cmd run check`）が 100% PASS すること。
 
 ### 5.3. マージ前完了ゲート (Pre-Merge Gate)
 - [ ] GitHub Actions CI が PASS していること。
