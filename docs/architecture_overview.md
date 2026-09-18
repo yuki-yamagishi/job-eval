@@ -1,7 +1,7 @@
 # JobEval アーキテクチャ概説 & システム仕様 (Architecture Overview & SSOT)
 
 JobEval は、**Tauri v2 + React 18 (TypeScript Strict) + Vite + Tailwind CSS** で構築された、AI求人適合度評価 & Markdownドキュメント管理デスクトップ/PWAアプリケーションです。
-本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0028）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
+本ドキュメントは、プロジェクト全体のアーキテクチャ決定（ADR-0001〜0029）および仕様を統合した **唯一の仕様正本（Single Source of Truth: SSOT）** です。
 
 ---
 
@@ -81,6 +81,7 @@ tests/                    # 自動テストハーネス (Vitest)
 | [ADR-0026](./adr/0026-cloudflare-pages-automated-deployment.md) | GitHub Actions による Cloudflare Pages への安全な自動デプロイパイプラインの採用 | **Accepted** | main push 時の Outer Loop 品質ゲート通過後直列自動デプロイ、成果物アーティファクト同一性保証、および Environment 保護による多層防壁。 |
 | [ADR-0027](./adr/0027-github-actions-node24-native-migration.md) | GitHub Actions 公式 Action の Node 24 ネイティブ版への移行と Node.js 24 実行環境の標準化 | **Accepted** | CI/CD パイプライン全体の Node 24 ネイティブ移行（Action v7/v8 採用、node-version: 24 指定）による警告解消と Node 20 廃止破壊の恒久回避。 |
 | [ADR-0028](./adr/0028-custom-health-insurance-name-and-direct-edit.md) | 会社独自健保の実名優先化・直接編集と大分類フィルター全廃 | **Accepted** | 大分類カテゴリーEnum丸め込みと不要な健保フィルターを全廃し、実在する健康保険組合の実名取得・表示・直接テキスト編集機能への刷新。 |
+| [ADR-0029](./adr/0029-submodule-automated-sync-workflow.md) | antigravity-review-loop プラグイン更新の自動検知・品質検証・自動 PR 同期ワークフローの導入 | **Accepted** | 外部リポジトリ（`antigravity-review-loop`）更新の自動検知（dispatch/schedule/manual）、親品質ゲート（`npm run check`）の必須通過、および自動 PR 作成による人間マージ専権維持。 |
 
 ---
 
@@ -116,4 +117,9 @@ tests/                    # 自動テストハーネス (Vitest)
    - GitHub Actions 公式アクション（`checkout@v7`, `setup-node@v7`, `upload-artifact@v7`, `download-artifact@v8`）を Node 24 ネイティブ対応版へ全面移行。
    - CI 実行環境を `node-version: 24` に明示指定し、ローカル開発環境（Node.js v24.x）との環境完全一致を保証。
    - GitHub ランナーの Node 20 廃止・強制実行に伴う Deprecation Annotation Warning を完全に排除し、2026年9月の Node 20 完全削除による CI 停止リスクを未然に防止。
+9. **プラグイン更新の自動検知・品質検証・自動 PR 同期パイプライン (ADR-0029)**:
+   - 外部リポジトリ（`yuki-yamagishi/antigravity-review-loop`）の修正を自動検知する専用ワークフロー（`.github/workflows/sync-submodule.yml`）を配備。
+   - `repository_dispatch`、`schedule` cron（毎日 UTC 0:00）、`workflow_dispatch` の多重トリガーにより、更新の見落としや古いプラグインの長期残存を物理排除。
+   - サブモジュール更新後に必ずワンショット品質ゲート（`npm run check`）を実行し、親プロジェクトを破壊しない健全な更新のみをトピックブランチ（`chore/update-antigravity-review-loop`）から Pull Request として自動発行。
+   - 自動マージを行わず人間（ユーザー）の最終確認・マージ専権を堅持することで、利便性と厳格なガバナンスを完全に両立。
 
