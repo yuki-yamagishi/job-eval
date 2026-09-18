@@ -42,3 +42,15 @@ Issue #89 に基づき、外部リポジトリ `yuki-yamagishi/antigravity-revie
 - **TypeScript 型検査 (`tsc --noEmit`)**: PASS (0 errors)
 - **単体テストスイート (`vitest run --coverage`)**: PASS (全テスト 100% PASS)
 - **プロダクションビルド (`vite build`)**: PASS (dist 出力成功)
+
+---
+
+## 4. Fleet レビュー指摘解消 & 再検証
+
+### 4.1. レビュー指摘への対応内容
+- **[must] jq の `null` 出力に起因する PR 作成処理スキップバグの修正**:
+  - `gh pr list ... --jq '.[0].number'` は PR が存在しない場合に文字列 `"null"` を出力し、`[ -n "$EXISTING_PR" ]` が真と誤判定されて `gh pr create` がスキップされる問題に対し、`.[0].number // empty` を用いて空出力化する修正を実施。
+- **[should] 既存 PR 更新時のタイトル・本文追随**:
+  - 既存 PR が存在する場合に、最新コミットハッシュを含むタイトル・本文へ `gh pr edit` で同期更新する処理を追加。
+- **[should] 外部トークン（SYNC_TOKEN）の柔軟な対応**:
+  - `secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN` をサポート。
