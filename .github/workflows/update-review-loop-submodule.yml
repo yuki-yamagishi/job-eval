@@ -1,0 +1,114 @@
+name: Update antigravity-review-loop Submodule
+
+on:
+  workflow_dispatch: # Manual trigger from GitHub UI / CLI
+  schedule:
+    - cron: '0 */6 * * *' # Every 6 hours autonomous polling
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-submodule:
+    name: Update Submodule & Create PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Record Current Submodule SHA
+        id: current_sha
+        run: |
+          OLD_SHA=$(git rev-parse --short :.agents/plugins/antigravity-review-loop)
+          echo "old_sha=$OLD_SHA" >> $GITHUB_OUTPUT
+
+      - name: Update Submodule to Latest Remote
+        run: |
+          git submodule update --remote --merge .agents/plugins/antigravity-review-loop
+
+      - name: Check for Submodule Changes
+        id: git_status
+        run: |
+          if git diff --quiet .agents/plugins/antigravity-review-loop; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "Submodule .agents/plugins/antigravity-review-loop is already up to date."
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Submodule .agents/plugins/antigravity-review-loop has new commits."
+          fi
+
+      - name: Extract Submodule Commit Info
+        if: steps.git_status.outputs.has_changes == 'true'
+        id: submodule_info
+        run: |
+          NEW_SHA=$(git -C .agents/plugins/antigravity-review-loop rev-parse --short HEAD)
+          COMMIT_DATE=$(git -C .agents/plugins/antigravity-review-loop log -1 --format=%cd --date=iso)
+          COMMIT_LOG=$(git -C .agents/plugins/antigravity-review-loop log -n 5 --oneline)
+          DELIMITER="EOF_$(date +%s)"
+          echo "new_sha=$NEW_SHA" >> $GITHUB_OUTPUT
+          echo "commit_date=$COMMIT_DATE" >> $GITHUB_OUTPUT
+          {
+            echo "commit_log<<$DELIMITER"
+            echo "$COMMIT_LOG"
+            echo "$DELIMITER"
+          } >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js 24 for Quality Gate Verification
+        if: steps.git_status.outputs.has_changes == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Install Dependencies for Verification
+        if: steps.git_status.outputs.has_changes == 'true'
+        run: npm ci
+
+      - name: Run JobEval Full Quality Gate Verification
+        if: steps.git_status.outputs.has_changes == 'true'
+        run: npm run check
+
+      - name: Create Pull Request
+        if: steps.git_status.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/update-antigravity-review-loop
+          base: main
+          delete-branch: true
+          title: "chore(deps): update antigravity-review-loop submodule to ${{ steps.submodule_info.outputs.new_sha }}"
+          commit-message: "chore(deps): update antigravity-review-loop submodule to ${{ steps.submodule_info.outputs.new_sha }}"
+          body: |
+            ## 概要
+            `antigravity-review-loop`（アップストリーム）の更新を検知し、サブモジュールを最新コミットに更新しました。
+
+            ### 更新内容
+            - **対象**: `.agents/plugins/antigravity-review-loop`
+            - **コミット**: `${{ steps.current_sha.outputs.old_sha }}` → `${{ steps.submodule_info.outputs.new_sha }}`
+            - **更新日時**: `${{ steps.submodule_info.outputs.commit_date }}`
+
+            ### 最新コミットログ
+            ```text
+            ${{ steps.submodule_info.outputs.commit_log }}
+            ```
+
+            ### 検証状況 (本ワークフロー内で事前パス済)
+            - [x] セキュリティ & シークレットスキャン (`securityCheck.js`) PASS
+            - [x] ADR & エージェントスキル整合性検査 (`docCheck.js`, `agentSkillChecker.js`) PASS
+            - [x] TypeScript 厳格型検査 (`tsc --noEmit`) PASS
+            - [x] Vitest 単体テスト全件 (`vitest run --coverage`) PASS
+            - [x] Vite 本番プロダクションビルド (`vite build`) PASS
+            - [ ] ※ GITHUB_TOKEN 起票のため pull_request イベント CI は自動発火しませんが、本ワークフロー内ですべての事前検証が PASS しています。必要に応じてマージ前に手動で CI を実行してください。
+          labels: |
+            dependencies
+            automated-pr
