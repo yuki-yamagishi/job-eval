@@ -268,9 +268,37 @@ describe('Lifecycle Hooks (antigravity-review-loop/hooks/)', () => {
       });
       expect(result4.decision).toBe('deny');
       expect(result4.reason).toContain('Interactive test runner detected');
+
+      // Unforwarded flags must also be denied to prevent interactive process hangs
+      const result5 = handleSafetyGuard({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'npm test --run' },
+        },
+      });
+      expect(result5.decision).toBe('deny');
+      expect(result5.reason).toContain('Interactive test runner detected');
+
+      const result6 = handleSafetyGuard({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'npm test --watch=false' },
+        },
+      });
+      expect(result6.decision).toBe('deny');
+      expect(result6.reason).toContain('Interactive test runner detected');
+
+      const result7 = handleSafetyGuard({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'npm.cmd test --watch=false' },
+        },
+      });
+      expect(result7.decision).toBe('deny');
+      expect(result7.reason).toContain('Interactive test runner detected');
     });
 
-    it('allows non-hanging test commands (npm run test:run, npm test --run, npm run test:coverage, test:fast, test:related)', () => {
+    it('allows non-hanging test commands (npm run test:run, npm test -- --run, npm run test:coverage, test:fast, test:related)', () => {
       const result1 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
@@ -282,10 +310,26 @@ describe('Lifecycle Hooks (antigravity-review-loop/hooks/)', () => {
       const result2 = handleSafetyGuard({
         toolCall: {
           name: 'run_command',
-          args: { CommandLine: 'npm test --run' },
+          args: { CommandLine: 'npm test -- --run' },
         },
       });
       expect(result2.decision).toBe('allow');
+
+      const result2cmd = handleSafetyGuard({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'npm.cmd test -- --run' },
+        },
+      });
+      expect(result2cmd.decision).toBe('allow');
+
+      const result2watch = handleSafetyGuard({
+        toolCall: {
+          name: 'run_command',
+          args: { CommandLine: 'npm test -- --watch=false' },
+        },
+      });
+      expect(result2watch.decision).toBe('allow');
 
       const result3 = handleSafetyGuard({
         toolCall: {
